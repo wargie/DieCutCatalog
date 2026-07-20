@@ -10,6 +10,14 @@ services:
       ASPNETCORE_HTTP_PORTS: 8080
       ConnectionStrings__Database: Host=postgres;Port=5432;Database=diecut_catalog;Username=diecut_catalog;Password=${POSTGRES_PASSWORD}
       Storage__RootPath: /var/lib/diecut-catalog/storage
+      Account__SetupToken: ${ACCOUNT_SETUP_TOKEN}
+      Smtp__Host: ${SMTP_HOST}
+      Smtp__Port: ${SMTP_PORT:-587}
+      Smtp__Username: ${SMTP_USERNAME}
+      Smtp__Password: ${SMTP_PASSWORD}
+      Smtp__FromAddress: ${SMTP_FROM_ADDRESS}
+      Smtp__FromName: ${SMTP_FROM_NAME:-DieCut Catalog}
+      Smtp__EnableSsl: ${SMTP_ENABLE_SSL:-true}
     ports:
       - "127.0.0.1:5080:8080"
     volumes:

@@ -6,7 +6,7 @@ COPY src/DieCutCatalog.Api/DieCutCatalog.Api.csproj src/DieCutCatalog.Api/
 COPY src/DieCutCatalog.Application/DieCutCatalog.Application.csproj src/DieCutCatalog.Application/
 COPY src/DieCutCatalog.Domain/DieCutCatalog.Domain.csproj src/DieCutCatalog.Domain/
 COPY src/DieCutCatalog.Infrastructure/DieCutCatalog.Infrastructure.csproj src/DieCutCatalog.Infrastructure/
-RUN dotnet restore src/DieCutCatalog.Api/DieCutCatalog.Api.csproj
+RUN dotnet restore src/DieCutCatalog.Api/DieCutCatalog.Api.csproj --configfile NuGet.Config
 
 COPY src/ src/
 RUN dotnet publish src/DieCutCatalog.Api/DieCutCatalog.Api.csproj \

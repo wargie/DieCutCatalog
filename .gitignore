@@ -10,3 +10,4 @@ storage/
 .dotnet/
 .templateengine/
 .nuget/
+TestResults/
