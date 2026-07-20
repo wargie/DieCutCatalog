@@ -1,0 +1,10 @@
+.git
+.gitignore
+.vs
+.idea
+.dotnet
+.templateengine
+**/bin
+**/obj
+data
+storage

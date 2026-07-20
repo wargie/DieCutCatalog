@@ -1,6 +1,6 @@
 # DieCut Catalog
 
-Сетевая система хранения, поиска и учета вырубных ножей. Windows-клиент работает с центральным сервером на Ubuntu; сервер хранит данные в PostgreSQL и управляет PDF-чертежами.
+Сетевая система хранения, поиска и учета вырубных ножей. Windows-клиент работает с центральным Linux-сервером; сервер хранит данные в PostgreSQL и управляет PDF-чертежами.
 
 ## Цели проекта
 
@@ -19,7 +19,7 @@ Windows-клиент (WPF)
         |
      HTTPS API
         |
-Ubuntu Server
+Linux Server
   |-- ASP.NET Core API
   |-- PostgreSQL
   +-- PDF-хранилище
@@ -34,7 +34,7 @@ Ubuntu Server
 - .NET 8, ASP.NET Core;
 - Windows desktop-клиент: WPF;
 - PostgreSQL;
-- Docker Compose для Ubuntu;
+- Docker Compose для Debian/Ubuntu;
 - управляемое файловое хранилище PDF.
 
 ## Структура решения
@@ -57,7 +57,20 @@ dotnet run --project src/DieCutCatalog.Api
 
 API после запуска: `http://localhost:5080`. Проверка состояния: `GET /health`.
 
-Настройки для рабочей среды и пароли не должны попадать в Git. Перед развертыванием они будут вынесены в переменные окружения Ubuntu.
+Настройки для рабочей среды и пароли не должны попадать в Git. Для production-развертывания используется `compose.production.yaml`, а секреты передаются через серверный файл `.env`.
+
+## Production-развертывание
+
+На Debian/Ubuntu сервере:
+
+```bash
+cp .env.example .env
+# Заменить POSTGRES_PASSWORD на случайный пароль.
+docker-compose -f compose.production.yaml up -d --build
+curl http://127.0.0.1:5080/health
+```
+
+API привязан к loopback-интерфейсу сервера. Внешний доступ должен публиковаться только через HTTPS reverse proxy. PostgreSQL доступен исключительно внутри Docker-сети.
 
 ## Статус
 

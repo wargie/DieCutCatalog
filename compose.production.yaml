@@ -1,0 +1,41 @@
+version: "2.4"
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: src/DieCutCatalog.Api/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_HTTP_PORTS: 8080
+      ConnectionStrings__Database: Host=postgres;Port=5432;Database=diecut_catalog;Username=diecut_catalog;Password=${POSTGRES_PASSWORD}
+      Storage__RootPath: /var/lib/diecut-catalog/storage
+    ports:
+      - "127.0.0.1:5080:8080"
+    volumes:
+      - document-storage:/var/lib/diecut-catalog/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    mem_limit: 192m
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: diecut_catalog
+      POSTGRES_USER: diecut_catalog
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U diecut_catalog -d diecut_catalog"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    mem_limit: 256m
+
+volumes:
+  postgres-data:
+  document-storage:
