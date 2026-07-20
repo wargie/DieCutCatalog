@@ -1,23 +1,196 @@
-﻿using System.Text;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
 using System.Windows.Input;
-using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
+using DieCutCatalog.Application.Employees;
+using DieCutCatalog.Domain.Employees;
+using Microsoft.Win32;
 
 namespace DieCutCatalog.Desktop;
 
-/// <summary>
-/// Interaction logic for MainWindow.xaml
-/// </summary>
 public partial class MainWindow : Window
 {
+    private readonly CatalogApiClient _api = new();
+    private EmployeeProfile? _profile;
+
     public MainWindow()
     {
         InitializeComponent();
+        Closed += async (_, _) =>
+        {
+            try { await _api.LogoutAsync(); }
+            catch { }
+            _api.Dispose();
+        };
     }
+
+    private async void Login_Click(object sender, RoutedEventArgs e)
+    {
+        await RunBusyAsync(LoginButton, async () =>
+        {
+            HideError(LoginError);
+            _api.Configure(ServerAddressBox.Text);
+            var result = await _api.LoginAsync(EmailBox.Text, PasswordBox.Password);
+            _profile = result.Profile;
+            if (result.MustChangePassword)
+            {
+                TemporaryPasswordBox.Password = PasswordBox.Password;
+                PasswordChangeOverlay.Visibility = Visibility.Visible;
+                RequiredNewPasswordBox.Focus();
+                return;
+            }
+            await OpenShellAsync();
+        }, LoginError);
+    }
+
+    private void LoginPassword_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter) Login_Click(LoginButton, new RoutedEventArgs());
+    }
+
+    private async void CompletePasswordChange_Click(object sender, RoutedEventArgs e)
+    {
+        await RunBusyAsync((Button)sender, async () =>
+        {
+            HideError(RequiredPasswordError);
+            if (RequiredNewPasswordBox.Password != RequiredPasswordConfirmationBox.Password)
+                throw new CatalogApiException("Новые пароли не совпадают.");
+            await _api.ChangePasswordAsync(TemporaryPasswordBox.Password, RequiredNewPasswordBox.Password);
+            _profile = _profile! with { MustChangePassword = false };
+            TemporaryPasswordBox.Clear();
+            RequiredNewPasswordBox.Clear();
+            RequiredPasswordConfirmationBox.Clear();
+            PasswordChangeOverlay.Visibility = Visibility.Collapsed;
+            await OpenShellAsync();
+        }, RequiredPasswordError);
+    }
+
+    private async Task OpenShellAsync()
+    {
+        PasswordBox.Clear();
+        PopulateProfile();
+        await LoadPhotoAsync();
+        LoginView.Visibility = Visibility.Collapsed;
+        ShellView.Visibility = Visibility.Visible;
+        ShowCatalog();
+    }
+
+    private void PopulateProfile()
+    {
+        if (_profile is null) return;
+        SidebarUserName.Text = $"{_profile.FirstName} {_profile.LastName}";
+        SidebarUserEmail.Text = _profile.Email;
+        FirstNameBox.Text = _profile.FirstName;
+        LastNameBox.Text = _profile.LastName;
+        PositionBox.Text = _profile.Position;
+        PhoneBox.Text = _profile.Phone;
+        ContactsBox.Text = _profile.AdditionalContacts;
+        ProfileEmailBox.Text = _profile.Email;
+        NewEmailBox.Text = _profile.Email;
+        CreateEmployeePanel.Visibility = _profile.Role == EmployeeRole.Administrator ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private async Task LoadPhotoAsync()
+    {
+        try
+        {
+            var bytes = await _api.DownloadPhotoAsync(_profile?.PhotoUrl);
+            if (bytes is null) { ProfilePhoto.Source = null; return; }
+            using var stream = new MemoryStream(bytes);
+            var image = new BitmapImage();
+            image.BeginInit(); image.CacheOption = BitmapCacheOption.OnLoad; image.StreamSource = stream; image.EndInit(); image.Freeze();
+            ProfilePhoto.Source = image;
+        }
+        catch (CatalogApiException) { ProfilePhoto.Source = null; }
+    }
+
+    private void ShowCatalog_Click(object sender, RoutedEventArgs e) => ShowCatalog();
+    private void ShowCatalog() { CatalogView.Visibility = Visibility.Visible; EmployeeView.Visibility = Visibility.Collapsed; }
+    private void ShowEmployee_Click(object sender, RoutedEventArgs e) { CatalogView.Visibility = Visibility.Collapsed; EmployeeView.Visibility = Visibility.Visible; }
+
+    private async void SaveProfile_Click(object sender, RoutedEventArgs e)
+    {
+        await RunBusyAsync((Button)sender, async () =>
+        {
+            ProfileStatus.Text = string.Empty;
+            _profile = await _api.UpdateProfileAsync(FirstNameBox.Text, LastNameBox.Text, NullIfEmpty(PositionBox.Text), NullIfEmpty(PhoneBox.Text), NullIfEmpty(ContactsBox.Text));
+            PopulateProfile();
+            ProfileStatus.Text = "Сохранено";
+        });
+    }
+
+    private async void ChangePassword_Click(object sender, RoutedEventArgs e)
+    {
+        await RunBusyAsync((Button)sender, async () =>
+        {
+            await _api.ChangePasswordAsync(CurrentPasswordBox.Password, NewPasswordBox.Password);
+            CurrentPasswordBox.Clear(); NewPasswordBox.Clear();
+            MessageBox.Show("Пароль изменён.", "DieCut Catalog", MessageBoxButton.OK, MessageBoxImage.Information);
+        });
+    }
+
+    private async void ChangeEmail_Click(object sender, RoutedEventArgs e)
+    {
+        await RunBusyAsync((Button)sender, async () =>
+        {
+            await _api.ChangeEmailAsync(EmailPasswordBox.Password, NewEmailBox.Text);
+            _profile = _profile! with { Email = NewEmailBox.Text.Trim() };
+            EmailPasswordBox.Clear(); PopulateProfile();
+            MessageBox.Show("Адрес электронной почты изменён.", "DieCut Catalog", MessageBoxButton.OK, MessageBoxImage.Information);
+        });
+    }
+
+    private async void UploadPhoto_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog { Title = "Выберите фотографию", Filter = "Изображения|*.jpg;*.jpeg;*.png;*.webp", CheckFileExists = true };
+        if (dialog.ShowDialog(this) != true) return;
+        await RunBusyAsync((Button)sender, async () =>
+        {
+            _profile = await _api.UploadPhotoAsync(dialog.FileName);
+            PopulateProfile(); await LoadPhotoAsync();
+        });
+    }
+
+    private async void CreateEmployee_Click(object sender, RoutedEventArgs e)
+    {
+        await RunBusyAsync((Button)sender, async () =>
+        {
+            var employee = await _api.CreateEmployeeAsync(EmployeeEmailBox.Text, EmployeeFirstNameBox.Text, EmployeeLastNameBox.Text,
+                NullIfEmpty(EmployeePositionBox.Text), NullIfEmpty(EmployeePhoneBox.Text), EmployeeAdministratorBox.IsChecked == true);
+            EmployeeEmailBox.Clear(); EmployeeFirstNameBox.Clear(); EmployeeLastNameBox.Clear(); EmployeePositionBox.Clear(); EmployeePhoneBox.Clear();
+            EmployeeAdministratorBox.IsChecked = false;
+            MessageBox.Show($"Учётная запись для {employee.Email} создана. Временный пароль отправлен по почте.",
+                "DieCut Catalog", MessageBoxButton.OK, MessageBoxImage.Information);
+        });
+    }
+
+    private async void Logout_Click(object sender, RoutedEventArgs e)
+    {
+        await RunBusyAsync((Button)sender, async () =>
+        {
+            await _api.LogoutAsync();
+            _profile = null; ProfilePhoto.Source = null;
+            ShellView.Visibility = Visibility.Collapsed; LoginView.Visibility = Visibility.Visible; EmailBox.Focus();
+        });
+    }
+
+    private async Task RunBusyAsync(Button button, Func<Task> action, TextBlock? inlineError = null)
+    {
+        button.IsEnabled = false;
+        try { await action(); }
+        catch (CatalogApiException exception)
+        {
+            if (inlineError is not null) { inlineError.Text = exception.Message; inlineError.Visibility = Visibility.Visible; }
+            else MessageBox.Show(exception.Message, "DieCut Catalog", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show($"Операция не выполнена: {exception.Message}", "DieCut Catalog", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally { button.IsEnabled = true; }
+    }
+
+    private static void HideError(TextBlock error) { error.Text = string.Empty; error.Visibility = Visibility.Collapsed; }
+    private static string? NullIfEmpty(string value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

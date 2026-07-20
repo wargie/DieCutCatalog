@@ -1,12 +1,157 @@
-﻿<Window x:Class="DieCutCatalog.Desktop.MainWindow"
+<Window x:Class="DieCutCatalog.Desktop.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:DieCutCatalog.Desktop"
-        mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
+        Title="Каталог вырубных ножей" Width="1180" Height="760" MinWidth="940" MinHeight="620"
+        WindowStartupLocation="CenterScreen" Background="#F3F5F7">
+    <Window.Resources>
+        <SolidColorBrush x:Key="AccentBrush" Color="#147D73" />
+        <Style TargetType="Button">
+            <Setter Property="MinHeight" Value="38"/><Setter Property="Padding" Value="18,7"/>
+            <Setter Property="BorderThickness" Value="0"/><Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+            <Setter Property="Foreground" Value="White"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        <Style x:Key="SecondaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="#E4E9EC"/><Setter Property="Foreground" Value="#27343A"/>
+        </Style>
+        <Style TargetType="TextBox">
+            <Setter Property="MinHeight" Value="38"/><Setter Property="Padding" Value="10,7"/>
+            <Setter Property="BorderBrush" Value="#C8D0D5"/><Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style TargetType="PasswordBox">
+            <Setter Property="MinHeight" Value="38"/><Setter Property="Padding" Value="10,7"/>
+            <Setter Property="BorderBrush" Value="#C8D0D5"/><Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="Margin" Value="0,12,0,5"/><Setter Property="Foreground" Value="#536168"/>
+        </Style>
+    </Window.Resources>
     <Grid>
-
+        <Grid x:Name="LoginView">
+            <Border Width="430" Padding="38" Background="White" BorderBrush="#DEE3E6" BorderThickness="1">
+                <StackPanel>
+                    <TextBlock Text="DieCut Catalog" FontSize="28" FontWeight="Bold" Foreground="#18272D"/>
+                    <TextBlock Text="Вход в каталог вырубных ножей" Margin="0,7,0,18" Foreground="#68777E"/>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Адрес сервера"/><TextBox x:Name="ServerAddressBox" Text="http://localhost:5080"/>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Электронная почта"/><TextBox x:Name="EmailBox"/>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Пароль"/><PasswordBox x:Name="PasswordBox" KeyDown="LoginPassword_KeyDown"/>
+                    <TextBlock x:Name="LoginError" Margin="0,12,0,0" Foreground="#B3261E" TextWrapping="Wrap" Visibility="Collapsed"/>
+                    <Button x:Name="LoginButton" Margin="0,20,0,0" Content="Войти" Click="Login_Click"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+        <Grid x:Name="ShellView" Visibility="Collapsed">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="220"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+            <Border Background="#1E3036">
+                <DockPanel Margin="18,24">
+                    <StackPanel DockPanel.Dock="Bottom">
+                        <TextBlock x:Name="SidebarUserName" Foreground="White" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                        <TextBlock x:Name="SidebarUserEmail" Margin="0,4,0,12" Foreground="#AEBBC0" FontSize="12" TextWrapping="Wrap"/>
+                        <Button Style="{StaticResource SecondaryButton}" Content="Выйти" Click="Logout_Click"/>
+                    </StackPanel>
+                    <StackPanel>
+                        <TextBlock Text="DieCut Catalog" Foreground="White" FontSize="20" FontWeight="Bold" Margin="4,0,0,28"/>
+                        <Button Content="Каталог ножей" HorizontalContentAlignment="Left" Click="ShowCatalog_Click"/>
+                        <Button Content="Сотрудник" Margin="0,8,0,0" HorizontalContentAlignment="Left" Click="ShowEmployee_Click"/>
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+            <Grid Grid.Column="1" Margin="32,26">
+                <Grid x:Name="CatalogView">
+                    <StackPanel>
+                        <TextBlock Text="Каталог ножей" FontSize="26" FontWeight="Bold" Foreground="#18272D"/>
+                        <Border Margin="0,24,0,0" Padding="24" Background="White" BorderBrush="#DEE3E6" BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock Text="Каталог будет следующим рабочим разделом" FontSize="18" FontWeight="SemiBold"/>
+                                <TextBlock Margin="0,8,0,0" Foreground="#68777E" TextWrapping="Wrap" Text="Здесь появятся таблица ножей, поиск, фильтры и карточка с PDF-чертежом."/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+                <ScrollViewer x:Name="EmployeeView" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+                    <StackPanel MaxWidth="820" HorizontalAlignment="Left">
+                        <TextBlock Text="Сотрудник" FontSize="26" FontWeight="Bold" Foreground="#18272D"/>
+                        <Border Margin="0,20,0,0" Padding="24" Background="White" BorderBrush="#DEE3E6" BorderThickness="1">
+                            <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="150"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <Border Width="116" Height="116" Background="#E8ECEE" BorderBrush="#CFD6DA" BorderThickness="1"><Image x:Name="ProfilePhoto" Stretch="UniformToFill"/></Border>
+                                    <Button Margin="0,12,16,0" Padding="8,5" MinHeight="34" Style="{StaticResource SecondaryButton}" Content="Выбрать фото" Click="UploadPhoto_Click"/>
+                                </StackPanel>
+                                <Grid Grid.Column="1">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Имя"/><TextBox x:Name="FirstNameBox"/>
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Должность"/><TextBox x:Name="PositionBox"/>
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Телефон"/><TextBox x:Name="PhoneBox"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Фамилия"/><TextBox x:Name="LastNameBox"/>
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Электронная почта"/><TextBox x:Name="ProfileEmailBox" IsReadOnly="True" Background="#F1F3F4"/>
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Дополнительные контакты"/><TextBox x:Name="ContactsBox"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Grid>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+                                <TextBlock x:Name="ProfileStatus" VerticalAlignment="Center" Margin="0,0,16,0" Foreground="#147D73"/>
+                                <Button Content="Сохранить профиль" Click="SaveProfile_Click"/>
+                            </StackPanel>
+                            </StackPanel>
+                        </Border>
+                        <Grid Margin="0,18,0,0">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <Border Padding="22" Background="White" BorderBrush="#DEE3E6" BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="Изменить пароль" FontSize="17" FontWeight="SemiBold"/>
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Текущий пароль"/><PasswordBox x:Name="CurrentPasswordBox"/>
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Новый пароль"/><PasswordBox x:Name="NewPasswordBox"/>
+                                    <Button Margin="0,18,0,0" Content="Изменить пароль" Click="ChangePassword_Click"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Column="2" Padding="22" Background="White" BorderBrush="#DEE3E6" BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="Изменить почту" FontSize="17" FontWeight="SemiBold"/>
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Новая почта"/><TextBox x:Name="NewEmailBox"/>
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Текущий пароль"/><PasswordBox x:Name="EmailPasswordBox"/>
+                                    <Button Margin="0,18,0,0" Content="Изменить почту" Click="ChangeEmail_Click"/>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                        <Border x:Name="CreateEmployeePanel" Margin="0,18,0,24" Padding="22" Background="White" BorderBrush="#DEE3E6" BorderThickness="1" Visibility="Collapsed">
+                            <StackPanel>
+                                <TextBlock Text="Добавить сотрудника" FontSize="17" FontWeight="SemiBold"/>
+                                <TextBlock Margin="0,5,0,8" Foreground="#68777E" Text="Временный пароль будет отправлен сотруднику по почте."/>
+                                <UniformGrid Columns="2">
+                                    <StackPanel Margin="0,0,9,0">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Почта"/><TextBox x:Name="EmployeeEmailBox"/>
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Имя"/><TextBox x:Name="EmployeeFirstNameBox"/>
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Должность"/><TextBox x:Name="EmployeePositionBox"/>
+                                    </StackPanel>
+                                    <StackPanel Margin="9,0,0,0">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Фамилия"/><TextBox x:Name="EmployeeLastNameBox"/>
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Телефон"/><TextBox x:Name="EmployeePhoneBox"/>
+                                        <CheckBox x:Name="EmployeeAdministratorBox" Margin="0,24,0,0" Content="Администратор"/>
+                                    </StackPanel>
+                                </UniformGrid>
+                                <Button Margin="0,18,0,0" HorizontalAlignment="Right" Content="Создать учётную запись" Click="CreateEmployee_Click"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+        </Grid>
+        <Grid x:Name="PasswordChangeOverlay" Background="#CC18272D" Visibility="Collapsed">
+            <Border Width="430" Padding="34" Background="White">
+                <StackPanel>
+                    <TextBlock Text="Замените временный пароль" FontSize="23" FontWeight="Bold"/>
+                    <TextBlock Margin="0,8,0,10" Foreground="#68777E" TextWrapping="Wrap" Text="Перед началом работы задайте постоянный пароль длиной не менее 10 символов."/>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Временный пароль"/><PasswordBox x:Name="TemporaryPasswordBox"/>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Новый пароль"/><PasswordBox x:Name="RequiredNewPasswordBox"/>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Повторите новый пароль"/><PasswordBox x:Name="RequiredPasswordConfirmationBox"/>
+                    <TextBlock x:Name="RequiredPasswordError" Margin="0,12,0,0" Foreground="#B3261E" TextWrapping="Wrap" Visibility="Collapsed"/>
+                    <Button Margin="0,18,0,0" Content="Сохранить новый пароль" Click="CompletePasswordChange_Click"/>
+                </StackPanel>
+            </Border>
+        </Grid>
     </Grid>
 </Window>
