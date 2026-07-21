@@ -8,19 +8,18 @@ public sealed class DieCut
     public Guid EquipmentId { get; set; }
     public Equipment Equipment { get; set; } = null!;
 
-    public decimal ShaftRepeatMm { get; set; }
-    public decimal WidthMm { get; set; }
-    public decimal LengthMm { get; set; }
+    public int Shaft { get; set; }
+    public decimal X { get; set; }
+    public decimal Y { get; set; }
     public int Streams { get; set; }
     public int Repeats { get; set; }
-    public decimal GapAcrossMm { get; set; }
-    public decimal GapAlongMm { get; set; }
+    public decimal GapX { get; set; }
+    public decimal GapY { get; set; }
     public string Material { get; set; } = string.Empty;
-    public decimal MaterialWidthMm { get; set; }
-    public decimal? KnifeHeightMicrons { get; set; }
-    public string Shape { get; set; } = string.Empty;
+    public decimal H { get; set; }
+    public string Figure { get; set; } = string.Empty;
     public string? Comments { get; set; }
-    public DateOnly? CommissionedOn { get; set; }
+    public DateOnly? Date { get; set; }
     public DieCutStatus Status { get; set; } = DieCutStatus.Active;
 
     public Guid CreatedByEmployeeId { get; set; }

@@ -11,13 +11,13 @@ internal static class DieCutEndpoints
         var group = endpoints.MapGroup("/api/die-cuts");
 
         group.MapGet("/", async (HttpContext context, IDieCutCatalogService catalog, IAccountService accounts,
-            string? search, string? equipment, string? material, string? shape, DieCutStatus? status,
-            decimal? minWidthMm, decimal? maxWidthMm, decimal? minLengthMm, decimal? maxLengthMm,
-            decimal? shaftRepeatMm, int page = 1, int pageSize = 50, CancellationToken cancellationToken = default) =>
+            string? search, string? equipment, string? material, string? figure, DieCutStatus? status,
+            decimal? minX, decimal? maxX, decimal? minY, decimal? maxY,
+            int? shaft, int page = 1, int pageSize = 50, CancellationToken cancellationToken = default) =>
         {
             if (await AuthorizeAsync(context, accounts, cancellationToken) is null) return Results.Unauthorized();
-            return Results.Ok(await catalog.SearchAsync(new DieCutQuery(search, equipment, material, shape, status,
-                minWidthMm, maxWidthMm, minLengthMm, maxLengthMm, shaftRepeatMm, page, pageSize), cancellationToken));
+            return Results.Ok(await catalog.SearchAsync(new DieCutQuery(search, equipment, material, figure, status,
+                minX, maxX, minY, maxY, shaft, page, pageSize), cancellationToken));
         });
 
         group.MapGet("/facets", async (HttpContext context, IDieCutCatalogService catalog, IAccountService accounts, CancellationToken cancellationToken) =>
@@ -65,10 +65,9 @@ internal static class DieCutEndpoints
 }
 
 internal sealed record SaveDieCutRequest(
-    string Number, string Equipment, decimal ShaftRepeatMm, decimal WidthMm, decimal LengthMm,
-    int Streams, int Repeats, decimal GapAcrossMm, decimal GapAlongMm, string Material,
-    decimal MaterialWidthMm, decimal? KnifeHeightMicrons, string Shape, string? Comments, DateOnly? CommissionedOn, DieCutStatus Status)
+    string Number, string Equipment, int Shaft, decimal X, decimal Y,
+    int Streams, int Repeats, string Material, decimal H, string Figure, string? Comments, DateOnly? Date, DieCutStatus Status)
 {
-    public SaveDieCutCommand ToCommand() => new(Number, Equipment, ShaftRepeatMm, WidthMm, LengthMm, Streams,
-        Repeats, GapAcrossMm, GapAlongMm, Material, MaterialWidthMm, KnifeHeightMicrons, Shape, Comments, CommissionedOn, Status);
+    public SaveDieCutCommand ToCommand() => new(Number, Equipment, Shaft, X, Y, Streams,
+        Repeats, Material, H, Figure, Comments, Date, Status);
 }

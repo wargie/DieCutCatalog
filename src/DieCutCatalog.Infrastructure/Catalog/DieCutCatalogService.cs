@@ -20,21 +20,21 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
             dieCuts = dieCuts.Where(x =>
                 x.Number.ToLower().Contains(search)
                 || x.Material.ToLower().Contains(search)
-                || x.Shape.ToLower().Contains(search)
+                || x.Figure.ToLower().Contains(search)
                 || (x.Comments != null && x.Comments.ToLower().Contains(search)));
         }
         if (!string.IsNullOrWhiteSpace(query.Equipment))
             dieCuts = dieCuts.Where(x => x.Equipment.NormalizedName == Normalize(query.Equipment));
         if (!string.IsNullOrWhiteSpace(query.Material))
             dieCuts = dieCuts.Where(x => x.Material.ToLower() == query.Material.Trim().ToLower());
-        if (!string.IsNullOrWhiteSpace(query.Shape))
-            dieCuts = dieCuts.Where(x => x.Shape.ToLower() == query.Shape.Trim().ToLower());
+        if (!string.IsNullOrWhiteSpace(query.Figure))
+            dieCuts = dieCuts.Where(x => x.Figure.ToLower() == query.Figure.Trim().ToLower());
         if (query.Status is not null) dieCuts = dieCuts.Where(x => x.Status == query.Status);
-        if (query.MinWidthMm is not null) dieCuts = dieCuts.Where(x => x.WidthMm >= query.MinWidthMm);
-        if (query.MaxWidthMm is not null) dieCuts = dieCuts.Where(x => x.WidthMm <= query.MaxWidthMm);
-        if (query.MinLengthMm is not null) dieCuts = dieCuts.Where(x => x.LengthMm >= query.MinLengthMm);
-        if (query.MaxLengthMm is not null) dieCuts = dieCuts.Where(x => x.LengthMm <= query.MaxLengthMm);
-        if (query.ShaftRepeatMm is not null) dieCuts = dieCuts.Where(x => x.ShaftRepeatMm == query.ShaftRepeatMm);
+        if (query.MinX is not null) dieCuts = dieCuts.Where(x => x.X >= query.MinX);
+        if (query.MaxX is not null) dieCuts = dieCuts.Where(x => x.X <= query.MaxX);
+        if (query.MinY is not null) dieCuts = dieCuts.Where(x => x.Y >= query.MinY);
+        if (query.MaxY is not null) dieCuts = dieCuts.Where(x => x.Y <= query.MaxY);
+        if (query.Shaft is not null) dieCuts = dieCuts.Where(x => x.Shaft == query.Shaft);
 
         var total = await dieCuts.CountAsync(cancellationToken);
         var items = await dieCuts
@@ -43,8 +43,8 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(x => new DieCutSummary(
-                x.Id, x.Number, x.Equipment.Name, x.ShaftRepeatMm, x.WidthMm, x.LengthMm,
-                x.Streams, x.Repeats, x.Material, x.MaterialWidthMm, x.KnifeHeightMicrons, x.Shape, x.Status, x.UpdatedAt))
+                x.Id, x.Number, x.Equipment.Name, x.Shaft, x.X, x.Y, x.Streams, x.Repeats,
+                x.GapX, x.GapY, x.Material, x.H, x.Figure, x.Comments, x.Date, x.Status, x.UpdatedAt))
             .ToListAsync(cancellationToken);
 
         return new PagedResult<DieCutSummary>(items, total, page, pageSize);
@@ -88,7 +88,7 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
     public async Task<CatalogFacets> GetFacetsAsync(CancellationToken cancellationToken = default) => new(
         await dbContext.Equipment.AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.Name).Select(x => x.Name).ToListAsync(cancellationToken),
         await dbContext.DieCuts.AsNoTracking().Select(x => x.Material).Distinct().OrderBy(x => x).ToListAsync(cancellationToken),
-        await dbContext.DieCuts.AsNoTracking().Select(x => x.Shape).Distinct().OrderBy(x => x).ToListAsync(cancellationToken));
+        await dbContext.DieCuts.AsNoTracking().Select(x => x.Figure).Distinct().OrderBy(x => x).ToListAsync(cancellationToken));
 
     private async Task<Equipment> GetOrCreateEquipmentAsync(string name, CancellationToken cancellationToken)
     {
@@ -102,21 +102,21 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
 
     private static void Apply(DieCut target, SaveDieCutCommand source, Guid employeeId)
     {
+        var (gapX, gapY) = DieCutCalculations.Calculate(source.Shaft, source.X, source.Y, source.Streams, source.Repeats, source.H);
         target.Number = source.Number.Trim();
         target.NormalizedNumber = Normalize(source.Number);
-        target.ShaftRepeatMm = source.ShaftRepeatMm;
-        target.WidthMm = source.WidthMm;
-        target.LengthMm = source.LengthMm;
+        target.Shaft = source.Shaft;
+        target.X = source.X;
+        target.Y = source.Y;
         target.Streams = source.Streams;
         target.Repeats = source.Repeats;
-        target.GapAcrossMm = source.GapAcrossMm;
-        target.GapAlongMm = source.GapAlongMm;
+        target.GapX = gapX;
+        target.GapY = gapY;
         target.Material = source.Material.Trim();
-        target.MaterialWidthMm = source.MaterialWidthMm;
-        target.KnifeHeightMicrons = source.KnifeHeightMicrons;
-        target.Shape = source.Shape.Trim();
+        target.H = source.H;
+        target.Figure = source.Figure.Trim();
         target.Comments = string.IsNullOrWhiteSpace(source.Comments) ? null : source.Comments.Trim();
-        target.CommissionedOn = source.CommissionedOn;
+        target.Date = source.Date;
         target.Status = source.Status;
         target.UpdatedByEmployeeId = employeeId;
         target.UpdatedAt = DateTimeOffset.UtcNow;
@@ -127,15 +127,17 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
         if (string.IsNullOrWhiteSpace(command.Number) || command.Number.Length > 50) throw new ValidationException("Укажите номер ножа длиной до 50 символов.");
         if (string.IsNullOrWhiteSpace(command.Equipment) || command.Equipment.Length > 150) throw new ValidationException("Укажите оборудование.");
         if (string.IsNullOrWhiteSpace(command.Material) || command.Material.Length > 200) throw new ValidationException("Укажите материал.");
-        if (string.IsNullOrWhiteSpace(command.Shape) || command.Shape.Length > 100) throw new ValidationException("Укажите форму ножа.");
-        if (command.ShaftRepeatMm <= 0 || command.WidthMm <= 0 || command.LengthMm <= 0) throw new ValidationException("Раппорт вала и размеры ножа должны быть больше нуля.");
+        if (string.IsNullOrWhiteSpace(command.Figure) || command.Figure.Length > 100) throw new ValidationException("Укажите форму ножа.");
+        if (command.Shaft <= 0 || command.X <= 0 || command.Y <= 0) throw new ValidationException("Раппорт вала и размеры ножа должны быть больше нуля.");
         if (command.Streams <= 0 || command.Repeats <= 0) throw new ValidationException("Количество ручьёв и повторов должно быть больше нуля.");
-        if (command.GapAcrossMm < 0 || command.GapAlongMm < 0 || command.MaterialWidthMm <= 0) throw new ValidationException("Зазоры не могут быть отрицательными, а ширина материала должна быть больше нуля.");
-        if (command.KnifeHeightMicrons is <= 0) throw new ValidationException("Высота ножа должна быть больше нуля.");
+        if (command.H <= 0) throw new ValidationException("H должно быть больше нуля.");
+        var (gapX, gapY) = DieCutCalculations.Calculate(command.Shaft, command.X, command.Y, command.Streams, command.Repeats, command.H);
+        if (gapX < 0) throw new ValidationException("H не может быть меньше X × streams.");
+        if (gapY < 0) throw new ValidationException("Длина окружности shaft не вмещает Y × repeats.");
         if (command.Comments?.Length > 2000) throw new ValidationException("Комментарий не должен превышать 2000 символов.");
     }
 
     private static string Normalize(string value) => value.Trim().ToUpperInvariant();
-    private static DieCutDetails Map(DieCut x, string equipment) => new(x.Id, x.Number, equipment, x.ShaftRepeatMm, x.WidthMm, x.LengthMm, x.Streams, x.Repeats, x.GapAcrossMm, x.GapAlongMm, x.Material, x.MaterialWidthMm, x.KnifeHeightMicrons, x.Shape, x.Comments, x.CommissionedOn, x.Status, x.CreatedAt, x.UpdatedAt);
-    private static System.Linq.Expressions.Expression<Func<DieCut, DieCutDetails>> ToDetails() => x => new DieCutDetails(x.Id, x.Number, x.Equipment.Name, x.ShaftRepeatMm, x.WidthMm, x.LengthMm, x.Streams, x.Repeats, x.GapAcrossMm, x.GapAlongMm, x.Material, x.MaterialWidthMm, x.KnifeHeightMicrons, x.Shape, x.Comments, x.CommissionedOn, x.Status, x.CreatedAt, x.UpdatedAt);
+    private static DieCutDetails Map(DieCut x, string equipment) => new(x.Id, x.Number, equipment, x.Shaft, x.X, x.Y, x.Streams, x.Repeats, x.GapX, x.GapY, x.Material, x.H, x.Figure, x.Comments, x.Date, x.Status, x.CreatedAt, x.UpdatedAt);
+    private static System.Linq.Expressions.Expression<Func<DieCut, DieCutDetails>> ToDetails() => x => new DieCutDetails(x.Id, x.Number, x.Equipment.Name, x.Shaft, x.X, x.Y, x.Streams, x.Repeats, x.GapX, x.GapY, x.Material, x.H, x.Figure, x.Comments, x.Date, x.Status, x.CreatedAt, x.UpdatedAt);
 }

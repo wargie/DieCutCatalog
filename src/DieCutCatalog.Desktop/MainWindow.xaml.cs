@@ -9,7 +9,7 @@ using Microsoft.Win32;
 
 namespace DieCutCatalog.Desktop;
 
-public partial class MainWindow : Window
+public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 {
     private readonly CatalogApiClient _api = new();
     private EmployeeProfile? _profile;
@@ -17,6 +17,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+
         Closed += async (_, _) =>
         {
             try { await _api.LogoutAsync(); }
@@ -41,6 +42,7 @@ public partial class MainWindow : Window
                 return;
             }
             await OpenShellAsync();
+
         }, LoginError);
     }
 
@@ -107,8 +109,20 @@ public partial class MainWindow : Window
     }
 
     private void ShowCatalog_Click(object sender, RoutedEventArgs e) => ShowCatalog();
-    private void ShowCatalog() { CatalogView.Visibility = Visibility.Visible; EmployeeView.Visibility = Visibility.Collapsed; }
-    private void ShowEmployee_Click(object sender, RoutedEventArgs e) { CatalogView.Visibility = Visibility.Collapsed; EmployeeView.Visibility = Visibility.Visible; }
+    private void ShowCatalog()
+    {
+        CatalogView.Visibility = Visibility.Visible;
+        EmployeeView.Visibility = Visibility.Collapsed;
+        CatalogNavButton.Appearance = Wpf.Ui.Controls.ControlAppearance.Primary;
+        EmployeeNavButton.Appearance = Wpf.Ui.Controls.ControlAppearance.Transparent;
+    }
+    private void ShowEmployee_Click(object sender, RoutedEventArgs e)
+    {
+        CatalogView.Visibility = Visibility.Collapsed;
+        EmployeeView.Visibility = Visibility.Visible;
+        CatalogNavButton.Appearance = Wpf.Ui.Controls.ControlAppearance.Transparent;
+        EmployeeNavButton.Appearance = Wpf.Ui.Controls.ControlAppearance.Primary;
+    }
 
     private async void SaveProfile_Click(object sender, RoutedEventArgs e)
     {

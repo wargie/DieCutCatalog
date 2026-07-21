@@ -1,6 +1,7 @@
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
+using DieCutCatalog.Application.Catalog;
 using DieCutCatalog.Infrastructure.Catalog;
 using DieCutCatalog.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -27,7 +28,7 @@ public sealed class ExcelCatalogImportServiceTests
     }
 
     [Fact]
-    public async Task Import_ConvertsLegacyUnitsAndPreservesExcelDate()
+    public async Task Import_RecalculatesExcelFormulasAndPreservesDate()
     {
         await using var dbContext = CreateDbContext();
         var service = new ExcelCatalogImportService(dbContext);
@@ -39,12 +40,41 @@ public sealed class ExcelCatalogImportServiceTests
         Assert.Equal(1, result.ImportedRows);
         Assert.Equal("001", dieCut.Number);
         Assert.Equal("NilPeter", dieCut.Equipment.Name);
-        Assert.Equal(28m, dieCut.GapAcrossMm);
-        Assert.Equal(4.8m, dieCut.GapAlongMm);
+        Assert.Equal(96, dieCut.Shaft);
+        Assert.Equal(0.028m, dieCut.GapX);
+        Assert.Equal(0.0048m, dieCut.GapY);
         Assert.Equal("Paper", dieCut.Material);
-        Assert.Equal(200m, dieCut.MaterialWidthMm);
-        Assert.Null(dieCut.KnifeHeightMicrons);
-        Assert.Equal(DateOnly.FromDateTime(DateTime.FromOADate(46140)), dieCut.CommissionedOn);
+        Assert.Equal(200m, dieCut.H);
+        Assert.Equal(DateOnly.FromDateTime(DateTime.FromOADate(46140)), dieCut.Date);
+    }
+
+    [Fact]
+    public async Task Preview_RejectsFractionalShaft()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = new ExcelCatalogImportService(dbContext);
+        using var workbook = CreateWorkbook(includeInvalidRow: false, shaft: 96.5m);
+
+        var preview = await service.PreviewAsync(workbook);
+
+        Assert.Equal(0, preview.ValidRows);
+        Assert.Equal(1, preview.ErrorRows);
+        Assert.Contains("целое число", Assert.Single(preview.Issues).Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Preview_WarnsWhenSavedFormulaValuesAreStale()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = new ExcelCatalogImportService(dbContext);
+        using var workbook = CreateWorkbook(includeInvalidRow: false, savedGapX: 0.9m, savedGapY: 0.9m);
+
+        var preview = await service.PreviewAsync(workbook);
+
+        Assert.Equal(1, preview.ValidRows);
+        Assert.Equal(0, preview.ErrorRows);
+        Assert.Equal(2, preview.Issues.Count);
+        Assert.All(preview.Issues, issue => Assert.Equal(ImportIssueSeverity.Warning, issue.Severity));
     }
 
     private static CatalogDbContext CreateDbContext()
@@ -55,7 +85,11 @@ public sealed class ExcelCatalogImportServiceTests
         return new CatalogDbContext(options);
     }
 
-    private static MemoryStream CreateWorkbook(bool includeInvalidRow)
+    private static MemoryStream CreateWorkbook(
+        bool includeInvalidRow,
+        decimal savedGapX = 0.028m,
+        decimal savedGapY = 0.0048m,
+        decimal shaft = 96)
     {
         var stream = new MemoryStream();
         using (var document = SpreadsheetDocument.Create(stream, SpreadsheetDocumentType.Workbook, true))
@@ -74,9 +108,9 @@ public sealed class ExcelCatalogImportServiceTests
             });
 
             sheetData.Append(Row(1, "№", "shaft", "X", "Y", "streams", "repeats", "x", "y", "material", "H", "figure", "comments", "Дата"));
-            sheetData.Append(Row(2, "001", 96, 86, 300, 2, 1, 0.028m, 0.0048m, "paper", 200, "прямоугольник", "старый", 46140));
+            sheetData.Append(Row(2, "001", shaft, 86, 300, 2, 1, savedGapX, savedGapY, "paper", 200, "прямоугольник", "старый", 46140));
             if (includeInvalidRow)
-                sheetData.Append(Row(3, "002", 96, 58, 90, 7, 4, 0.029m, 0.0028m, null, 200, "прямоугольник", null, null));
+                sheetData.Append(Row(3, "002", 96, 58, 90, 7, 4, 0.029m, 0.0028m, null, 430, "прямоугольник", null, null));
             workbookPart.Workbook.Save();
         }
         stream.Position = 0;

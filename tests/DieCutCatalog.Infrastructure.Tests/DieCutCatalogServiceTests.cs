@@ -23,24 +23,36 @@ public sealed class DieCutCatalogServiceTests
     }
 
     [Fact]
+    public async Task Create_CalculatesXAndYLikeExcel()
+    {
+        await using var fixture = CreateFixture();
+
+        var created = await fixture.Service.CreateAsync(
+            NewDieCut("010", "Lesko", x: 101), fixture.EmployeeId);
+
+        Assert.Equal(0.026m, created.GapX);
+        Assert.Equal(0.0022m, created.GapY);
+    }
+
+    [Fact]
     public async Task Search_AppliesFiltersAndPagination()
     {
         await using var fixture = CreateFixture();
-        await fixture.Service.CreateAsync(NewDieCut("001", "NilPeter", material: "Paper", width: 58), fixture.EmployeeId);
-        await fixture.Service.CreateAsync(NewDieCut("002", "NilPeter", material: "TTOP", width: 80), fixture.EmployeeId);
-        await fixture.Service.CreateAsync(NewDieCut("003", "Lesko", material: "Paper", width: 100), fixture.EmployeeId);
+        await fixture.Service.CreateAsync(NewDieCut("001", "NilPeter", material: "Paper", x: 58), fixture.EmployeeId);
+        await fixture.Service.CreateAsync(NewDieCut("002", "NilPeter", material: "TTOP", x: 80), fixture.EmployeeId);
+        await fixture.Service.CreateAsync(NewDieCut("003", "Lesko", material: "Paper", x: 100), fixture.EmployeeId);
 
         var result = await fixture.Service.SearchAsync(new DieCutQuery(
             Search: null,
             Equipment: "NilPeter",
             Material: "Paper",
-            Shape: null,
+            Figure: null,
             Status: DieCutStatus.Active,
-            MinWidthMm: 50,
-            MaxWidthMm: 70,
-            MinLengthMm: null,
-            MaxLengthMm: null,
-            ShaftRepeatMm: null,
+            MinX: 50,
+            MaxX: 70,
+            MinY: null,
+            MaxY: null,
+            Shaft: null,
             Page: 1,
             PageSize: 1));
 
@@ -54,7 +66,7 @@ public sealed class DieCutCatalogServiceTests
     {
         await using var fixture = CreateFixture();
         var created = await fixture.Service.CreateAsync(NewDieCut("001", "NilPeter"), fixture.EmployeeId);
-        var command = NewDieCut("001A", "MarkAndy", material: "PP60 TOP WHITE", width: 85) with
+        var command = NewDieCut("001A", "MarkAndy", material: "PP60 TOP WHITE", x: 85) with
         {
             Comments = "RLL",
             Status = DieCutStatus.NeedsInspection
@@ -75,22 +87,19 @@ public sealed class DieCutCatalogServiceTests
         string number,
         string equipment,
         string material = "Paper",
-        decimal width = 58) => new(
+        decimal x = 58) => new(
         number,
         equipment,
-        ShaftRepeatMm: 96,
-        WidthMm: width,
-        LengthMm: 90,
-        Streams: 7,
+        Shaft: 96,
+        X: x,
+        Y: 74,
+        Streams: 4,
         Repeats: 4,
-        GapAcrossMm: 2.9m,
-        GapAlongMm: 0.3m,
         Material: material,
-        MaterialWidthMm: 430,
-        KnifeHeightMicrons: null,
-        Shape: "прямоугольник",
+        H: 430,
+        Figure: "прямоугольник",
         Comments: null,
-        CommissionedOn: new DateOnly(2026, 7, 20),
+        Date: new DateOnly(2026, 7, 20),
         Status: DieCutStatus.Active);
 
     private static TestFixture CreateFixture()

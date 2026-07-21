@@ -62,10 +62,10 @@ public partial class CatalogView : UserControl
         var facets = await _api.GetCatalogFacetsAsync();
         SetFilterItems(EquipmentFilter, facets.Equipment);
         SetFilterItems(MaterialFilter, facets.Materials);
-        SetFilterItems(ShapeFilter, facets.Shapes);
+        SetFilterItems(FigureFilter, facets.Figures);
         SetEditorItems(EquipmentBox, facets.Equipment);
         SetEditorItems(MaterialBox, facets.Materials);
-        SetEditorItems(ShapeBox, facets.Shapes);
+        SetEditorItems(FigureBox, facets.Figures);
     }
 
     private async Task LoadPageAsync()
@@ -79,12 +79,12 @@ public partial class CatalogView : UserControl
                 SearchBox.Text,
                 SelectedFilter(EquipmentFilter),
                 SelectedFilter(MaterialFilter),
-                SelectedFilter(ShapeFilter),
+                SelectedFilter(FigureFilter),
                 _page,
                 PageSize);
             _total = result.Total;
             _rows.Clear();
-            foreach (var item in result.Items) _rows.Add(new DieCutRow(item, StatusName(item.Status)));
+            foreach (var item in result.Items) _rows.Add(new DieCutRow(item));
 
             var pageCount = Math.Max(1, (int)Math.Ceiling(_total / (double)PageSize));
             CatalogSummary.Text = _total == 0 ? "Ножи не найдены" : $"Найдено: {_total}";
@@ -228,25 +228,46 @@ public partial class CatalogView : UserControl
         }
     }
 
+    private void ShaftBox_PreviewTextInput(object sender, TextCompositionEventArgs e) =>
+        e.Handled = e.Text.Any(character => !char.IsDigit(character));
+
+    private void CalculationInput_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (GapXBox is null || GapYBox is null) return;
+        if (!int.TryParse(ShaftBox.Text, NumberStyles.Integer, CultureInfo.CurrentCulture, out var shaft)
+            || !TryParseDecimal(XBox.Text, out var x)
+            || !TryParseDecimal(YBox.Text, out var y)
+            || !int.TryParse(StreamsBox.Text, NumberStyles.Integer, CultureInfo.CurrentCulture, out var streams)
+            || !int.TryParse(RepeatsBox.Text, NumberStyles.Integer, CultureInfo.CurrentCulture, out var repeats)
+            || !TryParseDecimal(HBox.Text, out var h)
+            || streams <= 0
+            || repeats <= 0)
+        {
+            GapXBox.Clear();
+            GapYBox.Clear();
+            return;
+        }
+
+        var (gapX, gapY) = DieCutCalculations.Calculate(shaft, x, y, streams, repeats, h);
+        GapXBox.Text = FormatGap(gapX);
+        GapYBox.Text = FormatGap(gapY);
+    }
     private SaveDieCutCommand ReadCommand()
     {
         var selectedStatus = StatusBox.SelectedItem as StatusOption ?? _statuses[0];
         return new SaveDieCutCommand(
             NumberBox.Text,
             EquipmentBox.Text,
-            ParseDecimal(ShaftBox.Text, "раппорт вала"),
-            ParseDecimal(WidthBox.Text, "размер X"),
-            ParseDecimal(LengthBox.Text, "размер Y"),
+            ParseInt(ShaftBox.Text, "shaft — требуется целое число"),
+            ParseDecimal(XBox.Text, "размер X"),
+            ParseDecimal(YBox.Text, "размер Y"),
             ParseInt(StreamsBox.Text, "количество ручьёв"),
             ParseInt(RepeatsBox.Text, "количество повторов"),
-            ParseDecimal(GapAcrossBox.Text, "зазор по ширине"),
-            ParseDecimal(GapAlongBox.Text, "зазор по длине"),
             MaterialBox.Text,
-            ParseDecimal(MaterialWidthBox.Text, "ширину материала"),
-            ParseOptionalDecimal(KnifeHeightBox.Text, "высоту ножа"),
-            ShapeBox.Text,
+            ParseDecimal(HBox.Text, "ширину материала"),
+            FigureBox.Text,
             string.IsNullOrWhiteSpace(CommentsBox.Text) ? null : CommentsBox.Text,
-            CommissionedPicker.SelectedDate is DateTime date ? DateOnly.FromDateTime(date) : null,
+            DateBox.SelectedDate is DateTime date ? DateOnly.FromDateTime(date) : null,
             selectedStatus.Value);
     }
 
@@ -256,34 +277,33 @@ public partial class CatalogView : UserControl
         EditorTitle.Text = $"Нож {details.Number}";
         NumberBox.Text = details.Number;
         EquipmentBox.Text = details.Equipment;
-        ShaftBox.Text = Format(details.ShaftRepeatMm);
-        WidthBox.Text = Format(details.WidthMm);
-        LengthBox.Text = Format(details.LengthMm);
+        ShaftBox.Text = Format(details.Shaft);
+        XBox.Text = Format(details.X);
+        YBox.Text = Format(details.Y);
         StreamsBox.Text = details.Streams.ToString(CultureInfo.CurrentCulture);
         RepeatsBox.Text = details.Repeats.ToString(CultureInfo.CurrentCulture);
-        GapAcrossBox.Text = Format(details.GapAcrossMm);
-        GapAlongBox.Text = Format(details.GapAlongMm);
+        GapXBox.Text = Format(details.GapX);
+        GapYBox.Text = Format(details.GapY);
         MaterialBox.Text = details.Material;
-        MaterialWidthBox.Text = Format(details.MaterialWidthMm);
-        KnifeHeightBox.Text = details.KnifeHeightMicrons is { } height ? Format(height) : string.Empty;
-        ShapeBox.Text = details.Shape;
+        HBox.Text = Format(details.H);
+        FigureBox.Text = details.Figure;
         CommentsBox.Text = details.Comments;
-        CommissionedPicker.SelectedDate = details.CommissionedOn?.ToDateTime(TimeOnly.MinValue);
+        DateBox.SelectedDate = details.Date?.ToDateTime(TimeOnly.MinValue);
         StatusBox.SelectedItem = _statuses.First(x => x.Value == details.Status);
         EditorStatus.Text = string.Empty;
     }
 
     private void ClearEditorFields()
     {
-        NumberBox.Clear(); EquipmentBox.Text = string.Empty; ShaftBox.Clear(); WidthBox.Clear(); LengthBox.Clear();
-        StreamsBox.Text = "1"; RepeatsBox.Text = "1"; GapAcrossBox.Text = "0"; GapAlongBox.Text = "0";
-        MaterialBox.Text = string.Empty; MaterialWidthBox.Clear(); KnifeHeightBox.Clear(); ShapeBox.Text = string.Empty; CommentsBox.Clear();
-        CommissionedPicker.SelectedDate = DateTime.Today; StatusBox.SelectedIndex = 0;
+        NumberBox.Clear(); EquipmentBox.Text = string.Empty; ShaftBox.Clear(); XBox.Clear(); YBox.Clear();
+        StreamsBox.Text = "1"; RepeatsBox.Text = "1"; GapXBox.Text = "0"; GapYBox.Text = "0";
+        MaterialBox.Text = string.Empty; HBox.Clear(); FigureBox.Text = string.Empty; CommentsBox.Clear();
+        DateBox.SelectedDate = DateTime.Today; StatusBox.SelectedIndex = 0;
     }
 
     private void OpenEditor()
     {
-        EditorColumn.Width = new GridLength(340);
+        EditorColumn.Width = new GridLength(400);
         EditorPanel.Visibility = Visibility.Visible;
     }
 
@@ -330,6 +350,9 @@ public partial class CatalogView : UserControl
     private static string? SelectedFilter(ComboBox comboBox) =>
         comboBox.SelectedItem as string is { } value && value != "Все" ? value : null;
 
+    private static bool TryParseDecimal(string text, out decimal value) =>
+        decimal.TryParse(text, NumberStyles.Number, CultureInfo.CurrentCulture, out value)
+        || decimal.TryParse(text.Replace(',', '.'), NumberStyles.Number, CultureInfo.InvariantCulture, out value);
     private static decimal ParseDecimal(string text, string field)
     {
         if (decimal.TryParse(text, NumberStyles.Number, CultureInfo.CurrentCulture, out var value)) return value;
@@ -337,30 +360,32 @@ public partial class CatalogView : UserControl
         throw new FormatException($"Проверьте поле «{field}».");
     }
 
-    private static decimal? ParseOptionalDecimal(string text, string field) =>
-        string.IsNullOrWhiteSpace(text) ? null : ParseDecimal(text, field);
-
     private static int ParseInt(string text, string field) =>
         int.TryParse(text, NumberStyles.Integer, CultureInfo.CurrentCulture, out var value)
             ? value
             : throw new FormatException($"Проверьте поле «{field}».");
 
     private static string Format(decimal value) => value.ToString("0.###", CultureInfo.CurrentCulture);
+    private static string FormatGap(decimal value) => value.ToString("0.#########", CultureInfo.CurrentCulture);
     private string StatusName(DieCutStatus status) => _statuses.First(x => x.Value == status).Name;
 
     private sealed record StatusOption(DieCutStatus Value, string Name);
-    private sealed record DieCutRow(DieCutSummary Source, string StatusText)
+    private sealed record DieCutRow(DieCutSummary Source)
     {
         public Guid Id => Source.Id;
         public string Number => Source.Number;
         public string Equipment => Source.Equipment;
-        public decimal ShaftRepeatMm => Source.ShaftRepeatMm;
-        public decimal WidthMm => Source.WidthMm;
-        public decimal LengthMm => Source.LengthMm;
+        public int Shaft => Source.Shaft;
+        public decimal X => Source.X;
+        public decimal Y => Source.Y;
         public int Streams => Source.Streams;
         public int Repeats => Source.Repeats;
+        public string GapXText => FormatGap(Source.GapX);
+        public string GapYText => FormatGap(Source.GapY);
         public string Material => Source.Material;
-        public decimal MaterialWidthMm => Source.MaterialWidthMm;
-        public string Shape => Source.Shape;
+        public decimal H => Source.H;
+        public string Figure => Source.Figure;
+        public string? Comments => Source.Comments;
+        public string DateText => Source.Date?.ToString("dd.MM.yyyy", CultureInfo.CurrentCulture) ?? string.Empty;
     }
 }

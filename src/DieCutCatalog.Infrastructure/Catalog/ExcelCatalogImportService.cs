@@ -105,7 +105,7 @@ public sealed class ExcelCatalogImportService(CatalogDbContext dbContext) : IExc
                 if (!HeaderIsSupported(sheetRows[0], sharedStrings))
                 {
                     issues.Add(new ExcelImportIssue(sheetName, 1, null, ImportIssueSeverity.Error,
-                        "Не найдены ожидаемые колонки №, shaft, X, Y, streams и repeats."));
+                        "Ожидаются колонки №, shaft, X, Y, streams, repeats, x, y, material, H, figure и comments."));
                     errorRows++;
                     continue;
                 }
@@ -120,19 +120,34 @@ public sealed class ExcelCatalogImportService(CatalogDbContext dbContext) : IExc
                     try
                     {
                         if (string.IsNullOrWhiteSpace(number)) throw new InvalidDataException("Не указан номер ножа.");
+                        var shaft = RequiredInt(cells, 2, "shaft");
+                        var x = RequiredDecimal(cells, 3, "X");
+                        var y = RequiredDecimal(cells, 4, "Y");
+                        var streams = RequiredInt(cells, 5, "streams");
+                        var repeats = RequiredInt(cells, 6, "repeats");
+                        var h = RequiredDecimal(cells, 10, "H");
+                        if (shaft <= 0 || x <= 0 || y <= 0 || streams <= 0 || repeats <= 0 || h <= 0)
+                            throw new InvalidDataException("shaft, X, Y, streams, repeats и H должны быть больше нуля.");
+
+                        var (gapX, gapY) = DieCutCalculations.Calculate(shaft, x, y, streams, repeats, h);
+                        if (gapX < 0) throw new InvalidDataException("H меньше X × streams.");
+                        if (gapY < 0) throw new InvalidDataException("Длина окружности shaft не вмещает Y × repeats.");
+                        CompareCalculatedValue(cells, 7, "x", gapX, sheetName, rowNumber, number, issues);
+                        CompareCalculatedValue(cells, 8, "y", gapY, sheetName, rowNumber, number, issues);
+
                         var row = new ImportRow(
                             number,
                             sheetName,
-                            RequiredDecimal(cells, 2, "shaft"),
-                            RequiredDecimal(cells, 3, "X"),
-                            RequiredDecimal(cells, 4, "Y"),
-                            RequiredInt(cells, 5, "streams"),
-                            RequiredInt(cells, 6, "repeats"),
-                            GapMillimeters(cells, 7),
-                            GapMillimeters(cells, 8),
+                            shaft,
+                            x,
+                            y,
+                            streams,
+                            repeats,
+                            gapX,
+                            gapY,
                             RequiredText(cells, 9, "material"),
-                            RequiredDecimal(cells, 10, "H"),
-                            NormalizeShape(RequiredText(cells, 11, "figure")),
+                            h,
+                            NormalizeFigure(RequiredText(cells, 11, "figure")),
                             Value(cells, 12),
                             ParseDate(Value(cells, 13)));
                         var key = Key(row.Equipment, row.Number);
@@ -163,7 +178,13 @@ public sealed class ExcelCatalogImportService(CatalogDbContext dbContext) : IExc
             && string.Equals(Value(cells, 3), "X", StringComparison.OrdinalIgnoreCase)
             && string.Equals(Value(cells, 4), "Y", StringComparison.OrdinalIgnoreCase)
             && string.Equals(Value(cells, 5), "streams", StringComparison.OrdinalIgnoreCase)
-            && string.Equals(Value(cells, 6), "repeats", StringComparison.OrdinalIgnoreCase);
+            && string.Equals(Value(cells, 6), "repeats", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(Value(cells, 7), "x", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(Value(cells, 8), "y", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(Value(cells, 9), "material", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(Value(cells, 10), "H", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(Value(cells, 11), "figure", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(Value(cells, 12), "comments", StringComparison.OrdinalIgnoreCase);
     }
 
     private static Dictionary<int, string?> ReadCells(Row row, SharedStringTable? sharedStrings)
@@ -208,14 +229,23 @@ public sealed class ExcelCatalogImportService(CatalogDbContext dbContext) : IExc
         return value == decimal.Truncate(value) ? checked((int)value) : throw new InvalidDataException($"Колонка {name} должна содержать целое число.");
     }
 
-    private static decimal GapMillimeters(IReadOnlyDictionary<int, string?> cells, int column)
+    private static void CompareCalculatedValue(
+        IReadOnlyDictionary<int, string?> cells,
+        int column,
+        string name,
+        decimal calculated,
+        string sheet,
+        int row,
+        string number,
+        ICollection<ExcelImportIssue> issues)
     {
-        var text = Value(cells, column);
-        if (string.IsNullOrWhiteSpace(text)) return 0;
-        var value = ParseDecimal(text, column == 7 ? "x" : "y");
-        return Math.Abs(value) < 1 ? value * 1000 : value;
+        var source = Value(cells, column);
+        if (string.IsNullOrWhiteSpace(source)) return;
+        var saved = ParseDecimal(source, name);
+        if (Math.Abs(saved - calculated) <= 0.0000005m) return;
+        issues.Add(new ExcelImportIssue(sheet, row, number, ImportIssueSeverity.Warning,
+            $"Колонка {name} пересчитана по формуле Excel: {calculated:0.#########} вместо {saved:0.#########}."));
     }
-
     private static decimal ParseDecimal(string value, string name) =>
         decimal.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var result)
             ? result
@@ -233,7 +263,7 @@ public sealed class ExcelCatalogImportService(CatalogDbContext dbContext) : IExc
         throw new InvalidDataException($"Некорректная дата «{value}».");
     }
 
-    private static string NormalizeShape(string value) => value.Trim().ToLowerInvariant() switch
+    private static string NormalizeFigure(string value) => value.Trim().ToLowerInvariant() switch
     {
         "фигура" or "фигурный" => "фигурный",
         var shape => shape
@@ -243,19 +273,18 @@ public sealed class ExcelCatalogImportService(CatalogDbContext dbContext) : IExc
     {
         target.Number = source.Number.Trim();
         target.NormalizedNumber = Normalize(source.Number);
-        target.ShaftRepeatMm = source.ShaftRepeatMm;
-        target.WidthMm = source.WidthMm;
-        target.LengthMm = source.LengthMm;
+        target.Shaft = source.Shaft;
+        target.X = source.X;
+        target.Y = source.Y;
         target.Streams = source.Streams;
         target.Repeats = source.Repeats;
-        target.GapAcrossMm = source.GapAcrossMm;
-        target.GapAlongMm = source.GapAlongMm;
+        target.GapX = source.GapX;
+        target.GapY = source.GapY;
         target.Material = NormalizeMaterial(source.Material);
-        target.MaterialWidthMm = source.MaterialWidthMm;
-        target.KnifeHeightMicrons = null;
-        target.Shape = source.Shape;
+        target.H = source.H;
+        target.Figure = source.Figure;
         target.Comments = string.IsNullOrWhiteSpace(source.Comments) ? null : source.Comments.Trim();
-        target.CommissionedOn = source.CommissionedOn;
+        target.Date = source.Date;
         target.Status = DieCutStatus.Active;
         target.UpdatedByEmployeeId = employeeId;
         target.UpdatedAt = DateTimeOffset.UtcNow;
@@ -272,9 +301,9 @@ public sealed class ExcelCatalogImportService(CatalogDbContext dbContext) : IExc
     private static string Key(string equipment, string number) => Normalize(equipment) + "\n" + Normalize(number);
 
     private sealed record ImportRow(
-        string Number, string Equipment, decimal ShaftRepeatMm, decimal WidthMm, decimal LengthMm,
-        int Streams, int Repeats, decimal GapAcrossMm, decimal GapAlongMm, string Material,
-        decimal MaterialWidthMm, string Shape, string? Comments, DateOnly? CommissionedOn);
+        string Number, string Equipment, int Shaft, decimal X, decimal Y,
+        int Streams, int Repeats, decimal GapX, decimal GapY, string Material,
+        decimal H, string Figure, string? Comments, DateOnly? Date);
 
     private sealed record ParsedWorkbook(
         IReadOnlyList<ImportRow> Rows,

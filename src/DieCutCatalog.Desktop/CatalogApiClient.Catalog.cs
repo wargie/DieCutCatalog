@@ -11,7 +11,7 @@ internal sealed partial class CatalogApiClient
         string? search,
         string? equipment,
         string? material,
-        string? shape,
+        string? figure,
         int page,
         int pageSize = 100)
     {
@@ -19,7 +19,7 @@ internal sealed partial class CatalogApiClient
         Append(query, "search", search);
         Append(query, "equipment", equipment);
         Append(query, "material", material);
-        Append(query, "shape", shape);
+        Append(query, "figure", figure);
         return SendAsync<PagedResult<DieCutSummary>>(HttpMethod.Get, query.ToString());
     }
 

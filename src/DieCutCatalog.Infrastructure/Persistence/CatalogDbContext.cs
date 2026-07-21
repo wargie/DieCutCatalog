@@ -55,15 +55,15 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
         dieCut.HasIndex(x => x.Material);
         dieCut.Property(x => x.Number).HasMaxLength(50).IsRequired();
         dieCut.Property(x => x.NormalizedNumber).HasMaxLength(50).IsRequired();
-        dieCut.Property(x => x.ShaftRepeatMm).HasPrecision(10, 3);
-        dieCut.Property(x => x.WidthMm).HasPrecision(10, 3);
-        dieCut.Property(x => x.LengthMm).HasPrecision(10, 3);
-        dieCut.Property(x => x.GapAcrossMm).HasPrecision(10, 3);
-        dieCut.Property(x => x.GapAlongMm).HasPrecision(10, 3);
+
+
+        dieCut.Property(x => x.X).HasPrecision(10, 3);
+        dieCut.Property(x => x.Y).HasPrecision(10, 3);
+        dieCut.Property(x => x.GapX).HasPrecision(14, 9);
+        dieCut.Property(x => x.GapY).HasPrecision(14, 9);
         dieCut.Property(x => x.Material).HasMaxLength(200).IsRequired();
-        dieCut.Property(x => x.MaterialWidthMm).HasPrecision(10, 2);
-        dieCut.Property(x => x.KnifeHeightMicrons).HasPrecision(10, 2);
-        dieCut.Property(x => x.Shape).HasMaxLength(100).IsRequired();
+        dieCut.Property(x => x.H).HasPrecision(10, 2);
+        dieCut.Property(x => x.Figure).HasMaxLength(100).IsRequired();
         dieCut.Property(x => x.Comments).HasMaxLength(2000);
         dieCut.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
         dieCut.HasOne(x => x.Equipment)
