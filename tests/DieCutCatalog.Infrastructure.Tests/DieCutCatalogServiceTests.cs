@@ -24,6 +24,20 @@ public sealed class DieCutCatalogServiceTests
     }
 
     [Fact]
+    public async Task Create_WritesCreatedEvent()
+    {
+        await using var fixture = CreateFixture();
+        var earliest = DateTimeOffset.UtcNow;
+
+        var created = await fixture.Service.CreateAsync(NewDieCut("001", "NilPeter"), fixture.EmployeeId);
+        var events = await fixture.Service.GetEventsAsync(created.Id);
+
+        var createdEvent = Assert.Single(events!, item => item.Type == DieCutEventType.Created);
+        Assert.Equal(fixture.EmployeeId, createdEvent.EmployeeId);
+        Assert.InRange(createdEvent.OccurredAt, earliest, DateTimeOffset.UtcNow);
+    }
+
+    [Fact]
     public async Task Create_CalculatesA1AndA2LikeExcel()
     {
         await using var fixture = CreateFixture();
@@ -146,9 +160,10 @@ public sealed class DieCutCatalogServiceTests
         Assert.Equal(66.675m, updated.RunLengthMeters);
         Assert.Equal(220, updated.Revolutions);
         Assert.NotNull(events);
-        Assert.Equal(2, events.Count);
-        Assert.All(events, item => Assert.Equal(DieCutEventType.CirculationAdded, item.Type));
-        Assert.Equal(2_500, events[0].Quantity);
+        var circulationEvents = events.Where(item => item.Type == DieCutEventType.CirculationAdded).ToList();
+        Assert.Equal(2, circulationEvents.Count);
+        Assert.All(circulationEvents, item => Assert.Equal(DieCutEventType.CirculationAdded, item.Type));
+        Assert.Equal(2_500, circulationEvents[0].Quantity);
         Assert.Equal(3_500, events[0].MileageAfter);
         Assert.Equal(66.675m, events[0].RunLengthMetersAfter);
         Assert.Equal(220, events[0].RevolutionsAfter);

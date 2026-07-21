@@ -47,6 +47,34 @@ internal sealed partial class CatalogApiClient
     public Task<IReadOnlyList<DieCutEventDetails>> GetDieCutEventsAsync(Guid id) =>
         SendAsync<IReadOnlyList<DieCutEventDetails>>(HttpMethod.Get, $"api/die-cuts/{id}/events");
 
+    public Task<PdfImportPreview> PreviewPdfImportAsync(string filePath) =>
+        SendPdfFileAsync<PdfImportPreview>("api/die-cuts/pdf-import/preview", filePath);
+
+    public Task<DieCutDocumentDetails> UploadDieCutPdfAsync(Guid id, string filePath) =>
+        SendPdfFileAsync<DieCutDocumentDetails>($"api/die-cuts/{id}/documents", filePath);
+
+    public Task<DieCutDocumentDetails> GenerateDieCutPdfAsync(Guid id) =>
+        SendAsync<DieCutDocumentDetails>(HttpMethod.Post, $"api/die-cuts/{id}/documents/generate");
+
+    public Task<IReadOnlyList<DieCutDocumentDetails>> GetDieCutDocumentsAsync(Guid id) =>
+        SendAsync<IReadOnlyList<DieCutDocumentDetails>>(HttpMethod.Get, $"api/die-cuts/{id}/documents");
+
+    public async Task<byte[]> DownloadDieCutPdfAsync(Guid id, Guid documentId)
+    {
+        using var request = CreateRequest(HttpMethod.Get, $"api/die-cuts/{id}/documents/{documentId}/content");
+        using var response = await SendCoreAsync(request);
+        return await response.Content.ReadAsByteArrayAsync();
+    }
+
+    private async Task<T> SendPdfFileAsync<T>(string path, string filePath)
+    {
+        await using var stream = File.OpenRead(filePath);
+        using var form = new MultipartFormDataContent();
+        using var file = new StreamContent(stream);
+        file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
+        form.Add(file, "file", Path.GetFileName(filePath));
+        return await SendAsync<T>(HttpMethod.Post, path, form);
+    }
     public Task<ExcelImportPreview> PreviewExcelImportAsync(string filePath) =>
         SendExcelFileAsync<ExcelImportPreview>("api/catalog-import/excel/preview", filePath);
 

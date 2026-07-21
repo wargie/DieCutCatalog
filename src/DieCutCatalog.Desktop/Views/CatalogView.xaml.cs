@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -25,6 +27,8 @@ public partial class CatalogView : UserControl
     private int _total;
     private bool _loadingCard;
     private DieCutStatus _loadedStatus = DieCutStatus.Active;
+    private string? _pendingPdfPath;
+    private DieCutDocumentDetails? _currentDocument;
 
     public CatalogView()
     {
@@ -109,6 +113,14 @@ public partial class CatalogView : UserControl
         SetEvents(await _api.GetDieCutEventsAsync(id));
     }
 
+    private async Task LoadDocumentsAsync(Guid id)
+    {
+        if (_api is null) return;
+        var documents = await _api.GetDieCutDocumentsAsync(id);
+        SetCurrentDocument(documents.FirstOrDefault());
+        DrawingSection.Visibility = Visibility.Visible;
+    }
+
     private async void ApplyFilters_Click(object sender, RoutedEventArgs e)
     {
         _page = 1;
@@ -145,9 +157,11 @@ public partial class CatalogView : UserControl
             CatalogError.Text = string.Empty;
             var detailsTask = _api.GetDieCutAsync(row.Id);
             var eventsTask = _api.GetDieCutEventsAsync(row.Id);
-            await Task.WhenAll(detailsTask, eventsTask);
+            var documentsTask = _api.GetDieCutDocumentsAsync(row.Id);
+            await Task.WhenAll(detailsTask, eventsTask, documentsTask);
             FillEditor(await detailsTask);
             SetEvents(await eventsTask);
+            SetCurrentDocument((await documentsTask).FirstOrDefault());
             OpenEditor();
         }
         catch (CatalogApiException exception)
@@ -199,14 +213,147 @@ public partial class CatalogView : UserControl
         }
     }
 
-    private void NewDieCut_Click(object sender, RoutedEventArgs e)
+    private async void ImportPdf_Click(object sender, RoutedEventArgs e)
+    {
+        if (_api is null) return;
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Выберите схему ножа в PDF",
+            Filter = "Документ PDF (*.pdf)|*.pdf",
+            CheckFileExists = true
+        };
+        if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
+
+        ImportPdfButton.IsEnabled = false;
+        CatalogError.Text = string.Empty;
+        try
+        {
+            var preview = await _api.PreviewPdfImportAsync(dialog.FileName);
+            BeginNewDieCut();
+            _pendingPdfPath = dialog.FileName;
+            DrawingSection.Visibility = Visibility.Visible;
+            DocumentNameText.Text = $"Будет прикреплён · {Path.GetFileName(dialog.FileName)}";
+            NumberBox.Text = preview.Number ?? string.Empty;
+            ShaftBox.Text = preview.Shaft?.ToString(CultureInfo.CurrentCulture) ?? string.Empty;
+            XBox.Text = preview.LabelWidth is null ? string.Empty : Format(preview.LabelWidth.Value);
+            YBox.Text = preview.LabelLength is null ? string.Empty : Format(preview.LabelLength.Value);
+            StreamsBox.Text = preview.Streams?.ToString(CultureInfo.CurrentCulture) ?? "1";
+            RepeatsBox.Text = preview.Repeats?.ToString(CultureInfo.CurrentCulture) ?? "1";
+            GrooveSpacingBox.Text = preview.GrooveSpacing is null ? "0" : Format(preview.GrooveSpacing.Value);
+            LabelCornerRadiusBox.Text = preview.LabelCornerRadius is null ? "0" : Format(preview.LabelCornerRadius.Value);
+            MaterialBox.Text = preview.Material ?? string.Empty;
+            HBox.Text = preview.MaterialWidth is null ? string.Empty : Format(preview.MaterialWidth.Value);
+            FigureBox.Text = "прямоугольник";
+            EditorStatus.Foreground = new System.Windows.Media.SolidColorBrush(
+                System.Windows.Media.Color.FromRgb(49, 94, 145));
+            EditorStatus.Text = preview.Warnings.Count == 0
+                ? "Данные распознаны. Проверьте карточку и сохраните нож."
+                : $"Проверьте карточку: {string.Join(" ", preview.Warnings)}";
+            EquipmentBox.Focus();
+        }
+        catch (CatalogApiException exception)
+        {
+            CatalogError.Text = exception.Message;
+        }
+        finally
+        {
+            ImportPdfButton.IsEnabled = true;
+        }
+    }
+
+    private async void UploadPdf_Click(object sender, RoutedEventArgs e)
+    {
+        if (_api is null || _editingId is null) return;
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Прикрепить схему ножа",
+            Filter = "Документ PDF (*.pdf)|*.pdf",
+            CheckFileExists = true
+        };
+        if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
+
+        try
+        {
+            SetDrawingButtonsEnabled(false);
+            var document = await _api.UploadDieCutPdfAsync(_editingId.Value, dialog.FileName);
+            SetCurrentDocument(document);
+            EditorStatus.Text = "PDF прикреплён";
+        }
+        catch (CatalogApiException exception)
+        {
+            ShowEditorError(exception.Message);
+        }
+        finally
+        {
+            SetDrawingButtonsEnabled(true);
+        }
+    }
+
+    private async void GeneratePdf_Click(object sender, RoutedEventArgs e)
+    {
+        if (_api is null || _editingId is null) return;
+        try
+        {
+            SetDrawingButtonsEnabled(false);
+            var document = await _api.GenerateDieCutPdfAsync(_editingId.Value);
+            SetCurrentDocument(document);
+            await LoadEventsAsync(_editingId.Value);
+            EditorStatus.Text = "Чертёж сформирован";
+            await OpenDocumentAsync(document);
+        }
+        catch (Exception exception) when (exception is CatalogApiException or IOException)
+        {
+            ShowEditorError(exception.Message);
+        }
+        finally
+        {
+            SetDrawingButtonsEnabled(true);
+        }
+    }
+
+    private async void OpenPdf_Click(object sender, RoutedEventArgs e)
+    {
+        if (_currentDocument is null) return;
+        try
+        {
+            SetDrawingButtonsEnabled(false);
+            await OpenDocumentAsync(_currentDocument);
+        }
+        catch (Exception exception) when (exception is CatalogApiException or IOException)
+        {
+            ShowEditorError(exception.Message);
+        }
+        finally
+        {
+            SetDrawingButtonsEnabled(true);
+        }
+    }
+
+    private async Task OpenDocumentAsync(DieCutDocumentDetails document)
+    {
+        if (_api is null || _editingId is null) return;
+        var bytes = await _api.DownloadDieCutPdfAsync(_editingId.Value, document.Id);
+        var directory = Path.Combine(Path.GetTempPath(), "DieCutCatalog");
+        Directory.CreateDirectory(directory);
+        var fileName = $"{document.Id:N}_{Path.GetFileName(document.FileName)}";
+        var path = Path.Combine(directory, fileName);
+        await File.WriteAllBytesAsync(path, bytes);
+        Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+    }
+
+    private void NewDieCut_Click(object sender, RoutedEventArgs e) => BeginNewDieCut();
+
+    private void BeginNewDieCut()
     {
         _editingId = null;
+        _pendingPdfPath = null;
+        _currentDocument = null;
         DieCutsGrid.SelectedItem = null;
         _events.Clear();
         ClearEditorFields();
         OperationsPanel.Visibility = Visibility.Collapsed;
         EventsSection.Visibility = Visibility.Collapsed;
+        DrawingSection.Visibility = Visibility.Collapsed;
         EditorStatusBadge.Visibility = Visibility.Collapsed;
         EditorTitle.Text = "Новый нож";
         EditorStatus.Text = string.Empty;
@@ -215,6 +362,7 @@ public partial class CatalogView : UserControl
         _loadedStatus = DieCutStatus.Active;
         EditorScrollViewer.ScrollToTop();
         OpenEditor();
+        SetDrawingButtonsEnabled(false);
         NumberBox.Focus();
     }
 
@@ -232,6 +380,12 @@ public partial class CatalogView : UserControl
             _editingId = saved.Id;
             FillEditor(saved);
             await LoadEventsAsync(saved.Id);
+            if (_pendingPdfPath is not null)
+            {
+                await _api.UploadDieCutPdfAsync(saved.Id, _pendingPdfPath);
+                _pendingPdfPath = null;
+            }
+            await LoadDocumentsAsync(saved.Id);
             EditorStatus.Text = "Сохранено";
             await LoadFacetsAsync();
             await LoadPageAsync();
@@ -420,7 +574,8 @@ public partial class CatalogView : UserControl
         RevolutionsText.Text = details.Revolutions.ToString("N0", CultureInfo.CurrentCulture);
         OperationsPanel.Visibility = Visibility.Visible;
         EventsSection.Visibility = Visibility.Visible;
-
+        DrawingSection.Visibility = Visibility.Visible;
+        SetDrawingButtonsEnabled(true);
         var operational = details.Status != DieCutStatus.Retired;
         SaveButton.IsEnabled = operational;
         StatusBox.IsEnabled = operational;
@@ -472,6 +627,24 @@ public partial class CatalogView : UserControl
         RetireButton.IsEnabled = enabled;
     }
 
+    private void SetCurrentDocument(DieCutDocumentDetails? document)
+    {
+        _currentDocument = document;
+        DocumentNameText.Text = document is null
+            ? "PDF не прикреплён"
+            : $"{DocumentSourceName(document.Source)} · {document.FileName} · {document.CreatedAt.ToLocalTime():dd.MM.yyyy HH:mm}";
+        OpenPdfButton.IsEnabled = document is not null;
+    }
+
+    private void SetDrawingButtonsEnabled(bool enabled)
+    {
+        UploadPdfButton.IsEnabled = enabled && _editingId is not null;
+        GeneratePdfButton.IsEnabled = enabled && _editingId is not null;
+        OpenPdfButton.IsEnabled = enabled && _currentDocument is not null;
+    }
+
+    private static string DocumentSourceName(DieCutDocumentSource source) =>
+        source == DieCutDocumentSource.Generated ? "Сформирован" : "Загружен";
     private void ShowEditorError(string message)
     {
         EditorStatus.Foreground = System.Windows.Media.Brushes.Firebrick;
@@ -491,10 +664,15 @@ public partial class CatalogView : UserControl
         EditorPanel.Visibility = Visibility.Collapsed;
         OperationsPanel.Visibility = Visibility.Collapsed;
         EventsSection.Visibility = Visibility.Collapsed;
+        DrawingSection.Visibility = Visibility.Collapsed;
         EditorStatusBadge.Visibility = Visibility.Collapsed;
         EditorColumn.Width = new GridLength(0);
         _editingId = null;
+        _pendingPdfPath = null;
+        _currentDocument = null;
         _events.Clear();
+        DocumentNameText.Text = "PDF не прикреплён";
+        OpenPdfButton.IsEnabled = false;
         DieCutsGrid.SelectedItem = null;
     }
 
@@ -607,6 +785,10 @@ public partial class CatalogView : UserControl
                     $"Счётчики сброшены · было {source.MileageBefore:N0} шт · {source.RunLengthMetersBefore:N2} м · {source.RevolutionsBefore:N0} об.",
                 DieCutEventType.Retired =>
                     $"Нож списан · тираж {source.MileageAfter:N0} шт · {source.RunLengthMetersAfter:N2} м · {source.RevolutionsAfter:N0} об.",
+                DieCutEventType.Created =>
+                    "Создана карточка ножа",
+                DieCutEventType.DrawingGenerated =>
+                    "Сформирован PDF-чертёж ножа",
                 _ => "Изменение ножа"
             };
         }

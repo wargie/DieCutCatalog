@@ -55,6 +55,7 @@ public static class DependencyInjection
         services.AddScoped<IAccountService, AccountService>();
         services.AddScoped<IDieCutCatalogService, DieCutCatalogService>();
         services.AddScoped<IExcelCatalogImportService, ExcelCatalogImportService>();
+        services.AddScoped<IDieCutPdfService, DieCutPdfService>();
 
         return services;
     }

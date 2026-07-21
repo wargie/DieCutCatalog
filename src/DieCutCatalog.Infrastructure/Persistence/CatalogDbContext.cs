@@ -12,6 +12,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     public DbSet<Equipment> Equipment => Set<Equipment>();
     public DbSet<DieCut> DieCuts => Set<DieCut>();
     public DbSet<DieCutEvent> DieCutEvents => Set<DieCutEvent>();
+    public DbSet<DieCutDocument> DieCutDocuments => Set<DieCutDocument>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -89,5 +90,19 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             .WithMany()
             .HasForeignKey(x => x.EmployeeId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        var dieCutDocument = modelBuilder.Entity<DieCutDocument>();
+        dieCutDocument.ToTable("die_cut_documents");
+        dieCutDocument.HasKey(x => x.Id);
+        dieCutDocument.HasIndex(x => new { x.DieCutId, x.CreatedAt });
+        dieCutDocument.Property(x => x.OriginalFileName).HasMaxLength(260).IsRequired();
+        dieCutDocument.Property(x => x.StoragePath).HasMaxLength(500).IsRequired();
+        dieCutDocument.Property(x => x.ContentType).HasMaxLength(100).IsRequired();
+        dieCutDocument.Property(x => x.Sha256).HasMaxLength(64).IsRequired();
+        dieCutDocument.Property(x => x.Source).HasConversion<string>().HasMaxLength(32);
+        dieCutDocument.HasOne(x => x.DieCut)
+            .WithMany(x => x.Documents)
+            .HasForeignKey(x => x.DieCutId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

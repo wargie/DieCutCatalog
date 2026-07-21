@@ -34,4 +34,5 @@ public sealed class DieCut
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     public ICollection<DieCutEvent> Events { get; set; } = new List<DieCutEvent>();
+    public ICollection<DieCutDocument> Documents { get; set; } = new List<DieCutDocument>();
 }

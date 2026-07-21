@@ -18,7 +18,13 @@ RUN dotnet publish src/DieCutCatalog.Api/DieCutCatalog.Api.csproj \
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine AS runtime
 WORKDIR /app
-RUN addgroup -S diecut && adduser -S diecut -G diecut
+RUN apk add --no-cache font-dejavu \
+    && addgroup -S diecut \
+    && adduser -S diecut -G diecut \
+    && mkdir -p /var/lib/diecut-catalog/storage \
+    && chown -R diecut:diecut /var/lib/diecut-catalog
+ENV DIECUT_FONT_PATH=/usr/share/fonts/dejavu/DejaVuSans.ttf
+ENV DIECUT_BOLD_FONT_PATH=/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf
 COPY --from=build --chown=diecut:diecut /app/publish ./
 USER diecut
 EXPOSE 8080

@@ -69,6 +69,9 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
         var dieCut = new DieCut { Equipment = equipment, EquipmentId = equipment.Id, CreatedByEmployeeId = employeeId };
         Apply(dieCut, command, employeeId);
         dbContext.DieCuts.Add(dieCut);
+        var usage = UsageSnapshot.From(dieCut);
+        dbContext.DieCutEvents.Add(NewEvent(
+            dieCut.Id, employeeId, DieCutEventType.Created, null, usage, usage, dieCut.CreatedAt));
         await dbContext.SaveChangesAsync(cancellationToken);
         return Map(dieCut, equipment.Name);
     }

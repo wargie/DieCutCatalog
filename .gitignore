@@ -11,3 +11,4 @@ storage/
 .templateengine/
 .nuget/
 TestResults/
+artifacts/

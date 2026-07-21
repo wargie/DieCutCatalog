@@ -104,6 +104,38 @@ public sealed record CatalogFacets(
     IReadOnlyList<string> Materials,
     IReadOnlyList<string> Figures);
 
+public sealed record PdfImportPreview(
+    string? Number,
+    int? Shaft,
+    decimal? LabelWidth,
+    decimal? LabelLength,
+    int? Streams,
+    int? Repeats,
+    decimal? GrooveSpacing,
+    decimal? LabelCornerRadius,
+    string? Material,
+    decimal? MaterialWidth,
+    IReadOnlyList<string> Warnings);
+
+public sealed record DieCutDocumentDetails(
+    Guid Id,
+    string FileName,
+    DieCutDocumentSource Source,
+    long Size,
+    string Sha256,
+    DateTimeOffset CreatedAt);
+
+public sealed record StoredPdf(string FileName, string ContentType, Stream Content);
+
+public interface IDieCutPdfService
+{
+    Task<PdfImportPreview> PreviewAsync(Stream content, long size, CancellationToken cancellationToken = default);
+    Task<DieCutDocumentDetails?> UploadAsync(Guid dieCutId, string fileName, Stream content, long size, Guid employeeId, CancellationToken cancellationToken = default);
+    Task<DieCutDocumentDetails?> GenerateAsync(Guid dieCutId, Guid employeeId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<DieCutDocumentDetails>?> ListAsync(Guid dieCutId, CancellationToken cancellationToken = default);
+    Task<StoredPdf?> OpenAsync(Guid dieCutId, Guid documentId, CancellationToken cancellationToken = default);
+}
+
 public interface IDieCutCatalogService
 {
     Task<PagedResult<DieCutSummary>> SearchAsync(DieCutQuery query, CancellationToken cancellationToken = default);

@@ -110,6 +110,77 @@ internal static class DieCutEndpoints
             return dieCut is null ? Results.NotFound() : Results.Ok(dieCut);
         }).RequireRateLimiting("auth");
 
+        group.MapPost("/pdf-import/preview", async (
+            HttpContext context,
+            IFormFile file,
+            IDieCutPdfService pdfs,
+            IAccountService accounts,
+            CancellationToken cancellationToken) =>
+        {
+            var employee = await AuthorizeAsync(context, accounts, cancellationToken);
+            if (employee is null) return Results.Unauthorized();
+            if (employee.MustChangePassword) return PasswordChangeRequired();
+            await using var stream = file.OpenReadStream();
+            return Results.Ok(await pdfs.PreviewAsync(stream, file.Length, cancellationToken));
+        }).DisableAntiforgery();
+
+        group.MapGet("/{id:guid}/documents", async (
+            Guid id,
+            HttpContext context,
+            IDieCutPdfService pdfs,
+            IAccountService accounts,
+            CancellationToken cancellationToken) =>
+        {
+            if (await AuthorizeAsync(context, accounts, cancellationToken) is null) return Results.Unauthorized();
+            var documents = await pdfs.ListAsync(id, cancellationToken);
+            return documents is null ? Results.NotFound() : Results.Ok(documents);
+        });
+
+        group.MapPost("/{id:guid}/documents", async (
+            Guid id,
+            HttpContext context,
+            IFormFile file,
+            IDieCutPdfService pdfs,
+            IAccountService accounts,
+            CancellationToken cancellationToken) =>
+        {
+            var employee = await AuthorizeAsync(context, accounts, cancellationToken);
+            if (employee is null) return Results.Unauthorized();
+            if (employee.MustChangePassword) return PasswordChangeRequired();
+            await using var stream = file.OpenReadStream();
+            var document = await pdfs.UploadAsync(id, file.FileName, stream, file.Length, employee.Id, cancellationToken);
+            return document is null ? Results.NotFound() : Results.Created($"/api/die-cuts/{id}/documents/{document.Id}", document);
+        }).DisableAntiforgery();
+
+        group.MapPost("/{id:guid}/documents/generate", async (
+            Guid id,
+            HttpContext context,
+            IDieCutPdfService pdfs,
+            IAccountService accounts,
+            CancellationToken cancellationToken) =>
+        {
+            var employee = await AuthorizeAsync(context, accounts, cancellationToken);
+            if (employee is null) return Results.Unauthorized();
+            if (employee.MustChangePassword) return PasswordChangeRequired();
+            var document = await pdfs.GenerateAsync(id, employee.Id, cancellationToken);
+            return document is null ? Results.NotFound() : Results.Created($"/api/die-cuts/{id}/documents/{document.Id}", document);
+        });
+
+        group.MapGet("/{id:guid}/documents/{documentId:guid}/content", async (
+            Guid id,
+            Guid documentId,
+            HttpContext context,
+            IDieCutPdfService pdfs,
+            IAccountService accounts,
+            CancellationToken cancellationToken) =>
+        {
+            if (await AuthorizeAsync(context, accounts, cancellationToken) is null) return Results.Unauthorized();
+            var pdf = await pdfs.OpenAsync(id, documentId, cancellationToken);
+            return pdf is null
+                ? Results.NotFound()
+                : Results.File(pdf.Content, pdf.ContentType, pdf.FileName, enableRangeProcessing: true);
+        });
+
         return endpoints;
     }
 
