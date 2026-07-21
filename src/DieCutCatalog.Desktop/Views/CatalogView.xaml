@@ -2,186 +2,467 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-             Background="Transparent">
+             Background="{StaticResource SurfaceBrush}">
     <UserControl.Resources>
         <Style x:Key="EditorLabel" TargetType="TextBlock" BasedOn="{StaticResource FieldLabel}">
-            <Setter Property="Margin" Value="0,9,0,4" />
+            <Setter Property="Margin" Value="0,0,0,5" />
+            <Setter Property="FontSize" Value="11" />
+        </Style>
+        <Style x:Key="EditorSection" TargetType="Border">
+            <Setter Property="Margin" Value="0,0,0,12" />
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="#DCE3EA" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="5" />
+        </Style>
+        <Style x:Key="EditorSectionTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="#315E91" />
+            <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
     </UserControl.Resources>
 
     <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" MinWidth="400" />
+            <ColumnDefinition x:Name="EditorColumn" Width="0" />
+        </Grid.ColumnDefinitions>
 
-        <DockPanel>
-            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                <ui:Button x:Name="ImportExcelButton" Margin="0,0,8,0" Appearance="Secondary"
-                           Content="Импорт Excel" Visibility="Collapsed" Click="ImportExcel_Click">
-                    <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowUpload20" /></ui:Button.Icon>
-                </ui:Button>
-                <ui:Button Appearance="Primary" Content="Новый нож" Click="NewDieCut_Click">
-                    <ui:Button.Icon><ui:SymbolIcon Symbol="Add20" /></ui:Button.Icon>
-                </ui:Button>
-            </StackPanel>
-            <StackPanel>
-                <TextBlock Text="Каталог ножей" Style="{StaticResource PageTitle}" />
-                <TextBlock x:Name="CatalogSummary" Margin="0,5,0,0" Style="{StaticResource CaptionText}" Text="Загрузка данных..." />
-            </StackPanel>
-        </DockPanel>
+        <Grid Margin="20,18,14,16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
 
-        <Border Grid.Row="1" Margin="0,18,0,14" Padding="12" Background="#80FFFFFF"
-                BorderBrush="{StaticResource DividerBrush}" BorderThickness="1" CornerRadius="8">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="2*" MinWidth="210" />
-                    <ColumnDefinition Width="10" />
-                    <ColumnDefinition Width="*" MinWidth="120" />
-                    <ColumnDefinition Width="10" />
-                    <ColumnDefinition Width="*" MinWidth="120" />
-                    <ColumnDefinition Width="10" />
-                    <ColumnDefinition Width="*" MinWidth="120" />
-                    <ColumnDefinition Width="10" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <TextBox x:Name="SearchBox" Style="{StaticResource CompactTextBox}"
-                         ToolTip="Поиск по номеру, материалу, фигуре и комментарию" KeyDown="SearchBox_KeyDown" />
-                <ComboBox x:Name="EquipmentFilter" Grid.Column="2" Style="{StaticResource CompactComboBox}" ToolTip="Оборудование" />
-                <ComboBox x:Name="MaterialFilter" Grid.Column="4" Style="{StaticResource CompactComboBox}" ToolTip="Материал" />
-                <ComboBox x:Name="FigureFilter" Grid.Column="6" Style="{StaticResource CompactComboBox}" ToolTip="Фигура" />
-                <ui:Button Grid.Column="8" Width="38" Height="34" Padding="0" Appearance="Primary"
-                           ToolTip="Применить поиск и фильтры" Click="ApplyFilters_Click">
-                    <ui:Button.Icon><ui:SymbolIcon Symbol="Search20" /></ui:Button.Icon>
-                </ui:Button>
-            </Grid>
-        </Border>
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <ui:Button x:Name="ImportExcelButton" Margin="0,0,8,0" Appearance="Secondary"
+                               Content="Импорт Excel" Visibility="Collapsed" Click="ImportExcel_Click">
+                        <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowUpload20" /></ui:Button.Icon>
+                    </ui:Button>
+                    <ui:Button Appearance="Primary" Content="Новый нож" Click="NewDieCut_Click">
+                        <ui:Button.Icon><ui:SymbolIcon Symbol="Add20" /></ui:Button.Icon>
+                    </ui:Button>
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock Text="Каталог ножей" Style="{StaticResource PageTitle}" />
+                    <TextBlock x:Name="CatalogSummary" Margin="0,4,0,0" Style="{StaticResource CaptionText}"
+                               Text="Загрузка данных..." />
+                </StackPanel>
+            </DockPanel>
 
-        <Grid Grid.Row="2">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" MinWidth="260" />
-                <ColumnDefinition Width="16" />
-                <ColumnDefinition x:Name="EditorColumn" Width="0" />
-            </Grid.ColumnDefinitions>
-
-            <Border Style="{StaticResource SurfaceCard}" ClipToBounds="True">
-                <DataGrid x:Name="DieCutsGrid"
-                          AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single"
-                          HeadersVisibility="Column" GridLinesVisibility="Horizontal"
-                          RowHeaderWidth="0" EnableRowVirtualization="True"
-                          SelectionChanged="DieCutsGrid_SelectionChanged">
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="№" Binding="{Binding Number}" Width="82" />
-                        <DataGridTextColumn Header="Оборудование" Binding="{Binding Equipment}" Width="125" />
-                        <DataGridTextColumn Header="shaft" Binding="{Binding Shaft}" Width="62" />
-                        <DataGridTextColumn Header="X" Binding="{Binding X}" Width="62" />
-                        <DataGridTextColumn Header="Y" Binding="{Binding Y}" Width="62" />
-                        <DataGridTextColumn Header="streams" Binding="{Binding Streams}" Width="68" />
-                        <DataGridTextColumn Header="repeats" Binding="{Binding Repeats}" Width="68" />
-                        <DataGridTextColumn Header="x" Binding="{Binding GapXText}" Width="88" />
-                        <DataGridTextColumn Header="y" Binding="{Binding GapYText}" Width="88" />
-                        <DataGridTextColumn Header="material" Binding="{Binding Material}" Width="150" />
-                        <DataGridTextColumn Header="H" Binding="{Binding H}" Width="62" />
-                        <DataGridTextColumn Header="figure" Binding="{Binding Figure}" Width="110" />
-                        <DataGridTextColumn Header="comments" Binding="{Binding Comments}" Width="180" />
-                        <DataGridTextColumn Header="Дата" Binding="{Binding DateText}" Width="88" />
-                    </DataGrid.Columns>
-                </DataGrid>
+            <Border Grid.Row="1" Margin="0,18,0,14" Padding="10" Background="#FAFBFC"
+                    BorderBrush="{StaticResource DividerBrush}" BorderThickness="1" CornerRadius="5">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="2*" MinWidth="160" />
+                        <ColumnDefinition Width="10" />
+                        <ColumnDefinition Width="*" MinWidth="80" />
+                        <ColumnDefinition Width="10" />
+                        <ColumnDefinition Width="*" MinWidth="80" />
+                        <ColumnDefinition Width="10" />
+                        <ColumnDefinition Width="*" MinWidth="80" />
+                        <ColumnDefinition Width="10" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="SearchBox" Style="{StaticResource CompactTextBox}"
+                             ToolTip="Поиск по номеру ножа, заказу JC, оборудованию, материалу и комментарию"
+                             KeyDown="SearchBox_KeyDown" />
+                    <ComboBox x:Name="EquipmentFilter" Grid.Column="2" Style="{StaticResource CompactComboBox}"
+                              ToolTip="Оборудование" />
+                    <ComboBox x:Name="MaterialFilter" Grid.Column="4" Style="{StaticResource CompactComboBox}"
+                              ToolTip="Материал" />
+                    <ComboBox x:Name="FigureFilter" Grid.Column="6" Style="{StaticResource CompactComboBox}"
+                              ToolTip="Фигура" />
+                    <ui:Button Grid.Column="8" Width="38" Height="34" Padding="0" Appearance="Primary"
+                               ToolTip="Применить поиск и фильтры" Click="ApplyFilters_Click">
+                        <ui:Button.Icon><ui:SymbolIcon Symbol="Search20" /></ui:Button.Icon>
+                    </ui:Button>
+                </Grid>
             </Border>
 
-            <Border x:Name="EditorPanel" Grid.Column="2" Style="{StaticResource SurfaceCard}" Visibility="Collapsed">
+            <Border Grid.Row="2" Style="{StaticResource SurfaceCard}" ClipToBounds="True">
                 <Grid>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
-                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="48" />
                     </Grid.RowDefinitions>
-                    <DockPanel Margin="18,14,12,8">
-                        <ui:Button DockPanel.Dock="Right" Width="34" Height="34" Padding="0" Appearance="Transparent"
-                                   ToolTip="Закрыть карточку" Click="CloseEditor_Click">
+                    <DataGrid x:Name="DieCutsGrid"
+                              AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single"
+                              HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                              RowHeaderWidth="0" EnableRowVirtualization="True"
+                              HorizontalScrollBarVisibility="Auto"
+                              SelectionChanged="DieCutsGrid_SelectionChanged">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="№" Binding="{Binding Number}" Width="72" />
+                            <DataGridTextColumn Header="Заказ JC" Binding="{Binding JcOrderNumber}" Width="95" />
+                            <DataGridTextColumn Header="Тираж, шт" Binding="{Binding MileageText}" Width="95" />
+                            <DataGridTextColumn Header="Пробег, м" Binding="{Binding RunLengthMetersText}" Width="95" />
+                            <DataGridTextColumn Header="Обороты" Binding="{Binding RevolutionsText}" Width="90" />
+                            <DataGridTextColumn Header="Оборудование" Binding="{Binding Equipment}" Width="115" />
+                            <DataGridTextColumn Header="shaft" Binding="{Binding Shaft}" Width="58" />
+                            <DataGridTextColumn Header="L" Binding="{Binding X}" Width="58" />
+                            <DataGridTextColumn Header="B" Binding="{Binding Y}" Width="58" />
+                            <DataGridTextColumn Header="Ручьи" Binding="{Binding Streams}" Width="68" />
+                            <DataGridTextColumn Header="Этик./ручей" Binding="{Binding Repeats}" Width="92" />
+                            <DataGridTextColumn Header="A1" Binding="{Binding GapXText}" Width="76" />
+                            <DataGridTextColumn Header="A2" Binding="{Binding GapYText}" Width="76" />
+                            <DataGridTextColumn Header="Материал" Binding="{Binding Material}" Width="140" />
+                            <DataGridTextColumn Header="Ширина материала" Binding="{Binding H}" Width="128" />
+                            <DataGridTextColumn Header="Фигура" Binding="{Binding Figure}" Width="105" />
+                            <DataGridTextColumn Header="Комментарий" Binding="{Binding Comments}" Width="165" />
+                            <DataGridTextColumn Header="Дата" Binding="{Binding DateText}" Width="86" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <Border Grid.Row="1" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0"
+                            Background="#FCFCFD">
+                        <DockPanel Margin="12,0">
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                <ui:Button x:Name="PreviousPageButton" Width="32" Height="30" Padding="0"
+                                           Appearance="Secondary" ToolTip="Предыдущая страница"
+                                           Click="PreviousPage_Click">
+                                    <ui:Button.Icon><ui:SymbolIcon Symbol="ChevronLeft20" /></ui:Button.Icon>
+                                </ui:Button>
+                                <TextBlock x:Name="PageText" Margin="12,0" VerticalAlignment="Center" FontSize="12" />
+                                <ui:Button x:Name="NextPageButton" Width="32" Height="30" Padding="0"
+                                           Appearance="Secondary" ToolTip="Следующая страница"
+                                           Click="NextPage_Click">
+                                    <ui:Button.Icon><ui:SymbolIcon Symbol="ChevronRight20" /></ui:Button.Icon>
+                                </ui:Button>
+                            </StackPanel>
+                            <TextBlock Text="Выберите нож, чтобы открыть карточку" VerticalAlignment="Center"
+                                       FontSize="11" Foreground="{StaticResource SecondaryTextBrush}" />
+                        </DockPanel>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <TextBlock x:Name="CatalogError" Grid.Row="3" Margin="0,9,0,0"
+                       Foreground="{StaticResource ErrorTextBrush}" TextWrapping="Wrap" />
+        </Grid>
+
+        <Border x:Name="EditorPanel" Grid.Column="1" Background="#FCFCFD"
+                BorderBrush="{StaticResource DividerBrush}" BorderThickness="1,0,0,0"
+                Visibility="Collapsed">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="84" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="62" />
+                </Grid.RowDefinitions>
+
+                <Border BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,0,0,1"
+                        Background="{StaticResource SurfaceBrush}">
+                    <Grid Margin="20,0,12,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock x:Name="EditorTitle" Text="Карточка ножа"
+                                           FontSize="18" FontWeight="SemiBold" />
+                                <Border x:Name="EditorStatusBadge" Margin="10,0,0,0" Padding="10,3"
+                                        CornerRadius="10" Background="#E7F1FF" Visibility="Collapsed">
+                                    <TextBlock x:Name="EditorStatusBadgeText" FontSize="11"
+                                               FontWeight="SemiBold" Foreground="#1769AA" />
+                                </Border>
+                            </StackPanel>
+                            <TextBlock Margin="0,4,0,0" Text="Редактирование параметров"
+                                       FontSize="11" Foreground="{StaticResource SecondaryTextBrush}" />
+                        </StackPanel>
+                        <ui:Button Grid.Column="1" Width="34" Height="34" Padding="0"
+                                   Appearance="Transparent" ToolTip="Закрыть карточку"
+                                   Click="CloseEditor_Click">
                             <ui:Button.Icon><ui:SymbolIcon Symbol="Dismiss20" /></ui:Button.Icon>
                         </ui:Button>
-                        <StackPanel VerticalAlignment="Center">
-                            <TextBlock x:Name="EditorTitle" Text="Карточка ножа" Style="{StaticResource SectionTitle}" />
-                            <TextBlock Text="Поля соответствуют структуре каталога Excel" FontSize="11"
-                                       Foreground="{StaticResource SecondaryTextBrush}" />
-                        </StackPanel>
-                    </DockPanel>
-                    <Border Grid.Row="1" Margin="0,4,0,0" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,1">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto">
-                            <StackPanel Margin="18,5,18,14">
-                                <Grid>
+                    </Grid>
+                </Border>
+
+                <ScrollViewer x:Name="EditorScrollViewer" Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="20,14,20,18">
+                        <Border Style="{StaticResource EditorSection}">
+                            <StackPanel>
+                                <Border Height="36" Padding="12,0" Background="#F6F8FB"
+                                        BorderBrush="#DCE3EA" BorderThickness="0,0,0,1">
+                                    <TextBlock Text="ОСНОВНЫЕ ДАННЫЕ" Style="{StaticResource EditorSectionTitle}" />
+                                </Border>
+                                <Grid Margin="12">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="12" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <StackPanel>
-                                        <TextBlock Style="{StaticResource EditorLabel}" Text="№" />
-                                        <TextBox x:Name="NumberBox" Style="{StaticResource CompactTextBox}" />
-                                        <TextBlock Style="{StaticResource EditorLabel}" Text="shaft" />
-                                        <TextBox x:Name="ShaftBox" Style="{StaticResource CompactTextBox}" ToolTip="Только целое число" PreviewTextInput="ShaftBox_PreviewTextInput" TextChanged="CalculationInput_TextChanged" />
-                                        <TextBlock Style="{StaticResource EditorLabel}" Text="X" />
-                                        <TextBox x:Name="XBox" Style="{StaticResource CompactTextBox}" TextChanged="CalculationInput_TextChanged" />
-                                        <TextBlock Style="{StaticResource EditorLabel}" Text="streams" />
-                                        <TextBox x:Name="StreamsBox" Style="{StaticResource CompactTextBox}" TextChanged="CalculationInput_TextChanged" />
-                                        <TextBlock Style="{StaticResource EditorLabel}" Text="x" />
-                                        <TextBox x:Name="GapXBox" Style="{StaticResource ReadOnlyTextBox}" />
-                                        <TextBlock Style="{StaticResource EditorLabel}" Text="H" />
-                                        <TextBox x:Name="HBox" Style="{StaticResource CompactTextBox}" TextChanged="CalculationInput_TextChanged" />
-                                        <TextBlock Style="{StaticResource EditorLabel}" Text="Дата" />
-                                        <DatePicker x:Name="DateBox" MinHeight="34" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="2">
-                                        <TextBlock Style="{StaticResource EditorLabel}" Text="Оборудование" />
-                                        <ComboBox x:Name="EquipmentBox" Style="{StaticResource CompactComboBox}" IsEditable="True" />
-                                        <TextBlock Style="{StaticResource EditorLabel}" Text="Y" />
-                                        <TextBox x:Name="YBox" Style="{StaticResource CompactTextBox}" TextChanged="CalculationInput_TextChanged" />
-                                        <TextBlock Style="{StaticResource EditorLabel}" Text="repeats" />
-                                        <TextBox x:Name="RepeatsBox" Style="{StaticResource CompactTextBox}" TextChanged="CalculationInput_TextChanged" />
-                                        <TextBlock Style="{StaticResource EditorLabel}" Text="y" />
-                                        <TextBox x:Name="GapYBox" Style="{StaticResource ReadOnlyTextBox}" />
-                                        <TextBlock Style="{StaticResource EditorLabel}" Text="material" />
-                                        <ComboBox x:Name="MaterialBox" Style="{StaticResource CompactComboBox}" IsEditable="True" />
-                                        <TextBlock Style="{StaticResource EditorLabel}" Text="figure" />
-                                        <ComboBox x:Name="FigureBox" Style="{StaticResource CompactComboBox}" IsEditable="True" />
-                                        <TextBlock Style="{StaticResource EditorLabel}" Text="Статус" />
-                                        <ComboBox x:Name="StatusBox" Style="{StaticResource CompactComboBox}" DisplayMemberPath="Name" />
-                                    </StackPanel>
-                                </Grid>
-                                <TextBlock Style="{StaticResource EditorLabel}" Text="comments" />
-                                <TextBox x:Name="CommentsBox" MinHeight="72" AcceptsReturn="True" TextWrapping="Wrap"
-                                         VerticalScrollBarVisibility="Auto" />
-                            </StackPanel>
-                        </ScrollViewer>
-                    </Border>
-                    <DockPanel Grid.Row="2" Margin="18,12,18,14">
-                        <TextBlock x:Name="EditorStatus" VerticalAlignment="Center" Foreground="{StaticResource SuccessTextBrush}"
-                                   TextWrapping="Wrap" />
-                        <ui:Button x:Name="SaveButton" DockPanel.Dock="Right" Appearance="Primary"
-                                   Content="Сохранить" Click="SaveDieCut_Click">
-                            <ui:Button.Icon><ui:SymbolIcon Symbol="Save20" /></ui:Button.Icon>
-                        </ui:Button>
-                    </DockPanel>
-                </Grid>
-            </Border>
-        </Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="10" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="10" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Style="{StaticResource EditorLabel}" Text="Номер ножа" />
+                                    <TextBlock Grid.Column="2" Style="{StaticResource EditorLabel}" Text="Оборудование" />
+                                    <TextBox x:Name="NumberBox" Grid.Row="1" Style="{StaticResource CompactTextBox}" />
+                                    <ComboBox x:Name="EquipmentBox" Grid.Row="1" Grid.Column="2"
+                                              Style="{StaticResource CompactComboBox}" IsEditable="True" />
 
-        <DockPanel Grid.Row="3" Margin="0,12,0,0">
-            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                <ui:Button x:Name="PreviousPageButton" Width="36" Height="34" Padding="0" Appearance="Secondary"
-                           ToolTip="Предыдущая страница" Click="PreviousPage_Click">
-                    <ui:Button.Icon><ui:SymbolIcon Symbol="ChevronLeft20" /></ui:Button.Icon>
-                </ui:Button>
-                <TextBlock x:Name="PageText" Margin="14,0" VerticalAlignment="Center" />
-                <ui:Button x:Name="NextPageButton" Width="36" Height="34" Padding="0" Appearance="Secondary"
-                           ToolTip="Следующая страница" Click="NextPage_Click">
-                    <ui:Button.Icon><ui:SymbolIcon Symbol="ChevronRight20" /></ui:Button.Icon>
-                </ui:Button>
-            </StackPanel>
-            <TextBlock x:Name="CatalogError" Foreground="{StaticResource ErrorTextBrush}" VerticalAlignment="Center" TextWrapping="Wrap" />
-        </DockPanel>
+                                    <TextBlock Grid.Row="3" Style="{StaticResource EditorLabel}" Text="Номер заказа JC" />
+                                    <TextBlock Grid.Row="3" Grid.Column="2" Style="{StaticResource EditorLabel}" Text="Материал" />
+                                    <TextBox x:Name="JcOrderNumberBox" Grid.Row="4" Style="{StaticResource CompactTextBox}" />
+                                    <ComboBox x:Name="MaterialBox" Grid.Row="4" Grid.Column="2"
+                                              Style="{StaticResource CompactComboBox}" IsEditable="True" />
+
+                                    <TextBlock Grid.Row="6" Style="{StaticResource EditorLabel}" Text="Фигура" />
+                                    <ComboBox x:Name="FigureBox" Grid.Row="7" Grid.ColumnSpan="3"
+                                              Style="{StaticResource CompactComboBox}" IsEditable="True" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource EditorSection}">
+                            <StackPanel>
+                                <Border Height="36" Padding="12,0" Background="#F6F8FB"
+                                        BorderBrush="#DCE3EA" BorderThickness="0,0,0,1">
+                                    <TextBlock Text="ГАБАРИТЫ НОЖА" Style="{StaticResource EditorSectionTitle}" />
+                                </Border>
+                                <Grid Margin="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="10" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="10" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Style="{StaticResource EditorLabel}" Text="Ширина этикетки L, мм" />
+                                    <TextBlock Grid.Column="2" Style="{StaticResource EditorLabel}" Text="Длина этикетки B, мм" />
+                                    <TextBlock Grid.Column="4" Style="{StaticResource EditorLabel}" Text="Ширина материала, мм" />
+                                    <TextBox x:Name="XBox" Grid.Row="1" Style="{StaticResource CompactTextBox}"
+                                             TextChanged="CalculationInput_TextChanged" />
+                                    <TextBox x:Name="YBox" Grid.Row="1" Grid.Column="2" Style="{StaticResource CompactTextBox}"
+                                             TextChanged="CalculationInput_TextChanged" />
+                                    <TextBox x:Name="HBox" Grid.Row="1" Grid.Column="4" Style="{StaticResource CompactTextBox}"
+                                             TextChanged="CalculationInput_TextChanged" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource EditorSection}">
+                            <StackPanel>
+                                <Border Height="36" Padding="12,0" Background="#F6F8FB"
+                                        BorderBrush="#DCE3EA" BorderThickness="0,0,0,1">
+                                    <TextBlock Text="РАСКЛАДКА" Style="{StaticResource EditorSectionTitle}" />
+                                </Border>
+                                <StackPanel Margin="12">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="10" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="10" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Style="{StaticResource EditorLabel}" Text="Вал (shaft)" />
+                                        <TextBlock Grid.Column="2" Style="{StaticResource EditorLabel}" Text="Ручьи" />
+                                        <TextBlock Grid.Column="4" Style="{StaticResource EditorLabel}" Text="Этикеток в ручье" />
+                                        <TextBox x:Name="ShaftBox" Grid.Row="1" Style="{StaticResource CompactTextBox}"
+                                                 ToolTip="Только целое число" PreviewTextInput="ShaftBox_PreviewTextInput"
+                                                 TextChanged="CalculationInput_TextChanged" />
+                                        <TextBox x:Name="StreamsBox" Grid.Row="1" Grid.Column="2"
+                                                 Style="{StaticResource CompactTextBox}"
+                                                 TextChanged="CalculationInput_TextChanged" />
+                                        <TextBox x:Name="RepeatsBox" Grid.Row="1" Grid.Column="4"
+                                                 Style="{StaticResource CompactTextBox}"
+                                                 TextChanged="CalculationInput_TextChanged" />
+                                    </Grid>
+                                    <Grid Margin="0,10,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="12" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Style="{StaticResource EditorLabel}" Text="Расстояние между ручьями, мм" />
+                                        <TextBlock Grid.Column="2" Style="{StaticResource EditorLabel}"
+                                                   Text="Радиус скругления этикетки, мм" />
+                                        <TextBox x:Name="GrooveSpacingBox" Grid.Row="1" Style="{StaticResource CompactTextBox}" />
+                                        <TextBox x:Name="LabelCornerRadiusBox" Grid.Row="1" Grid.Column="2"
+                                                 Style="{StaticResource CompactTextBox}" />
+                                    </Grid>
+                                    <TextBlock Margin="0,12,0,0" Text="Расчётные значения" FontSize="11"
+                                               FontWeight="SemiBold" Foreground="#315E91" />
+                                    <Border Margin="0,6,0,0" Padding="10" CornerRadius="4" Background="#F8FAFC"
+                                            BorderBrush="#E2E7EC" BorderThickness="1">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="12" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock Style="{StaticResource EditorLabel}" Text="A1" ToolTip="A1 = (ширина материала − L × ручьи) / 1000" />
+                                                <TextBox x:Name="GapXBox" Style="{StaticResource ReadOnlyTextBox}" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Style="{StaticResource EditorLabel}" Text="A2" ToolTip="A2 = (окружность вала / этикеток в ручье − B) / 1000" />
+                                                <TextBox x:Name="GapYBox" Style="{StaticResource ReadOnlyTextBox}" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource EditorSection}">
+                            <StackPanel>
+                                <Border Height="36" Padding="12,0" Background="#F6F8FB"
+                                        BorderBrush="#DCE3EA" BorderThickness="0,0,0,1">
+                                    <TextBlock Text="СОСТОЯНИЕ И ПРИМЕЧАНИЯ" Style="{StaticResource EditorSectionTitle}" />
+                                </Border>
+                                <StackPanel Margin="12">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="12" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Style="{StaticResource EditorLabel}" Text="Статус" />
+                                            <ComboBox x:Name="StatusBox" Style="{StaticResource CompactComboBox}"
+                                                      DisplayMemberPath="Name" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Style="{StaticResource EditorLabel}" Text="Дата изменения" />
+                                            <DatePicker x:Name="DateBox" MinHeight="34" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <TextBlock Margin="0,12,0,5" Style="{StaticResource EditorLabel}" Text="Комментарий" />
+                                    <TextBox x:Name="CommentsBox" MinHeight="64" AcceptsReturn="True"
+                                             TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border x:Name="OperationsPanel" Style="{StaticResource EditorSection}" Visibility="Collapsed">
+                            <StackPanel>
+                                <Border Height="36" Padding="12,0" Background="#F6F8FB"
+                                        BorderBrush="#DCE3EA" BorderThickness="0,0,0,1">
+                                    <TextBlock Text="УЧЁТ ТИРАЖА" Style="{StaticResource EditorSectionTitle}" />
+                                </Border>
+                                <StackPanel Margin="12">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="10" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="10" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="Тираж, шт" FontSize="11" Foreground="{StaticResource SecondaryTextBrush}" />
+                                            <TextBlock x:Name="MileageText" Margin="0,3,0,0" FontSize="18"
+                                                       FontWeight="SemiBold" Foreground="#147D73" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Text="Пробег, м" FontSize="11" Foreground="{StaticResource SecondaryTextBrush}" />
+                                            <TextBlock x:Name="RunLengthMetersText" Margin="0,3,0,0" FontSize="18"
+                                                       FontWeight="SemiBold" Foreground="#147D73" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="4">
+                                            <TextBlock Text="Обороты" FontSize="11" Foreground="{StaticResource SecondaryTextBrush}" />
+                                            <TextBlock x:Name="RevolutionsText" Margin="0,3,0,0" FontSize="18"
+                                                       FontWeight="SemiBold" Foreground="#147D73" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <TextBlock Margin="0,12,0,0" Text="Добавить тираж, шт" Style="{StaticResource EditorLabel}" />
+                                    <Grid Margin="0,5,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="10" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox x:Name="CirculationBox" Style="{StaticResource CompactTextBox}"
+                                                 ToolTip="Введите целое количество экземпляров"
+                                                 PreviewTextInput="PositiveInteger_PreviewTextInput" />
+                                        <ui:Button x:Name="AddCirculationButton" Grid.Column="2" Appearance="Primary"
+                                                   Content="Добавить тираж" Click="AddCirculation_Click" />
+                                    </Grid>
+                                    <UniformGrid Columns="2" Margin="0,10,0,0">
+                                        <ui:Button x:Name="ResetMileageButton" Margin="0,0,5,0" Appearance="Secondary"
+                                                   Content="Сбросить тираж" Click="ResetMileage_Click" />
+                                        <ui:Button x:Name="RetireButton" Margin="5,0,0,0" Appearance="Secondary"
+                                                   Foreground="#B42318" Content="Списать нож"
+                                                   Click="RetireDieCut_Click" />
+                                    </UniformGrid>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border x:Name="EventsSection" Style="{StaticResource EditorSection}" Visibility="Collapsed">
+                            <StackPanel>
+                                <Border Height="36" Padding="12,0" Background="#F6F8FB"
+                                        BorderBrush="#DCE3EA" BorderThickness="0,0,0,1">
+                                    <TextBlock Text="ЖУРНАЛ НОЖА" Style="{StaticResource EditorSectionTitle}" />
+                                </Border>
+                                <ListView x:Name="EventsList" MinHeight="90" MaxHeight="210" Margin="8"
+                                          BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,4,0,7">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="86" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="{Binding DateText}" FontSize="11"
+                                                           Foreground="{StaticResource SecondaryTextBrush}" />
+                                                <StackPanel Grid.Column="1">
+                                                    <TextBlock Text="{Binding Description}" TextWrapping="Wrap" />
+                                                    <TextBlock Text="{Binding EmployeeName}" Margin="0,2,0,0"
+                                                               FontSize="11"
+                                                               Foreground="{StaticResource SecondaryTextBrush}" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                </ListView>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <Border Grid.Row="2" Background="{StaticResource SurfaceBrush}"
+                        BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0">
+                    <DockPanel Margin="20,0">
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                            <ui:Button Margin="0,0,10,0" Appearance="Secondary"
+                                       Content="Отмена" Click="CloseEditor_Click" />
+                            <ui:Button x:Name="SaveButton" Appearance="Primary"
+                                       Content="Сохранить" Click="SaveDieCut_Click">
+                                <ui:Button.Icon><ui:SymbolIcon Symbol="Save20" /></ui:Button.Icon>
+                            </ui:Button>
+                        </StackPanel>
+                        <TextBlock x:Name="EditorStatus" VerticalAlignment="Center"
+                                   Foreground="{StaticResource SuccessTextBrush}" TextWrapping="Wrap" />
+                    </DockPanel>
+                </Border>
+            </Grid>
+        </Border>
     </Grid>
 </UserControl>

@@ -11,6 +11,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     public DbSet<UserSession> UserSessions => Set<UserSession>();
     public DbSet<Equipment> Equipment => Set<Equipment>();
     public DbSet<DieCut> DieCuts => Set<DieCut>();
+    public DbSet<DieCutEvent> DieCutEvents => Set<DieCutEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -55,20 +56,38 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
         dieCut.HasIndex(x => x.Material);
         dieCut.Property(x => x.Number).HasMaxLength(50).IsRequired();
         dieCut.Property(x => x.NormalizedNumber).HasMaxLength(50).IsRequired();
-
-
+        dieCut.Property(x => x.JcOrderNumber).HasMaxLength(100);
         dieCut.Property(x => x.X).HasPrecision(10, 3);
         dieCut.Property(x => x.Y).HasPrecision(10, 3);
+        dieCut.Property(x => x.GrooveSpacing).HasPrecision(10, 3);
+        dieCut.Property(x => x.LabelCornerRadius).HasPrecision(10, 3);
         dieCut.Property(x => x.GapX).HasPrecision(14, 9);
         dieCut.Property(x => x.GapY).HasPrecision(14, 9);
         dieCut.Property(x => x.Material).HasMaxLength(200).IsRequired();
         dieCut.Property(x => x.H).HasPrecision(10, 2);
+        dieCut.Property(x => x.RunLengthMeters).HasPrecision(18, 6);
         dieCut.Property(x => x.Figure).HasMaxLength(100).IsRequired();
         dieCut.Property(x => x.Comments).HasMaxLength(2000);
         dieCut.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
         dieCut.HasOne(x => x.Equipment)
             .WithMany(x => x.DieCuts)
             .HasForeignKey(x => x.EquipmentId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        var dieCutEvent = modelBuilder.Entity<DieCutEvent>();
+        dieCutEvent.ToTable("die_cut_events");
+        dieCutEvent.HasKey(x => x.Id);
+        dieCutEvent.HasIndex(x => new { x.DieCutId, x.OccurredAt });
+        dieCutEvent.Property(x => x.Type).HasConversion<string>().HasMaxLength(32);
+        dieCutEvent.Property(x => x.RunLengthMetersBefore).HasPrecision(18, 6);
+        dieCutEvent.Property(x => x.RunLengthMetersAfter).HasPrecision(18, 6);
+        dieCutEvent.HasOne(x => x.DieCut)
+            .WithMany(x => x.Events)
+            .HasForeignKey(x => x.DieCutId)
+            .OnDelete(DeleteBehavior.Cascade);
+        dieCutEvent.HasOne(x => x.Employee)
+            .WithMany()
+            .HasForeignKey(x => x.EmployeeId)
             .OnDelete(DeleteBehavior.Restrict);
     }
 }

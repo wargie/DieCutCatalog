@@ -59,6 +59,18 @@ public sealed class AccountServiceTests
     }
 
     [Fact]
+    public async Task VerifyPassword_UsesCurrentAuthenticatedEmployee()
+    {
+        await using var fixture = CreateFixture();
+        await fixture.Service.CreateEmployeeAsync(NewEmployee());
+        var password = fixture.EmailSender.TemporaryPassword!;
+        var login = await fixture.Service.LoginAsync(new LoginCommand("employee@example.com", password));
+
+        Assert.NotNull(login);
+        Assert.True(await fixture.Service.VerifyPasswordAsync(login.AccessToken, password));
+        Assert.False(await fixture.Service.VerifyPasswordAsync(login.AccessToken, "wrong-password"));
+    }
+    [Fact]
     public async Task DuplicateEmail_IsRejectedCaseInsensitively()
     {
         await using var fixture = CreateFixture();

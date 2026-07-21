@@ -10,11 +10,11 @@
                 <ui:ControlsDictionary />
             </ResourceDictionary.MergedDictionaries>
 
-            <SolidColorBrush x:Key="AppBackgroundBrush" Color="#F5F5F5" />
-            <SolidColorBrush x:Key="NavigationBrush" Color="#F3F3F3" />
+            <SolidColorBrush x:Key="AppBackgroundBrush" Color="#F7F8FA" />
+            <SolidColorBrush x:Key="NavigationBrush" Color="#FBFBFC" />
             <SolidColorBrush x:Key="SurfaceBrush" Color="#FFFFFF" />
-            <SolidColorBrush x:Key="SurfaceMutedBrush" Color="#F8F8F8" />
-            <SolidColorBrush x:Key="DividerBrush" Color="#E5E5E5" />
+            <SolidColorBrush x:Key="SurfaceMutedBrush" Color="#F7F9FB" />
+            <SolidColorBrush x:Key="DividerBrush" Color="#E1E5EA" />
             <SolidColorBrush x:Key="PrimaryTextBrush" Color="#1F1F1F" />
             <SolidColorBrush x:Key="SecondaryTextBrush" Color="#616161" />
             <SolidColorBrush x:Key="SuccessTextBrush" Color="#0F6B56" />
@@ -33,7 +33,7 @@
             </Style>
             <Style x:Key="PageTitle" TargetType="TextBlock">
                 <Setter Property="FontFamily" Value="Segoe UI Variable Display, Segoe UI" />
-                <Setter Property="FontSize" Value="24" />
+                <Setter Property="FontSize" Value="22" />
                 <Setter Property="FontWeight" Value="SemiBold" />
                 <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
             </Style>
@@ -55,7 +55,7 @@
                 <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
                 <Setter Property="BorderBrush" Value="{StaticResource DividerBrush}" />
                 <Setter Property="BorderThickness" Value="1" />
-                <Setter Property="CornerRadius" Value="8" />
+                <Setter Property="CornerRadius" Value="5" />
             </Style>
             <Style x:Key="CompactTextBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
                 <Setter Property="MinHeight" Value="34" />
@@ -93,6 +93,19 @@
                 <Setter Property="BorderThickness" Value="0" />
                 <Setter Property="Padding" Value="10,0" />
                 <Setter Property="VerticalContentAlignment" Value="Center" />
+            </Style>
+            <Style TargetType="DataGridRow">
+                <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+                <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+                <Setter Property="BorderThickness" Value="3,0,0,0" />
+                <Setter Property="BorderBrush" Value="Transparent" />
+                <Style.Triggers>
+                    <Trigger Property="IsSelected" Value="True">
+                        <Setter Property="Background" Value="#EAF2FC" />
+                        <Setter Property="Foreground" Value="#174A7C" />
+                        <Setter Property="BorderBrush" Value="#1E6FB3" />
+                    </Trigger>
+                </Style.Triggers>
             </Style>
         </ResourceDictionary>
     </Application.Resources>

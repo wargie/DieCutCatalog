@@ -19,6 +19,7 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
             var search = query.Search.Trim().ToLower();
             dieCuts = dieCuts.Where(x =>
                 x.Number.ToLower().Contains(search)
+                || (x.JcOrderNumber != null && x.JcOrderNumber.ToLower().Contains(search))
                 || x.Material.ToLower().Contains(search)
                 || x.Figure.ToLower().Contains(search)
                 || (x.Comments != null && x.Comments.ToLower().Contains(search)));
@@ -43,8 +44,9 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(x => new DieCutSummary(
-                x.Id, x.Number, x.Equipment.Name, x.Shaft, x.X, x.Y, x.Streams, x.Repeats,
-                x.GapX, x.GapY, x.Material, x.H, x.Figure, x.Comments, x.Date, x.Status, x.UpdatedAt))
+                x.Id, x.Number, x.JcOrderNumber, x.Equipment.Name, x.Shaft, x.X, x.Y, x.Streams, x.Repeats,
+                x.GapX, x.GapY, x.Material, x.H, x.Figure, x.Comments, x.Date, x.Mileage,
+                x.RunLengthMeters, x.Revolutions, x.Status, x.UpdatedAt))
             .ToListAsync(cancellationToken);
 
         return new PagedResult<DieCutSummary>(items, total, page, pageSize);
@@ -56,6 +58,9 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
     public async Task<DieCutDetails> CreateAsync(SaveDieCutCommand command, Guid employeeId, CancellationToken cancellationToken = default)
     {
         Validate(command);
+        if (command.Status == DieCutStatus.Retired)
+            throw new ValidationException("Новый нож нельзя сразу списать.");
+
         var equipment = await GetOrCreateEquipmentAsync(command.Equipment, cancellationToken);
         var normalizedNumber = Normalize(command.Number);
         if (await dbContext.DieCuts.AnyAsync(x => x.EquipmentId == equipment.Id && x.NormalizedNumber == normalizedNumber, cancellationToken))
@@ -73,6 +78,11 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
         Validate(command);
         var dieCut = await dbContext.DieCuts.Include(x => x.Equipment).SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (dieCut is null) return null;
+        if (dieCut.Status == DieCutStatus.Retired)
+            throw new ValidationException("Списанный нож нельзя изменять.");
+        if (command.Status == DieCutStatus.Retired)
+            throw new ValidationException("Используйте операцию «Списать нож» и подтвердите её паролем.");
+
         var equipment = await GetOrCreateEquipmentAsync(command.Equipment, cancellationToken);
         var normalizedNumber = Normalize(command.Number);
         if (await dbContext.DieCuts.AnyAsync(x => x.Id != id && x.EquipmentId == equipment.Id && x.NormalizedNumber == normalizedNumber, cancellationToken))
@@ -83,6 +93,102 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
         Apply(dieCut, command, employeeId);
         await dbContext.SaveChangesAsync(cancellationToken);
         return Map(dieCut, equipment.Name);
+    }
+
+    public async Task<DieCutDetails?> AddCirculationAsync(
+        Guid id,
+        long quantity,
+        Guid employeeId,
+        CancellationToken cancellationToken = default)
+    {
+        if (quantity <= 0) throw new ValidationException("Тираж должен быть целым числом больше нуля.");
+
+        var dieCut = await dbContext.DieCuts.Include(x => x.Equipment).SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (dieCut is null) return null;
+        EnsureOperational(dieCut);
+        if (quantity > long.MaxValue - dieCut.Mileage)
+            throw new ValidationException("Итоговый тираж превышает допустимое значение.");
+
+        var before = UsageSnapshot.From(dieCut);
+        var (runLengthMeters, revolutions) = DieCutCalculations.CalculateRunMetrics(
+            quantity, dieCut.Streams, dieCut.Y, dieCut.GapY, dieCut.Shaft);
+        var now = DateTimeOffset.UtcNow;
+        dieCut.Mileage += quantity;
+        dieCut.RunLengthMeters += runLengthMeters;
+        dieCut.Revolutions += revolutions;
+        var after = UsageSnapshot.From(dieCut);
+        Touch(dieCut, employeeId, now);
+        dbContext.DieCutEvents.Add(NewEvent(
+            dieCut.Id, employeeId, DieCutEventType.CirculationAdded, quantity, before, after, now));
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return Map(dieCut, dieCut.Equipment.Name);
+    }
+
+    public async Task<DieCutDetails?> ResetMileageAsync(
+        Guid id,
+        Guid employeeId,
+        CancellationToken cancellationToken = default)
+    {
+        var dieCut = await dbContext.DieCuts.Include(x => x.Equipment).SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (dieCut is null) return null;
+        EnsureOperational(dieCut);
+
+        var before = UsageSnapshot.From(dieCut);
+        var now = DateTimeOffset.UtcNow;
+        dieCut.Mileage = 0;
+        dieCut.RunLengthMeters = 0;
+        dieCut.Revolutions = 0;
+        var after = UsageSnapshot.From(dieCut);
+        Touch(dieCut, employeeId, now);
+        dbContext.DieCutEvents.Add(NewEvent(
+            dieCut.Id, employeeId, DieCutEventType.MileageReset, null, before, after, now));
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return Map(dieCut, dieCut.Equipment.Name);
+    }
+
+    public async Task<DieCutDetails?> RetireAsync(
+        Guid id,
+        Guid employeeId,
+        CancellationToken cancellationToken = default)
+    {
+        var dieCut = await dbContext.DieCuts.Include(x => x.Equipment).SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (dieCut is null) return null;
+        EnsureOperational(dieCut);
+
+        var now = DateTimeOffset.UtcNow;
+        dieCut.Status = DieCutStatus.Retired;
+        Touch(dieCut, employeeId, now);
+        var usage = UsageSnapshot.From(dieCut);
+        dbContext.DieCutEvents.Add(NewEvent(
+            dieCut.Id, employeeId, DieCutEventType.Retired, null, usage, usage, now));
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return Map(dieCut, dieCut.Equipment.Name);
+    }
+
+    public async Task<IReadOnlyList<DieCutEventDetails>?> GetEventsAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        if (!await dbContext.DieCuts.AsNoTracking().AnyAsync(x => x.Id == id, cancellationToken)) return null;
+
+        return await dbContext.DieCutEvents
+            .AsNoTracking()
+            .Where(x => x.DieCutId == id)
+            .OrderByDescending(x => x.OccurredAt)
+            .Select(x => new DieCutEventDetails(
+                x.Id,
+                x.Type,
+                x.Quantity,
+                x.MileageBefore,
+                x.MileageAfter,
+                x.RunLengthMetersBefore,
+                x.RunLengthMetersAfter,
+                x.RevolutionsBefore,
+                x.RevolutionsAfter,
+                x.OccurredAt,
+                x.EmployeeId,
+                (x.Employee.FirstName + " " + x.Employee.LastName).Trim()))
+            .ToListAsync(cancellationToken);
     }
 
     public async Task<CatalogFacets> GetFacetsAsync(CancellationToken cancellationToken = default) => new(
@@ -105,17 +211,20 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
         var (gapX, gapY) = DieCutCalculations.Calculate(source.Shaft, source.X, source.Y, source.Streams, source.Repeats, source.H);
         target.Number = source.Number.Trim();
         target.NormalizedNumber = Normalize(source.Number);
+        target.JcOrderNumber = TrimToNull(source.JcOrderNumber);
         target.Shaft = source.Shaft;
         target.X = source.X;
         target.Y = source.Y;
         target.Streams = source.Streams;
         target.Repeats = source.Repeats;
+        target.GrooveSpacing = source.GrooveSpacing;
+        target.LabelCornerRadius = source.LabelCornerRadius;
         target.GapX = gapX;
         target.GapY = gapY;
         target.Material = source.Material.Trim();
         target.H = source.H;
         target.Figure = source.Figure.Trim();
-        target.Comments = string.IsNullOrWhiteSpace(source.Comments) ? null : source.Comments.Trim();
+        target.Comments = TrimToNull(source.Comments);
         target.Date = source.Date;
         target.Status = source.Status;
         target.UpdatedByEmployeeId = employeeId;
@@ -125,19 +234,72 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
     private static void Validate(SaveDieCutCommand command)
     {
         if (string.IsNullOrWhiteSpace(command.Number) || command.Number.Length > 50) throw new ValidationException("Укажите номер ножа длиной до 50 символов.");
+        if (command.JcOrderNumber?.Trim().Length > 100) throw new ValidationException("Номер заказа JC не должен превышать 100 символов.");
         if (string.IsNullOrWhiteSpace(command.Equipment) || command.Equipment.Length > 150) throw new ValidationException("Укажите оборудование.");
         if (string.IsNullOrWhiteSpace(command.Material) || command.Material.Length > 200) throw new ValidationException("Укажите материал.");
         if (string.IsNullOrWhiteSpace(command.Figure) || command.Figure.Length > 100) throw new ValidationException("Укажите форму ножа.");
-        if (command.Shaft <= 0 || command.X <= 0 || command.Y <= 0) throw new ValidationException("Раппорт вала и размеры ножа должны быть больше нуля.");
-        if (command.Streams <= 0 || command.Repeats <= 0) throw new ValidationException("Количество ручьёв и повторов должно быть больше нуля.");
-        if (command.H <= 0) throw new ValidationException("H должно быть больше нуля.");
+        if (command.Shaft <= 0 || command.X <= 0 || command.Y <= 0) throw new ValidationException("Раппорт вала, L и B должны быть больше нуля.");
+        if (command.Streams <= 0 || command.Repeats <= 0) throw new ValidationException("Количество ручьёв и этикеток в ручье должно быть больше нуля.");
+        if (command.GrooveSpacing < 0) throw new ValidationException("Расстояние между ручьями не может быть отрицательным.");
+        if (command.LabelCornerRadius < 0) throw new ValidationException("Радиус скругления этикетки не может быть отрицательным.");
+        if (command.LabelCornerRadius > Math.Min(command.X, command.Y) / 2) throw new ValidationException("Радиус скругления не может превышать половину меньшей стороны этикетки.");
+        if (command.H <= 0) throw new ValidationException("Ширина материала должна быть больше нуля.");
         var (gapX, gapY) = DieCutCalculations.Calculate(command.Shaft, command.X, command.Y, command.Streams, command.Repeats, command.H);
-        if (gapX < 0) throw new ValidationException("H не может быть меньше X × streams.");
-        if (gapY < 0) throw new ValidationException("Длина окружности shaft не вмещает Y × repeats.");
+        if (gapX < 0) throw new ValidationException("Ширина материала не может быть меньше L × количество ручьёв.");
+        if (gapY < 0) throw new ValidationException("Длина окружности вала не вмещает B × количество этикеток в ручье.");
         if (command.Comments?.Length > 2000) throw new ValidationException("Комментарий не должен превышать 2000 символов.");
     }
 
+    private static void EnsureOperational(DieCut dieCut)
+    {
+        if (dieCut.Status == DieCutStatus.Retired)
+            throw new ValidationException("Операция недоступна: нож уже списан.");
+    }
+
+    private static void Touch(DieCut dieCut, Guid employeeId, DateTimeOffset now)
+    {
+        dieCut.UpdatedByEmployeeId = employeeId;
+        dieCut.UpdatedAt = now;
+    }
+
+    private static DieCutEvent NewEvent(
+        Guid dieCutId,
+        Guid employeeId,
+        DieCutEventType type,
+        long? quantity,
+        UsageSnapshot before,
+        UsageSnapshot after,
+        DateTimeOffset occurredAt) => new()
+        {
+            DieCutId = dieCutId,
+            EmployeeId = employeeId,
+            Type = type,
+            Quantity = quantity,
+            MileageBefore = before.Mileage,
+            MileageAfter = after.Mileage,
+            RunLengthMetersBefore = before.RunLengthMeters,
+            RunLengthMetersAfter = after.RunLengthMeters,
+            RevolutionsBefore = before.Revolutions,
+            RevolutionsAfter = after.Revolutions,
+            OccurredAt = occurredAt
+        };
+
+    private readonly record struct UsageSnapshot(long Mileage, decimal RunLengthMeters, long Revolutions)
+    {
+        public static UsageSnapshot From(DieCut dieCut) =>
+            new(dieCut.Mileage, dieCut.RunLengthMeters, dieCut.Revolutions);
+    }
+
     private static string Normalize(string value) => value.Trim().ToUpperInvariant();
-    private static DieCutDetails Map(DieCut x, string equipment) => new(x.Id, x.Number, equipment, x.Shaft, x.X, x.Y, x.Streams, x.Repeats, x.GapX, x.GapY, x.Material, x.H, x.Figure, x.Comments, x.Date, x.Status, x.CreatedAt, x.UpdatedAt);
-    private static System.Linq.Expressions.Expression<Func<DieCut, DieCutDetails>> ToDetails() => x => new DieCutDetails(x.Id, x.Number, x.Equipment.Name, x.Shaft, x.X, x.Y, x.Streams, x.Repeats, x.GapX, x.GapY, x.Material, x.H, x.Figure, x.Comments, x.Date, x.Status, x.CreatedAt, x.UpdatedAt);
+    private static string? TrimToNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static DieCutDetails Map(DieCut x, string equipment) => new(
+        x.Id, x.Number, x.JcOrderNumber, equipment, x.Shaft, x.X, x.Y, x.Streams, x.Repeats,
+        x.GrooveSpacing, x.LabelCornerRadius, x.GapX, x.GapY, x.Material, x.H, x.Figure, x.Comments, x.Date, x.Mileage,
+        x.RunLengthMeters, x.Revolutions, x.Status, x.CreatedAt, x.UpdatedAt);
+
+    private static System.Linq.Expressions.Expression<Func<DieCut, DieCutDetails>> ToDetails() => x => new DieCutDetails(
+        x.Id, x.Number, x.JcOrderNumber, x.Equipment.Name, x.Shaft, x.X, x.Y, x.Streams, x.Repeats,
+        x.GrooveSpacing, x.LabelCornerRadius, x.GapX, x.GapY, x.Material, x.H, x.Figure, x.Comments, x.Date, x.Mileage,
+        x.RunLengthMeters, x.Revolutions, x.Status, x.CreatedAt, x.UpdatedAt);
 }

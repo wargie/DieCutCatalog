@@ -35,6 +35,18 @@ internal sealed partial class CatalogApiClient
     public Task<DieCutDetails> UpdateDieCutAsync(Guid id, SaveDieCutCommand command) =>
         SendAsync<DieCutDetails>(HttpMethod.Put, $"api/die-cuts/{id}", command);
 
+    public Task<DieCutDetails> AddCirculationAsync(Guid id, long quantity) =>
+        SendAsync<DieCutDetails>(HttpMethod.Post, $"api/die-cuts/{id}/circulations", new { quantity });
+
+    public Task<DieCutDetails> ResetMileageAsync(Guid id, string password) =>
+        SendAsync<DieCutDetails>(HttpMethod.Post, $"api/die-cuts/{id}/reset-mileage", new { password });
+
+    public Task<DieCutDetails> RetireDieCutAsync(Guid id, string password) =>
+        SendAsync<DieCutDetails>(HttpMethod.Post, $"api/die-cuts/{id}/retire", new { password });
+
+    public Task<IReadOnlyList<DieCutEventDetails>> GetDieCutEventsAsync(Guid id) =>
+        SendAsync<IReadOnlyList<DieCutEventDetails>>(HttpMethod.Get, $"api/die-cuts/{id}/events");
+
     public Task<ExcelImportPreview> PreviewExcelImportAsync(string filePath) =>
         SendExcelFileAsync<ExcelImportPreview>("api/catalog-import/excel/preview", filePath);
 

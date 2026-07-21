@@ -127,11 +127,11 @@ public sealed class ExcelCatalogImportService(CatalogDbContext dbContext) : IExc
                         var repeats = RequiredInt(cells, 6, "repeats");
                         var h = RequiredDecimal(cells, 10, "H");
                         if (shaft <= 0 || x <= 0 || y <= 0 || streams <= 0 || repeats <= 0 || h <= 0)
-                            throw new InvalidDataException("shaft, X, Y, streams, repeats и H должны быть больше нуля.");
+                            throw new InvalidDataException("shaft, X (L), Y (B), streams (ручьи), repeats (этикеток в ручье) и H (ширина материала) должны быть больше нуля.");
 
                         var (gapX, gapY) = DieCutCalculations.Calculate(shaft, x, y, streams, repeats, h);
-                        if (gapX < 0) throw new InvalidDataException("H меньше X × streams.");
-                        if (gapY < 0) throw new InvalidDataException("Длина окружности shaft не вмещает Y × repeats.");
+                        if (gapX < 0) throw new InvalidDataException("H (ширина материала) меньше X (L) × streams (ручьи).");
+                        if (gapY < 0) throw new InvalidDataException("Длина окружности shaft не вмещает Y (B) × repeats (этикеток в ручье).");
                         CompareCalculatedValue(cells, 7, "x", gapX, sheetName, rowNumber, number, issues);
                         CompareCalculatedValue(cells, 8, "y", gapY, sheetName, rowNumber, number, issues);
 
@@ -285,7 +285,6 @@ public sealed class ExcelCatalogImportService(CatalogDbContext dbContext) : IExc
         target.Figure = source.Figure;
         target.Comments = string.IsNullOrWhiteSpace(source.Comments) ? null : source.Comments.Trim();
         target.Date = source.Date;
-        target.Status = DieCutStatus.Active;
         target.UpdatedByEmployeeId = employeeId;
         target.UpdatedAt = DateTimeOffset.UtcNow;
     }

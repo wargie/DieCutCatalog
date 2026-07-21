@@ -130,6 +130,26 @@ public sealed class AccountService(
         return employee is null ? null : ToProfile(employee);
     }
 
+    public async Task<bool> VerifyPasswordAsync(
+        string accessToken,
+        string password,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(password)) return false;
+        var employee = await FindEmployeeByTokenAsync(accessToken, cancellationToken);
+        if (employee is null) return false;
+
+        var result = passwordHasher.VerifyHashedPassword(employee, employee.PasswordHash, password);
+        if (result == PasswordVerificationResult.Failed) return false;
+        if (result == PasswordVerificationResult.SuccessRehashNeeded)
+        {
+            employee.PasswordHash = passwordHasher.HashPassword(employee, password);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        return true;
+    }
+
     public async Task<EmployeeProfile?> UpdateProfileAsync(
         string accessToken,
         UpdateEmployeeProfileCommand command,

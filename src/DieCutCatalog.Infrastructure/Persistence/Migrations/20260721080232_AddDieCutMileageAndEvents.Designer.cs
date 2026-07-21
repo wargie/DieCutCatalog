@@ -3,6 +3,7 @@ using System;
 using DieCutCatalog.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DieCutCatalog.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(CatalogDbContext))]
-    partial class CatalogDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260721080232_AddDieCutMileageAndEvents")]
+    partial class AddDieCutMileageAndEvents
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -57,10 +60,6 @@ namespace DieCutCatalog.Infrastructure.Persistence.Migrations
                         .HasPrecision(14, 9)
                         .HasColumnType("numeric(14,9)");
 
-                    b.Property<decimal>("GrooveSpacing")
-                        .HasPrecision(10, 3)
-                        .HasColumnType("numeric(10,3)");
-
                     b.Property<decimal>("H")
                         .HasPrecision(10, 2)
                         .HasColumnType("numeric(10,2)");
@@ -68,10 +67,6 @@ namespace DieCutCatalog.Infrastructure.Persistence.Migrations
                     b.Property<string>("JcOrderNumber")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
-
-                    b.Property<decimal>("LabelCornerRadius")
-                        .HasPrecision(10, 3)
-                        .HasColumnType("numeric(10,3)");
 
                     b.Property<string>("Material")
                         .IsRequired()
@@ -93,13 +88,6 @@ namespace DieCutCatalog.Infrastructure.Persistence.Migrations
 
                     b.Property<int>("Repeats")
                         .HasColumnType("integer");
-
-                    b.Property<long>("Revolutions")
-                        .HasColumnType("bigint");
-
-                    b.Property<decimal>("RunLengthMeters")
-                        .HasPrecision(18, 6)
-                        .HasColumnType("numeric(18,6)");
 
                     b.Property<int>("Shaft")
                         .HasColumnType("integer");
@@ -161,20 +149,6 @@ namespace DieCutCatalog.Infrastructure.Persistence.Migrations
 
                     b.Property<long?>("Quantity")
                         .HasColumnType("bigint");
-
-                    b.Property<long>("RevolutionsAfter")
-                        .HasColumnType("bigint");
-
-                    b.Property<long>("RevolutionsBefore")
-                        .HasColumnType("bigint");
-
-                    b.Property<decimal>("RunLengthMetersAfter")
-                        .HasPrecision(18, 6)
-                        .HasColumnType("numeric(18,6)");
-
-                    b.Property<decimal>("RunLengthMetersBefore")
-                        .HasPrecision(18, 6)
-                        .HasColumnType("numeric(18,6)");
 
                     b.Property<string>("Type")
                         .IsRequired()

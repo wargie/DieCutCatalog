@@ -4,7 +4,7 @@
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                  xmlns:views="clr-namespace:DieCutCatalog.Desktop.Views"
                  Title="Каталог вырубных ножей"
-                 Width="1280" Height="800" MinWidth="1000" MinHeight="660"
+                 Width="1500" Height="900" MinWidth="1250" MinHeight="700"
                  WindowStartupLocation="CenterScreen"
                  WindowBackdropType="Mica"
                  ExtendsContentIntoTitleBar="True"
@@ -13,7 +13,7 @@
                  Background="{StaticResource AppBackgroundBrush}">
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="48" />
+            <RowDefinition Height="46" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
@@ -56,7 +56,7 @@
 
         <Grid x:Name="ShellView" Grid.Row="1" Visibility="Collapsed">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="244" />
+                <ColumnDefinition Width="210" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
@@ -108,10 +108,10 @@
                 </DockPanel>
             </Border>
 
-            <Grid Grid.Column="1" Margin="28,22,28,24">
+            <Grid Grid.Column="1">
                 <views:CatalogView x:Name="CatalogView" />
 
-                <ScrollViewer x:Name="EmployeeView" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+                <ScrollViewer x:Name="EmployeeView" Margin="28,22,28,24" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
                     <StackPanel MaxWidth="980" HorizontalAlignment="Left">
                         <TextBlock Text="Сотрудник" Style="{StaticResource PageTitle}" />
                         <TextBlock Margin="0,5,0,0" Text="Профиль, контактные данные и параметры учётной записи"
