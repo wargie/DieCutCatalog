@@ -1,3 +1,4 @@
+using DieCutCatalog.Api;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 using System.ComponentModel.DataAnnotations;
@@ -35,6 +36,10 @@ app.Use(async (context, next) =>
         await next();
     }
     catch (ValidationException exception)
+    {
+        await WriteErrorAsync(context, StatusCodes.Status400BadRequest, exception.Message);
+    }
+    catch (InvalidDataException exception)
     {
         await WriteErrorAsync(context, StatusCodes.Status400BadRequest, exception.Message);
     }
@@ -294,6 +299,9 @@ app.MapGet("/api/employees/{employeeId:guid}/photo", async (
 
     return Results.File(fullPath, contentType);
 });
+
+app.MapDieCutEndpoints();
+app.MapExcelImportEndpoints();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {

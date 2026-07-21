@@ -1,0 +1,149 @@
+<UserControl x:Class="DieCutCatalog.Desktop.Views.CatalogView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="Transparent">
+    <UserControl.Resources>
+        <Style x:Key="CompactField" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+            <Setter Property="MinHeight" Value="34"/>
+            <Setter Property="Padding" Value="8,5"/>
+        </Style>
+        <Style x:Key="CompactCombo" TargetType="ComboBox">
+            <Setter Property="MinHeight" Value="34"/>
+            <Setter Property="Padding" Value="7,4"/>
+            <Setter Property="BorderBrush" Value="#C8D0D5"/>
+        </Style>
+        <Style x:Key="EditorLabel" TargetType="TextBlock">
+            <Setter Property="Margin" Value="0,9,0,4"/>
+            <Setter Property="Foreground" Value="#536168"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="MinHeight" Value="38"/><Setter Property="Padding" Value="18,7"/>
+            <Setter Property="BorderThickness" Value="0"/><Setter Property="Background" Value="#147D73"/>
+            <Setter Property="Foreground" Value="White"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        <Style x:Key="SecondaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="#E4E9EC"/><Setter Property="Foreground" Value="#27343A"/>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <DockPanel>
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button x:Name="ImportExcelButton" Style="{StaticResource SecondaryButton}" Margin="0,0,10,0" Content="Импорт Excel" Visibility="Collapsed" Click="ImportExcel_Click"/>
+                <Button Content="Новый нож" Click="NewDieCut_Click"/>
+            </StackPanel>
+            <StackPanel>
+                <TextBlock Text="Каталог ножей" FontSize="26" FontWeight="Bold" Foreground="#18272D"/>
+                <TextBlock x:Name="CatalogSummary" Margin="0,5,0,0" Foreground="#68777E" Text="Загрузка данных..."/>
+            </StackPanel>
+        </DockPanel>
+
+        <Grid Grid.Row="1" Margin="0,18,0,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="SearchBox" Style="{StaticResource CompactField}" ToolTip="Поиск по номеру, материалу, форме и комментарию" KeyDown="SearchBox_KeyDown"/>
+            <ComboBox x:Name="EquipmentFilter" Grid.Column="2" Style="{StaticResource CompactCombo}" ToolTip="Оборудование"/>
+            <ComboBox x:Name="MaterialFilter" Grid.Column="4" Style="{StaticResource CompactCombo}" ToolTip="Материал"/>
+            <ComboBox x:Name="ShapeFilter" Grid.Column="6" Style="{StaticResource CompactCombo}" ToolTip="Форма"/>
+            <Button Grid.Column="8" Content="Найти" Click="ApplyFilters_Click"/>
+        </Grid>
+
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MinWidth="300"/>
+                <ColumnDefinition Width="16"/>
+                <ColumnDefinition x:Name="EditorColumn" Width="0"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Background="White" BorderBrush="#DEE3E6" BorderThickness="1">
+                <DataGrid x:Name="DieCutsGrid"
+                          AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single"
+                          HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                          BorderThickness="0" RowHeaderWidth="0" AlternatingRowBackground="#F8FAFA"
+                          EnableRowVirtualization="True" SelectionChanged="DieCutsGrid_SelectionChanged">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="№" Binding="{Binding Number}" Width="82"/>
+                        <DataGridTextColumn Header="Оборудование" Binding="{Binding Equipment}" Width="130"/>
+                        <DataGridTextColumn Header="Вал" Binding="{Binding ShaftRepeatMm}" Width="64"/>
+                        <DataGridTextColumn Header="X, мм" Binding="{Binding WidthMm}" Width="70"/>
+                        <DataGridTextColumn Header="Y, мм" Binding="{Binding LengthMm}" Width="70"/>
+                        <DataGridTextColumn Header="Ручьи" Binding="{Binding Streams}" Width="64"/>
+                        <DataGridTextColumn Header="Повторы" Binding="{Binding Repeats}" Width="72"/>
+                        <DataGridTextColumn Header="Материал" Binding="{Binding Material}" Width="150"/>
+                        <DataGridTextColumn Header="S, мм" Binding="{Binding MaterialWidthMm}" Width="70"/>
+                        <DataGridTextColumn Header="Форма" Binding="{Binding Shape}" Width="120"/>
+                        <DataGridTextColumn Header="Статус" Binding="{Binding StatusText}" Width="110"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Border>
+
+            <Border x:Name="EditorPanel" Grid.Column="2" Background="White" BorderBrush="#DEE3E6" BorderThickness="1" Visibility="Collapsed">
+                <Grid>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <DockPanel Margin="18,16,18,8">
+                        <Button DockPanel.Dock="Right" Style="{StaticResource SecondaryButton}" MinWidth="34" Padding="8,4" Content="×" ToolTip="Закрыть карточку" Click="CloseEditor_Click"/>
+                        <TextBlock x:Name="EditorTitle" Text="Карточка ножа" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                    </DockPanel>
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="18,4,18,14">
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource EditorLabel}" Text="Номер"/><TextBox x:Name="NumberBox" Style="{StaticResource CompactField}"/>
+                                    <TextBlock Style="{StaticResource EditorLabel}" Text="Раппорт вала, мм"/><TextBox x:Name="ShaftBox" Style="{StaticResource CompactField}"/>
+                                    <TextBlock Style="{StaticResource EditorLabel}" Text="X, мм"/><TextBox x:Name="WidthBox" Style="{StaticResource CompactField}"/>
+                                    <TextBlock Style="{StaticResource EditorLabel}" Text="Ручьи"/><TextBox x:Name="StreamsBox" Style="{StaticResource CompactField}"/>
+                                    <TextBlock Style="{StaticResource EditorLabel}" Text="Зазор по ширине, мм"/><TextBox x:Name="GapAcrossBox" Style="{StaticResource CompactField}"/>
+                                    <TextBlock Style="{StaticResource EditorLabel}" Text="Ширина материала, мм"/><TextBox x:Name="MaterialWidthBox" Style="{StaticResource CompactField}"/>
+                                    <TextBlock Style="{StaticResource EditorLabel}" Text="Дата ввода"/><DatePicker x:Name="CommissionedPicker" MinHeight="34"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Style="{StaticResource EditorLabel}" Text="Оборудование"/><ComboBox x:Name="EquipmentBox" Style="{StaticResource CompactCombo}" IsEditable="True"/>
+                                    <TextBlock Style="{StaticResource EditorLabel}" Text="Y, мм"/><TextBox x:Name="LengthBox" Style="{StaticResource CompactField}"/>
+                                    <TextBlock Style="{StaticResource EditorLabel}" Text="Повторы"/><TextBox x:Name="RepeatsBox" Style="{StaticResource CompactField}"/>
+                                    <TextBlock Style="{StaticResource EditorLabel}" Text="Зазор по длине, мм"/><TextBox x:Name="GapAlongBox" Style="{StaticResource CompactField}"/>
+                                    <TextBlock Style="{StaticResource EditorLabel}" Text="Материал"/><ComboBox x:Name="MaterialBox" Style="{StaticResource CompactCombo}" IsEditable="True"/>
+                                    <TextBlock Style="{StaticResource EditorLabel}" Text="Форма"/><ComboBox x:Name="ShapeBox" Style="{StaticResource CompactCombo}" IsEditable="True"/>
+                                    <TextBlock Style="{StaticResource EditorLabel}" Text="Высота ножа, мкм"/><TextBox x:Name="KnifeHeightBox" Style="{StaticResource CompactField}"/>
+                                    <TextBlock Style="{StaticResource EditorLabel}" Text="Статус"/><ComboBox x:Name="StatusBox" Style="{StaticResource CompactCombo}" DisplayMemberPath="Name"/>
+                                </StackPanel>
+                            </Grid>
+                            <TextBlock Style="{StaticResource EditorLabel}" Text="Комментарий"/>
+                            <TextBox x:Name="CommentsBox" MinHeight="72" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
+                        </StackPanel>
+                    </ScrollViewer>
+                    <DockPanel Grid.Row="2" Margin="18,12,18,16">
+                        <TextBlock x:Name="EditorStatus" VerticalAlignment="Center" Foreground="#147D73" TextWrapping="Wrap"/>
+                        <Button x:Name="SaveButton" DockPanel.Dock="Right" Content="Сохранить" Click="SaveDieCut_Click"/>
+                    </DockPanel>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <DockPanel Grid.Row="3" Margin="0,12,0,0">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button x:Name="PreviousPageButton" Style="{StaticResource SecondaryButton}" Content="Назад" Click="PreviousPage_Click"/>
+                <TextBlock x:Name="PageText" Margin="14,0" VerticalAlignment="Center"/>
+                <Button x:Name="NextPageButton" Style="{StaticResource SecondaryButton}" Content="Далее" Click="NextPage_Click"/>
+            </StackPanel>
+            <TextBlock x:Name="CatalogError" Foreground="#B3261E" VerticalAlignment="Center" TextWrapping="Wrap"/>
+        </DockPanel>
+    </Grid>
+</UserControl>

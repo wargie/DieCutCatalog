@@ -71,6 +71,7 @@ public partial class MainWindow : Window
         PasswordBox.Clear();
         PopulateProfile();
         await LoadPhotoAsync();
+        await CatalogView.InitializeAsync(_api, _profile?.Role == EmployeeRole.Administrator);
         LoginView.Visibility = Visibility.Collapsed;
         ShellView.Visibility = Visibility.Visible;
         ShowCatalog();
@@ -170,7 +171,7 @@ public partial class MainWindow : Window
         await RunBusyAsync((Button)sender, async () =>
         {
             await _api.LogoutAsync();
-            _profile = null; ProfilePhoto.Source = null;
+            _profile = null; ProfilePhoto.Source = null; CatalogView.Clear();
             ShellView.Visibility = Visibility.Collapsed; LoginView.Visibility = Visibility.Visible; EmailBox.Focus();
         });
     }

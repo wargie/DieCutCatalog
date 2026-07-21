@@ -1,0 +1,48 @@
+<Window x:Class="DieCutCatalog.Desktop.Views.ExcelImportPreviewWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Проверка импорта Excel" Width="760" Height="560" MinWidth="620" MinHeight="440"
+        WindowStartupLocation="CenterOwner" Background="#F3F5F7" ShowInTaskbar="False">
+    <Window.Resources>
+        <Style TargetType="Button">
+            <Setter Property="MinHeight" Value="38"/><Setter Property="Padding" Value="18,7"/>
+            <Setter Property="BorderThickness" Value="0"/><Setter Property="Background" Value="#147D73"/>
+            <Setter Property="Foreground" Value="White"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        <Style x:Key="SecondaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="#E4E9EC"/><Setter Property="Foreground" Value="#27343A"/>
+        </Style>
+    </Window.Resources>
+    <Grid Margin="24">
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+        <StackPanel>
+            <TextBlock Text="Проверка Excel-каталога" FontSize="24" FontWeight="Bold" Foreground="#18272D"/>
+            <TextBlock x:Name="FileNameText" Margin="0,5,0,0" Foreground="#68777E" TextTrimming="CharacterEllipsis"/>
+        </StackPanel>
+        <UniformGrid Grid.Row="1" Columns="5" Margin="0,20,0,16">
+            <StackPanel><TextBlock Text="Всего" Foreground="#68777E"/><TextBlock x:Name="TotalText" FontSize="22" FontWeight="SemiBold"/></StackPanel>
+            <StackPanel><TextBlock Text="Корректно" Foreground="#68777E"/><TextBlock x:Name="ValidText" FontSize="22" FontWeight="SemiBold"/></StackPanel>
+            <StackPanel><TextBlock Text="Новые" Foreground="#68777E"/><TextBlock x:Name="NewText" FontSize="22" FontWeight="SemiBold"/></StackPanel>
+            <StackPanel><TextBlock Text="Совпадения" Foreground="#68777E"/><TextBlock x:Name="ExistingText" FontSize="22" FontWeight="SemiBold"/></StackPanel>
+            <StackPanel><TextBlock Text="Ошибки" Foreground="#68777E"/><TextBlock x:Name="ErrorsText" FontSize="22" FontWeight="SemiBold"/></StackPanel>
+        </UniformGrid>
+        <Border Grid.Row="2" Background="White" BorderBrush="#DEE3E6" BorderThickness="1">
+            <DataGrid x:Name="IssuesGrid" AutoGenerateColumns="False" IsReadOnly="True" BorderThickness="0"
+                      HeadersVisibility="Column" GridLinesVisibility="Horizontal" RowHeaderWidth="0">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Лист" Binding="{Binding Sheet}" Width="150"/>
+                    <DataGridTextColumn Header="Строка" Binding="{Binding Row}" Width="70"/>
+                    <DataGridTextColumn Header="Номер" Binding="{Binding Number}" Width="90"/>
+                    <DataGridTextColumn Header="Сообщение" Binding="{Binding Message}" Width="*"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+        <DockPanel Grid.Row="3" Margin="0,16,0,0">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button Style="{StaticResource SecondaryButton}" Content="Отмена" Margin="0,0,10,0" Click="Cancel_Click"/>
+                <Button x:Name="ImportButton" Content="Импортировать" Click="Import_Click"/>
+            </StackPanel>
+            <CheckBox x:Name="OverwriteBox" VerticalAlignment="Center" Content="Обновить существующие записи"/>
+        </DockPanel>
+    </Grid>
+</Window>

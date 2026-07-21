@@ -8,7 +8,7 @@ using DieCutCatalog.Application.Employees;
 
 namespace DieCutCatalog.Desktop;
 
-internal sealed class CatalogApiClient : IDisposable
+internal sealed partial class CatalogApiClient : IDisposable
 {
     private readonly HttpClient _httpClient = new();
     private readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web);

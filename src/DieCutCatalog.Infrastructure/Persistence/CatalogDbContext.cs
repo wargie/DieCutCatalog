@@ -1,3 +1,4 @@
+using DieCutCatalog.Domain.Catalog;
 using DieCutCatalog.Domain.Employees;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,6 +9,8 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
 {
     public DbSet<Employee> Employees => Set<Employee>();
     public DbSet<UserSession> UserSessions => Set<UserSession>();
+    public DbSet<Equipment> Equipment => Set<Equipment>();
+    public DbSet<DieCut> DieCuts => Set<DieCut>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -36,5 +39,36 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             .WithMany(x => x.Sessions)
             .HasForeignKey(x => x.EmployeeId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        var equipment = modelBuilder.Entity<Equipment>();
+        equipment.ToTable("equipment");
+        equipment.HasKey(x => x.Id);
+        equipment.HasIndex(x => x.NormalizedName).IsUnique();
+        equipment.Property(x => x.Name).HasMaxLength(150).IsRequired();
+        equipment.Property(x => x.NormalizedName).HasMaxLength(150).IsRequired();
+
+        var dieCut = modelBuilder.Entity<DieCut>();
+        dieCut.ToTable("die_cuts");
+        dieCut.HasKey(x => x.Id);
+        dieCut.HasIndex(x => new { x.EquipmentId, x.NormalizedNumber }).IsUnique();
+        dieCut.HasIndex(x => x.Status);
+        dieCut.HasIndex(x => x.Material);
+        dieCut.Property(x => x.Number).HasMaxLength(50).IsRequired();
+        dieCut.Property(x => x.NormalizedNumber).HasMaxLength(50).IsRequired();
+        dieCut.Property(x => x.ShaftRepeatMm).HasPrecision(10, 3);
+        dieCut.Property(x => x.WidthMm).HasPrecision(10, 3);
+        dieCut.Property(x => x.LengthMm).HasPrecision(10, 3);
+        dieCut.Property(x => x.GapAcrossMm).HasPrecision(10, 3);
+        dieCut.Property(x => x.GapAlongMm).HasPrecision(10, 3);
+        dieCut.Property(x => x.Material).HasMaxLength(200).IsRequired();
+        dieCut.Property(x => x.MaterialWidthMm).HasPrecision(10, 2);
+        dieCut.Property(x => x.KnifeHeightMicrons).HasPrecision(10, 2);
+        dieCut.Property(x => x.Shape).HasMaxLength(100).IsRequired();
+        dieCut.Property(x => x.Comments).HasMaxLength(2000);
+        dieCut.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
+        dieCut.HasOne(x => x.Equipment)
+            .WithMany(x => x.DieCuts)
+            .HasForeignKey(x => x.EquipmentId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

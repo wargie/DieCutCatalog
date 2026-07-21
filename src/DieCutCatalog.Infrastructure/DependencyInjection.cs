@@ -1,3 +1,5 @@
+using DieCutCatalog.Application.Catalog;
+using DieCutCatalog.Infrastructure.Catalog;
 using DieCutCatalog.Application.Employees;
 using DieCutCatalog.Domain.Employees;
 using DieCutCatalog.Infrastructure.Employees;
@@ -51,6 +53,8 @@ public static class DependencyInjection
         services.AddScoped<IPasswordHasher<Employee>, PasswordHasher<Employee>>();
         services.AddScoped<IAccountEmailSender, SmtpAccountEmailSender>();
         services.AddScoped<IAccountService, AccountService>();
+        services.AddScoped<IDieCutCatalogService, DieCutCatalogService>();
+        services.AddScoped<IExcelCatalogImportService, ExcelCatalogImportService>();
 
         return services;
     }
