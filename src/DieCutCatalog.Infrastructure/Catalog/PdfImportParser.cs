@@ -15,6 +15,8 @@ internal static partial class PdfImportParser
 
         var pages = document.GetPages().ToArray();
         var text = string.Join("\n", pages.Select(page => ContentOrderTextExtractor.GetText(page)));
+        if (!string.IsNullOrWhiteSpace(document.Information.Keywords))
+            text += "\n" + document.Information.Keywords;
         if (string.IsNullOrWhiteSpace(text))
             throw new InvalidDataException("В PDF нет распознаваемого текста. Добавьте данные вручную и прикрепите схему к карточке.");
 

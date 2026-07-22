@@ -34,6 +34,27 @@ public sealed class DieCutPdfServiceTests
         Assert.StartsWith("%PDF-", System.Text.Encoding.ASCII.GetString(copy.ToArray(), 0, 5));
 
         copy.Position = 0;
+        using (var pdf = UglyToad.PdfPig.PdfDocument.Open(copy))
+        {
+            var page = pdf.GetPage(1);
+            var pageText = UglyToad.PdfPig.DocumentLayoutAnalysis.TextExtractor.ContentOrderTextExtractor.GetText(page);
+            Assert.Contains(
+                "Corner radius = 2 mm, vertical break = 2.5 mm, horizontal break = 1.967 mm",
+                pageText);
+
+            var contours = page.Paths
+                .Select(path => path.GetBoundingRectangle())
+                .Where(rectangle => rectangle is not null)
+                .Select(rectangle => rectangle!.Value)
+                .Where(rectangle =>
+                    Math.Abs(rectangle.Width * 25.4 / 72 - 50) < 0.001
+                    && Math.Abs(rectangle.Height * 25.4 / 72 - 70) < 0.001)
+                .ToArray();
+
+            Assert.Equal(12, contours.Length);
+        }
+
+        copy.Position = 0;
         var preview = await service.PreviewAsync(copy, copy.Length);
         Assert.Equal("419R", preview.Number);
         Assert.Equal(68, preview.Shaft);
