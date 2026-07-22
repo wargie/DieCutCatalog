@@ -894,14 +894,14 @@ public partial class CatalogView : UserControl
         public string RevolutionsText => Source.Revolutions.ToString("N0", CultureInfo.CurrentCulture);
         public string Equipment => Source.Equipment;
         public int Shaft => Source.Shaft;
-        public decimal X => Source.X;
-        public decimal Y => Source.Y;
+        public string XText => Format(Source.X);
+        public string YText => Format(Source.Y);
         public int Streams => Source.Streams;
         public int Repeats => Source.Repeats;
         public string GapXText => FormatTableGap(Source.GapX);
         public string GapYText => FormatTableGap(Source.GapY);
         public string Material => Source.Material;
-        public decimal H => Source.H;
+        public string HText => Format(Source.H);
         public string Figure => Source.Figure;
         public string? Comments => Source.Comments;
         public string DateText => Source.Date?.ToString("dd.MM.yyyy", CultureInfo.CurrentCulture) ?? string.Empty;

@@ -150,14 +150,14 @@
                             <DataGridTextColumn Header="№" Binding="{Binding Number}" Width="72" />
                             <DataGridTextColumn Header="Статус" Binding="{Binding StatusText}" Width="120" />
                             <DataGridTextColumn Header="Вал" Binding="{Binding Shaft}" Width="62" />
-                            <DataGridTextColumn Header="L" Binding="{Binding X}" Width="62" />
-                            <DataGridTextColumn Header="B" Binding="{Binding Y}" Width="62" />
+                            <DataGridTextColumn Header="L" Binding="{Binding XText}" Width="62" />
+                            <DataGridTextColumn Header="B" Binding="{Binding YText}" Width="62" />
                             <DataGridTextColumn Header="Ручьи" Binding="{Binding Streams}" Width="68" />
                             <DataGridTextColumn Header="Эт. в ручье" Binding="{Binding Repeats}" Width="92" />
                             <DataGridTextColumn Header="A1" Binding="{Binding GapXText}" Width="72" />
                             <DataGridTextColumn Header="A2" Binding="{Binding GapYText}" Width="72" />
                             <DataGridTextColumn Header="Материал" Binding="{Binding Material}" Width="140" />
-                            <DataGridTextColumn Header="Ширина материала" Binding="{Binding H}" Width="128" />
+                            <DataGridTextColumn Header="Ширина материала" Binding="{Binding HText}" Width="128" />
                             <DataGridTextColumn Header="Фигура" Binding="{Binding Figure}" Width="118" />
                             <DataGridTextColumn Header="Дата" Binding="{Binding DateText}" Width="86" />
                             <DataGridTextColumn Header="Оборудование" Binding="{Binding Equipment}" Width="120" />
