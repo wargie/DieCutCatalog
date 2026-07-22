@@ -30,6 +30,13 @@ public partial class PasswordConfirmationWindow : Window
 
     private void Cancel_Click(object sender, RoutedEventArgs e) => DialogResult = false;
 
+    private void Close_Click(object sender, RoutedEventArgs e) => DialogResult = false;
+
+    private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.LeftButton == MouseButtonState.Pressed) DragMove();
+    }
+
     private void PasswordInput_KeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Enter) Confirm_Click(ConfirmButton, new RoutedEventArgs());

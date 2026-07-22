@@ -1,11 +1,15 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\DieCutCatalog.Application\DieCutCatalog.Application.csproj" />
+    <ProjectReference Include="../DieCutCatalog.Application/DieCutCatalog.Application.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="WPF-UI" Version="4.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets/flexprint-logo.png" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -14,6 +18,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <ApplicationIcon>Assets/flexprint-logo.ico</ApplicationIcon>
   </PropertyGroup>
 
 </Project>

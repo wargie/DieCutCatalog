@@ -150,6 +150,38 @@ public sealed class AccountService(
         return true;
     }
 
+    public async Task<EmployeeProfile?> VerifyAdministratorPasswordAsync(
+        string password,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(password)) return null;
+
+        var administrators = await dbContext.Employees
+            .Where(x => x.IsActive
+                && !x.MustChangePassword
+                && x.Role == EmployeeRole.Administrator)
+            .OrderBy(x => x.Id)
+            .ToListAsync(cancellationToken);
+
+        foreach (var administrator in administrators)
+        {
+            var result = passwordHasher.VerifyHashedPassword(
+                administrator,
+                administrator.PasswordHash,
+                password);
+            if (result == PasswordVerificationResult.Failed) continue;
+
+            if (result == PasswordVerificationResult.SuccessRehashNeeded)
+            {
+                administrator.PasswordHash = passwordHasher.HashPassword(administrator, password);
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
+
+            return ToProfile(administrator);
+        }
+
+        return null;
+    }
     public async Task<EmployeeProfile?> UpdateProfileAsync(
         string accessToken,
         UpdateEmployeeProfileCommand command,

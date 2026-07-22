@@ -6,5 +6,6 @@ public enum DieCutEventType
     MileageReset = 1,
     Retired = 2,
     Created = 3,
-    DrawingGenerated = 4
+    DrawingGenerated = 4,
+    Deleted = 5
 }

@@ -44,6 +44,9 @@ internal sealed partial class CatalogApiClient
     public Task<DieCutDetails> RetireDieCutAsync(Guid id, string password) =>
         SendAsync<DieCutDetails>(HttpMethod.Post, $"api/die-cuts/{id}/retire", new { password });
 
+    public Task<DieCutDetails> DeleteDieCutAsync(Guid id, string password) =>
+        SendAsync<DieCutDetails>(HttpMethod.Delete, $"api/die-cuts/{id}", new { password });
+
     public Task<IReadOnlyList<DieCutEventDetails>> GetDieCutEventsAsync(Guid id) =>
         SendAsync<IReadOnlyList<DieCutEventDetails>>(HttpMethod.Get, $"api/die-cuts/{id}/events");
 

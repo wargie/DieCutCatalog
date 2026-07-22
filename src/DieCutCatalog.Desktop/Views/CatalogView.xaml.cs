@@ -13,19 +13,36 @@ namespace DieCutCatalog.Desktop.Views;
 public partial class CatalogView : UserControl
 {
     private const int PageSize = 100;
+    private static readonly string[] EquipmentOptions =
+    [
+        "Nilpeter/Lesko",
+        "MarkAndy",
+        "Big Lesko",
+        "Label Source"
+    ];
+    private static readonly string[] FigureOptions =
+    [
+        "прямоугольник",
+        "круг",
+        "квадрат",
+        "специальная форма",
+        "перфорация"
+    ];
     private readonly ObservableCollection<DieCutRow> _rows = [];
     private readonly ObservableCollection<DieCutEventRow> _events = [];
     private readonly IReadOnlyList<StatusOption> _statuses =
     [
-        new(DieCutStatus.Active, "В работе"),
+        new(DieCutStatus.Active, "ОК"),
         new(DieCutStatus.NeedsInspection, "Требует проверки"),
-        new(DieCutStatus.Retired, "Списан")
+        new(DieCutStatus.Retired, "Списан"),
+        new(DieCutStatus.OrderNew, "Заказать новый")
     ];
     private CatalogApiClient? _api;
     private Guid? _editingId;
     private int _page = 1;
     private int _total;
     private bool _loadingCard;
+    private bool _loadingEquipmentTabs;
     private DieCutStatus _loadedStatus = DieCutStatus.Active;
     private string? _pendingPdfPath;
     private DieCutDocumentDetails? _currentDocument;
@@ -36,6 +53,8 @@ public partial class CatalogView : UserControl
         DieCutsGrid.ItemsSource = _rows;
         EventsList.ItemsSource = _events;
         StatusBox.ItemsSource = _statuses;
+        EquipmentBox.ItemsSource = EquipmentOptions;
+        FigureBox.ItemsSource = FigureOptions;
         StatusBox.SelectedIndex = 0;
     }
 
@@ -60,6 +79,7 @@ public partial class CatalogView : UserControl
         _api = null;
         _rows.Clear();
         _events.Clear();
+        EquipmentTabs.ItemsSource = null;
         CloseEditor();
         CatalogSummary.Text = "Нет подключения к серверу";
     }
@@ -68,24 +88,23 @@ public partial class CatalogView : UserControl
     {
         if (_api is null) return;
         var facets = await _api.GetCatalogFacetsAsync();
-        SetFilterItems(EquipmentFilter, facets.Equipment);
+        SetEquipmentTabs(EquipmentOptions);
         SetFilterItems(MaterialFilter, facets.Materials);
         SetFilterItems(FigureFilter, facets.Figures);
-        SetEditorItems(EquipmentBox, facets.Equipment);
         SetEditorItems(MaterialBox, facets.Materials);
-        SetEditorItems(FigureBox, facets.Figures);
     }
 
     private async Task LoadPageAsync()
     {
         if (_api is null) return;
         CatalogError.Text = string.Empty;
+
         SetNavigationEnabled(false);
         try
         {
             var result = await _api.SearchDieCutsAsync(
                 SearchBox.Text,
-                SelectedFilter(EquipmentFilter),
+                SelectedEquipment(),
                 SelectedFilter(MaterialFilter),
                 SelectedFilter(FigureFilter),
                 _page,
@@ -124,6 +143,14 @@ public partial class CatalogView : UserControl
     private async void ApplyFilters_Click(object sender, RoutedEventArgs e)
     {
         _page = 1;
+        await LoadPageAsync();
+    }
+
+    private async void EquipmentTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loadingEquipmentTabs || _api is null) return;
+        _page = 1;
+        CloseEditor();
         await LoadPageAsync();
     }
 
@@ -243,7 +270,7 @@ public partial class CatalogView : UserControl
             LabelCornerRadiusBox.Text = preview.LabelCornerRadius is null ? "0" : Format(preview.LabelCornerRadius.Value);
             MaterialBox.Text = preview.Material ?? string.Empty;
             HBox.Text = preview.MaterialWidth is null ? string.Empty : Format(preview.MaterialWidth.Value);
-            FigureBox.Text = "прямоугольник";
+            FigureBox.SelectedItem = "прямоугольник";
             EditorStatus.Foreground = new System.Windows.Media.SolidColorBrush(
                 System.Windows.Media.Color.FromRgb(49, 94, 145));
             EditorStatus.Text = preview.Warnings.Count == 0
@@ -329,6 +356,38 @@ public partial class CatalogView : UserControl
         }
     }
 
+    private async void DownloadPdf_Click(object sender, RoutedEventArgs e)
+    {
+        if (_api is null || _editingId is null || _currentDocument is null) return;
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "Сохранить PDF-чертёж",
+            Filter = "Документ PDF (*.pdf)|*.pdf",
+            FileName = _currentDocument.FileName,
+            AddExtension = true,
+            DefaultExt = ".pdf",
+            OverwritePrompt = true
+        };
+        if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
+
+        try
+        {
+            SetDrawingButtonsEnabled(false);
+            var bytes = await _api.DownloadDieCutPdfAsync(_editingId.Value, _currentDocument.Id);
+            await File.WriteAllBytesAsync(dialog.FileName, bytes);
+            EditorStatus.Foreground = new System.Windows.Media.SolidColorBrush(
+                System.Windows.Media.Color.FromRgb(20, 125, 115));
+            EditorStatus.Text = "PDF-чертёж сохранён";
+        }
+        catch (Exception exception) when (exception is CatalogApiException or IOException)
+        {
+            ShowEditorError(exception.Message);
+        }
+        finally
+        {
+            SetDrawingButtonsEnabled(true);
+        }
+    }
     private async Task OpenDocumentAsync(DieCutDocumentDetails document)
     {
         if (_api is null || _editingId is null) return;
@@ -374,6 +433,7 @@ public partial class CatalogView : UserControl
         try
         {
             var command = ReadCommand();
+            var selectedEquipment = SelectedEquipment();
             var saved = _editingId is null
                 ? await _api.CreateDieCutAsync(command)
                 : await _api.UpdateDieCutAsync(_editingId.Value, command);
@@ -388,6 +448,12 @@ public partial class CatalogView : UserControl
             await LoadDocumentsAsync(saved.Id);
             EditorStatus.Text = "Сохранено";
             await LoadFacetsAsync();
+            if (selectedEquipment is not null
+                && !string.Equals(selectedEquipment, saved.Equipment, StringComparison.OrdinalIgnoreCase))
+            {
+                SelectEquipmentTab(saved.Equipment);
+            }
+            _page = 1;
             await LoadPageAsync();
             SelectRow(saved.Id);
         }
@@ -397,7 +463,7 @@ public partial class CatalogView : UserControl
         }
         finally
         {
-            SaveButton.IsEnabled = _loadedStatus != DieCutStatus.Retired;
+            SaveButton.IsEnabled = _loadedStatus is not DieCutStatus.Retired and not DieCutStatus.Deleted;
         }
     }
 
@@ -466,9 +532,43 @@ public partial class CatalogView : UserControl
         }
     }
 
+    private async void DeleteDieCut_Click(object sender, RoutedEventArgs e)
+    {
+        if (_api is null || _editingId is null) return;
+        var dialog = new PasswordConfirmationWindow(
+            "Удалить нож",
+            "Нож будет удалён из каталога. История операций и PDF-чертежи останутся в архиве. Действие подтверждается паролем суперпользователя.",
+            "Удалить нож")
+        {
+            Owner = Window.GetWindow(this)
+        };
+        if (dialog.ShowDialog() != true) return;
+
+        DeleteButton.IsEnabled = false;
+        try
+        {
+            await _api.DeleteDieCutAsync(_editingId.Value, dialog.Password);
+            CloseEditor();
+            await LoadFacetsAsync();
+            _page = 1;
+            await LoadPageAsync();
+            MessageBox.Show(
+                Window.GetWindow(this),
+                "Нож удалён из каталога. История и PDF сохранены в архиве.",
+                "Каталог ножей",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        catch (CatalogApiException exception)
+        {
+            ShowEditorError(exception.Message);
+            DeleteButton.IsEnabled = true;
+        }
+    }
+
     private async Task RunOperationalActionAsync(Func<Task<DieCutDetails>> action, string successMessage)
     {
-        SetOperationalButtonsEnabled(false);
+        SetOperationalButtonsEnabled(false, false);
         EditorStatus.Text = string.Empty;
         try
         {
@@ -483,7 +583,7 @@ public partial class CatalogView : UserControl
         }
         finally
         {
-            var operational = StatusBox.SelectedItem is not StatusOption { Value: DieCutStatus.Retired };
+            var operational = StatusBox.SelectedItem is not StatusOption { Value: DieCutStatus.Retired or DieCutStatus.Deleted };
             SetOperationalButtonsEnabled(operational);
         }
     }
@@ -550,7 +650,7 @@ public partial class CatalogView : UserControl
         EditorTitle.Text = $"Нож {details.Number}";
         NumberBox.Text = details.Number;
         JcOrderNumberBox.Text = details.JcOrderNumber;
-        EquipmentBox.Text = details.Equipment;
+        EquipmentBox.SelectedItem = EquipmentOptions.FirstOrDefault(x => string.Equals(x, details.Equipment, StringComparison.OrdinalIgnoreCase));
         ShaftBox.Text = Format(details.Shaft);
         XBox.Text = Format(details.X);
         YBox.Text = Format(details.Y);
@@ -562,7 +662,7 @@ public partial class CatalogView : UserControl
         GapYBox.Text = Format(details.GapY);
         MaterialBox.Text = details.Material;
         HBox.Text = Format(details.H);
-        FigureBox.Text = details.Figure;
+        FigureBox.SelectedItem = FigureOptions.FirstOrDefault(x => string.Equals(x, details.Figure, StringComparison.OrdinalIgnoreCase));
         CommentsBox.Text = details.Comments;
         DateBox.SelectedDate = details.Date?.ToDateTime(TimeOnly.MinValue);
         StatusBox.SelectedItem = _statuses.First(x => x.Value == details.Status);
@@ -576,7 +676,7 @@ public partial class CatalogView : UserControl
         EventsSection.Visibility = Visibility.Visible;
         DrawingSection.Visibility = Visibility.Visible;
         SetDrawingButtonsEnabled(true);
-        var operational = details.Status != DieCutStatus.Retired;
+        var operational = details.Status is not DieCutStatus.Retired and not DieCutStatus.Deleted;
         SaveButton.IsEnabled = operational;
         StatusBox.IsEnabled = operational;
         SetOperationalButtonsEnabled(operational);
@@ -585,10 +685,10 @@ public partial class CatalogView : UserControl
 
     private void ClearEditorFields()
     {
-        NumberBox.Clear(); JcOrderNumberBox.Clear(); EquipmentBox.Text = string.Empty; ShaftBox.Clear(); XBox.Clear(); YBox.Clear();
+        NumberBox.Clear(); JcOrderNumberBox.Clear(); EquipmentBox.SelectedIndex = 0; ShaftBox.Clear(); XBox.Clear(); YBox.Clear();
         StreamsBox.Text = "1"; RepeatsBox.Text = "1"; GrooveSpacingBox.Text = "0"; LabelCornerRadiusBox.Text = "0";
         GapXBox.Text = "0"; GapYBox.Text = "0";
-        MaterialBox.Text = string.Empty; HBox.Clear(); FigureBox.Text = string.Empty; CommentsBox.Clear();
+        MaterialBox.Text = string.Empty; HBox.Clear(); FigureBox.SelectedIndex = 0; CommentsBox.Clear();
         DateBox.SelectedDate = DateTime.Today; StatusBox.SelectedIndex = 0; CirculationBox.Clear();
         MileageText.Text = "0"; RunLengthMetersText.Text = FormatRunMetric(0); RevolutionsText.Text = "0";
         StatusBox.IsEnabled = true;
@@ -600,14 +700,16 @@ public partial class CatalogView : UserControl
         EditorStatusBadgeText.Text = _statuses.First(x => x.Value == status).Name;
         var color = status switch
         {
-            DieCutStatus.Active => System.Windows.Media.Color.FromRgb(231, 241, 255),
+            DieCutStatus.Active => System.Windows.Media.Color.FromRgb(232, 245, 240),
             DieCutStatus.NeedsInspection => System.Windows.Media.Color.FromRgb(255, 244, 206),
+            DieCutStatus.OrderNew => System.Windows.Media.Color.FromRgb(234, 242, 255),
             _ => System.Windows.Media.Color.FromRgb(244, 228, 228)
         };
         var foreground = status switch
         {
-            DieCutStatus.Active => System.Windows.Media.Color.FromRgb(23, 105, 170),
+            DieCutStatus.Active => System.Windows.Media.Color.FromRgb(20, 125, 115),
             DieCutStatus.NeedsInspection => System.Windows.Media.Color.FromRgb(122, 82, 0),
+            DieCutStatus.OrderNew => System.Windows.Media.Color.FromRgb(40, 93, 156),
             _ => System.Windows.Media.Color.FromRgb(180, 35, 24)
         };
         EditorStatusBadge.Background = new System.Windows.Media.SolidColorBrush(color);
@@ -619,12 +721,13 @@ public partial class CatalogView : UserControl
         foreach (var item in events) _events.Add(new DieCutEventRow(item));
     }
 
-    private void SetOperationalButtonsEnabled(bool enabled)
+    private void SetOperationalButtonsEnabled(bool enabled, bool enableDelete = true)
     {
         CirculationBox.IsEnabled = enabled;
         AddCirculationButton.IsEnabled = enabled;
         ResetMileageButton.IsEnabled = enabled;
         RetireButton.IsEnabled = enabled;
+        DeleteButton.IsEnabled = enableDelete && _editingId is not null;
     }
 
     private void SetCurrentDocument(DieCutDocumentDetails? document)
@@ -634,6 +737,7 @@ public partial class CatalogView : UserControl
             ? "PDF не прикреплён"
             : $"{DocumentSourceName(document.Source)} · {document.FileName} · {document.CreatedAt.ToLocalTime():dd.MM.yyyy HH:mm}";
         OpenPdfButton.IsEnabled = document is not null;
+        DownloadPdfButton.IsEnabled = document is not null;
     }
 
     private void SetDrawingButtonsEnabled(bool enabled)
@@ -641,6 +745,7 @@ public partial class CatalogView : UserControl
         UploadPdfButton.IsEnabled = enabled && _editingId is not null;
         GeneratePdfButton.IsEnabled = enabled && _editingId is not null;
         OpenPdfButton.IsEnabled = enabled && _currentDocument is not null;
+        DownloadPdfButton.IsEnabled = enabled && _currentDocument is not null;
     }
 
     private static string DocumentSourceName(DieCutDocumentSource source) =>
@@ -673,6 +778,7 @@ public partial class CatalogView : UserControl
         _events.Clear();
         DocumentNameText.Text = "PDF не прикреплён";
         OpenPdfButton.IsEnabled = false;
+        DownloadPdfButton.IsEnabled = false;
         DieCutsGrid.SelectedItem = null;
     }
 
@@ -697,6 +803,29 @@ public partial class CatalogView : UserControl
         var selected = comboBox.SelectedItem as string;
         comboBox.ItemsSource = new[] { "Все" }.Concat(values).ToArray();
         comboBox.SelectedItem = selected is not null && comboBox.Items.Contains(selected) ? selected : "Все";
+    }
+
+    private void SetEquipmentTabs(IReadOnlyList<string> values)
+    {
+        const string allEquipment = "Все ножи";
+        var selected = EquipmentTabs.SelectedItem as string ?? allEquipment;
+        var items = new[] { allEquipment }.Concat(values).ToArray();
+
+        _loadingEquipmentTabs = true;
+        EquipmentTabs.ItemsSource = items;
+        EquipmentTabs.SelectedItem = items.Contains(selected) ? selected : allEquipment;
+        _loadingEquipmentTabs = false;
+    }
+
+    private string? SelectedEquipment() =>
+        EquipmentTabs.SelectedIndex > 0 ? EquipmentTabs.SelectedItem as string : null;
+
+    private void SelectEquipmentTab(string equipment)
+    {
+        if (!EquipmentTabs.Items.Contains(equipment)) return;
+        _loadingEquipmentTabs = true;
+        EquipmentTabs.SelectedItem = equipment;
+        _loadingEquipmentTabs = false;
     }
 
     private static void SetEditorItems(ComboBox comboBox, IReadOnlyList<string> values)
@@ -739,8 +868,18 @@ public partial class CatalogView : UserControl
     }
 
     private static string Format(decimal value) => value.ToString("0.###", CultureInfo.CurrentCulture);
-    private static string FormatGap(decimal value) => value.ToString("0.#########", CultureInfo.CurrentCulture);
+    private static string FormatGap(decimal value) => value.ToString("0.#####", CultureInfo.CurrentCulture);
+    private static string FormatTableGap(decimal value) => value.ToString("0.000", CultureInfo.CurrentCulture);
     private static string FormatRunMetric(decimal value) => value.ToString("N2", CultureInfo.CurrentCulture);
+
+    private static string StatusName(DieCutStatus status) => status switch
+    {
+        DieCutStatus.Active => "ОК",
+        DieCutStatus.NeedsInspection => "Требует проверки",
+        DieCutStatus.Retired => "Списан",
+        DieCutStatus.OrderNew => "Заказать новый",
+        _ => "Удалён"
+    };
 
     private sealed record StatusOption(DieCutStatus Value, string Name);
 
@@ -748,6 +887,7 @@ public partial class CatalogView : UserControl
     {
         public Guid Id => Source.Id;
         public string Number => Source.Number;
+        public string StatusText => StatusName(Source.Status);
         public string? JcOrderNumber => Source.JcOrderNumber;
         public string MileageText => Source.Mileage.ToString("N0", CultureInfo.CurrentCulture);
         public string RunLengthMetersText => FormatRunMetric(Source.RunLengthMeters);
@@ -758,8 +898,8 @@ public partial class CatalogView : UserControl
         public decimal Y => Source.Y;
         public int Streams => Source.Streams;
         public int Repeats => Source.Repeats;
-        public string GapXText => FormatGap(Source.GapX);
-        public string GapYText => FormatGap(Source.GapY);
+        public string GapXText => FormatTableGap(Source.GapX);
+        public string GapYText => FormatTableGap(Source.GapY);
         public string Material => Source.Material;
         public decimal H => Source.H;
         public string Figure => Source.Figure;
@@ -785,6 +925,8 @@ public partial class CatalogView : UserControl
                     $"Счётчики сброшены · было {source.MileageBefore:N0} шт · {source.RunLengthMetersBefore:N2} м · {source.RevolutionsBefore:N0} об.",
                 DieCutEventType.Retired =>
                     $"Нож списан · тираж {source.MileageAfter:N0} шт · {source.RunLengthMetersAfter:N2} м · {source.RevolutionsAfter:N0} об.",
+                DieCutEventType.Deleted =>
+                    "Нож удалён из каталога",
                 DieCutEventType.Created =>
                     "Создана карточка ножа",
                 DieCutEventType.DrawingGenerated =>

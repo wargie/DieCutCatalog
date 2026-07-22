@@ -19,7 +19,7 @@
 
         <ui:TitleBar Grid.Row="0" Title="Каталог вырубных ножей">
             <ui:TitleBar.Icon>
-                <ui:SymbolIcon Symbol="Database20" />
+                <ui:ImageIcon Source="/Assets/flexprint-logo.png" />
             </ui:TitleBar.Icon>
         </ui:TitleBar>
 
@@ -31,8 +31,8 @@
             </Grid.ColumnDefinitions>
             <Border Grid.Column="1" Style="{StaticResource SurfaceCard}" Padding="32" VerticalAlignment="Center">
                 <StackPanel>
-                    <Border Width="48" Height="48" HorizontalAlignment="Left" CornerRadius="8" Background="#0F6B56">
-                        <ui:SymbolIcon Symbol="Database24" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    <Border Width="64" Height="64" HorizontalAlignment="Left" CornerRadius="8" ClipToBounds="True">
+                        <Image Source="/Assets/flexprint-logo.png" Stretch="Uniform" />
                     </Border>
                     <TextBlock Margin="0,20,0,0" Text="Вход в систему" Style="{StaticResource PageTitle}" />
                     <TextBlock Margin="0,6,0,10" Text="Каталог вырубных ножей" Style="{StaticResource CaptionText}" />
@@ -85,12 +85,12 @@
 
                     <StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="10,2,8,22">
-                            <Border Width="32" Height="32" CornerRadius="6" Background="#0F6B56">
-                                <ui:SymbolIcon Symbol="Database20" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <Border Width="40" Height="40" CornerRadius="7" ClipToBounds="True">
+                                <Image Source="/Assets/flexprint-logo.png" Stretch="Uniform" />
                             </Border>
                             <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
                                 <TextBlock Text="DieCut Catalog" FontWeight="SemiBold" />
-                                <TextBlock Text="Производственный учёт" FontSize="11" Foreground="{StaticResource SecondaryTextBrush}" />
+                                <TextBlock Text="FLEXPRINT" FontSize="11" Foreground="{StaticResource SecondaryTextBrush}" />
                             </StackPanel>
                         </StackPanel>
 

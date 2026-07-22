@@ -21,6 +21,39 @@
             <Setter Property="Foreground" Value="#315E91" />
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
+        <Style x:Key="EquipmentTabItemStyle" TargetType="ListBoxItem">
+            <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Padding" Value="14,9" />
+            <Setter Property="Margin" Value="0,0,4,0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="TabSurface" Padding="{TemplateBinding Padding}"
+                                Background="Transparent" BorderBrush="Transparent"
+                                BorderThickness="0,0,0,2" CornerRadius="4,4,0,0">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="TabSurface" Property="Background" Value="#F3F6F9" />
+                                <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="TabSurface" Property="Background" Value="#EDF4FC" />
+                                <Setter TargetName="TabSurface" Property="BorderBrush" Value="#315E91" />
+                                <Setter Property="Foreground" Value="#214F82" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
     <Grid>
@@ -31,6 +64,7 @@
 
         <Grid Margin="20,18,14,16">
             <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
@@ -58,7 +92,23 @@
                 </StackPanel>
             </DockPanel>
 
-            <Border Grid.Row="1" Margin="0,18,0,14" Padding="10" Background="#FAFBFC"
+            <Border Grid.Row="1" Margin="0,14,0,0" BorderBrush="{StaticResource DividerBrush}"
+                    BorderThickness="0,0,0,1">
+                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                    <ListBox x:Name="EquipmentTabs" BorderThickness="0" Background="Transparent"
+                             ItemContainerStyle="{StaticResource EquipmentTabItemStyle}"
+                             SelectionChanged="EquipmentTabs_SelectionChanged"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                    </ListBox>
+                </ScrollViewer>
+            </Border>
+
+            <Border Grid.Row="2" Margin="0,12,0,14" Padding="10" Background="#FAFBFC"
                     BorderBrush="{StaticResource DividerBrush}" BorderThickness="1" CornerRadius="5">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -68,27 +118,23 @@
                         <ColumnDefinition Width="10" />
                         <ColumnDefinition Width="*" MinWidth="80" />
                         <ColumnDefinition Width="10" />
-                        <ColumnDefinition Width="*" MinWidth="80" />
-                        <ColumnDefinition Width="10" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <TextBox x:Name="SearchBox" Style="{StaticResource CompactTextBox}"
-                             ToolTip="Поиск по номеру ножа, заказу JC, оборудованию, материалу и комментарию"
+                             ToolTip="Поиск по номеру ножа, заказу JC, материалу и комментарию"
                              KeyDown="SearchBox_KeyDown" />
-                    <ComboBox x:Name="EquipmentFilter" Grid.Column="2" Style="{StaticResource CompactComboBox}"
-                              ToolTip="Оборудование" />
-                    <ComboBox x:Name="MaterialFilter" Grid.Column="4" Style="{StaticResource CompactComboBox}"
+                    <ComboBox x:Name="MaterialFilter" Grid.Column="2" Style="{StaticResource CompactComboBox}"
                               ToolTip="Материал" />
-                    <ComboBox x:Name="FigureFilter" Grid.Column="6" Style="{StaticResource CompactComboBox}"
+                    <ComboBox x:Name="FigureFilter" Grid.Column="4" Style="{StaticResource CompactComboBox}"
                               ToolTip="Фигура" />
-                    <ui:Button Grid.Column="8" Width="38" Height="34" Padding="0" Appearance="Primary"
+                    <ui:Button Grid.Column="6" Width="38" Height="34" Padding="0" Appearance="Primary"
                                ToolTip="Применить поиск и фильтры" Click="ApplyFilters_Click">
                         <ui:Button.Icon><ui:SymbolIcon Symbol="Search20" /></ui:Button.Icon>
                     </ui:Button>
                 </Grid>
             </Border>
 
-            <Border Grid.Row="2" Style="{StaticResource SurfaceCard}" ClipToBounds="True">
+            <Border Grid.Row="3" Style="{StaticResource SurfaceCard}" ClipToBounds="True">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="*" />
@@ -102,23 +148,22 @@
                               SelectionChanged="DieCutsGrid_SelectionChanged">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="№" Binding="{Binding Number}" Width="72" />
-                            <DataGridTextColumn Header="Заказ JC" Binding="{Binding JcOrderNumber}" Width="95" />
-                            <DataGridTextColumn Header="Тираж, шт" Binding="{Binding MileageText}" Width="95" />
-                            <DataGridTextColumn Header="Пробег, м" Binding="{Binding RunLengthMetersText}" Width="95" />
-                            <DataGridTextColumn Header="Обороты" Binding="{Binding RevolutionsText}" Width="90" />
-                            <DataGridTextColumn Header="Оборудование" Binding="{Binding Equipment}" Width="115" />
-                            <DataGridTextColumn Header="shaft" Binding="{Binding Shaft}" Width="58" />
-                            <DataGridTextColumn Header="L" Binding="{Binding X}" Width="58" />
-                            <DataGridTextColumn Header="B" Binding="{Binding Y}" Width="58" />
+                            <DataGridTextColumn Header="Статус" Binding="{Binding StatusText}" Width="120" />
+                            <DataGridTextColumn Header="Вал" Binding="{Binding Shaft}" Width="62" />
+                            <DataGridTextColumn Header="L" Binding="{Binding X}" Width="62" />
+                            <DataGridTextColumn Header="B" Binding="{Binding Y}" Width="62" />
                             <DataGridTextColumn Header="Ручьи" Binding="{Binding Streams}" Width="68" />
-                            <DataGridTextColumn Header="Этик./ручей" Binding="{Binding Repeats}" Width="92" />
-                            <DataGridTextColumn Header="A1" Binding="{Binding GapXText}" Width="76" />
-                            <DataGridTextColumn Header="A2" Binding="{Binding GapYText}" Width="76" />
+                            <DataGridTextColumn Header="Эт. в ручье" Binding="{Binding Repeats}" Width="92" />
+                            <DataGridTextColumn Header="A1" Binding="{Binding GapXText}" Width="72" />
+                            <DataGridTextColumn Header="A2" Binding="{Binding GapYText}" Width="72" />
                             <DataGridTextColumn Header="Материал" Binding="{Binding Material}" Width="140" />
                             <DataGridTextColumn Header="Ширина материала" Binding="{Binding H}" Width="128" />
-                            <DataGridTextColumn Header="Фигура" Binding="{Binding Figure}" Width="105" />
-                            <DataGridTextColumn Header="Комментарий" Binding="{Binding Comments}" Width="165" />
+                            <DataGridTextColumn Header="Фигура" Binding="{Binding Figure}" Width="118" />
                             <DataGridTextColumn Header="Дата" Binding="{Binding DateText}" Width="86" />
+                            <DataGridTextColumn Header="Оборудование" Binding="{Binding Equipment}" Width="120" />
+                            <DataGridTextColumn Header="Заказ JC" Binding="{Binding JcOrderNumber}" Width="95" />
+                            <DataGridTextColumn Header="Обороты" Binding="{Binding RevolutionsText}" Width="90" />
+                            <DataGridTextColumn Header="Комментарий" Binding="{Binding Comments}" Width="180" />
                         </DataGrid.Columns>
                     </DataGrid>
 
@@ -145,7 +190,7 @@
                 </Grid>
             </Border>
 
-            <TextBlock x:Name="CatalogError" Grid.Row="3" Margin="0,9,0,0"
+            <TextBlock x:Name="CatalogError" Grid.Row="4" Margin="0,9,0,0"
                        Foreground="{StaticResource ErrorTextBrush}" TextWrapping="Wrap" />
         </Grid>
 
@@ -215,7 +260,7 @@
                                     <TextBlock Grid.Column="2" Style="{StaticResource EditorLabel}" Text="Оборудование" />
                                     <TextBox x:Name="NumberBox" Grid.Row="1" Style="{StaticResource CompactTextBox}" />
                                     <ComboBox x:Name="EquipmentBox" Grid.Row="1" Grid.Column="2"
-                                              Style="{StaticResource CompactComboBox}" IsEditable="True" />
+                                              Style="{StaticResource CompactComboBox}" />
 
                                     <TextBlock Grid.Row="3" Style="{StaticResource EditorLabel}" Text="Номер заказа JC" />
                                     <TextBlock Grid.Row="3" Grid.Column="2" Style="{StaticResource EditorLabel}" Text="Материал" />
@@ -225,7 +270,7 @@
 
                                     <TextBlock Grid.Row="6" Style="{StaticResource EditorLabel}" Text="Фигура" />
                                     <ComboBox x:Name="FigureBox" Grid.Row="7" Grid.ColumnSpan="3"
-                                              Style="{StaticResource CompactComboBox}" IsEditable="True" />
+                                              Style="{StaticResource CompactComboBox}" />
                                 </Grid>
                             </StackPanel>
                         </Border>
@@ -374,13 +419,15 @@
                                     <TextBlock x:Name="DocumentNameText" Text="PDF не прикреплён"
                                                TextTrimming="CharacterEllipsis"
                                                Foreground="{StaticResource SecondaryTextBrush}" />
-                                    <UniformGrid Columns="3" Margin="0,10,0,0">
-                                        <ui:Button x:Name="UploadPdfButton" Margin="0,0,5,0" Appearance="Secondary"
+                                    <UniformGrid Columns="4" Margin="0,10,0,0">
+                                        <ui:Button x:Name="UploadPdfButton" Margin="0,0,4,0" Appearance="Secondary"
                                                    Content="Загрузить" Click="UploadPdf_Click" />
-                                        <ui:Button x:Name="GeneratePdfButton" Margin="5,0" Appearance="Secondary"
+                                        <ui:Button x:Name="GeneratePdfButton" Margin="4,0" Appearance="Secondary"
                                                    Content="Создать PDF" Click="GeneratePdf_Click" />
-                                        <ui:Button x:Name="OpenPdfButton" Margin="5,0,0,0" Appearance="Primary"
+                                        <ui:Button x:Name="OpenPdfButton" Margin="4,0" Appearance="Primary"
                                                    Content="Открыть" Click="OpenPdf_Click" IsEnabled="False" />
+                                        <ui:Button x:Name="DownloadPdfButton" Margin="4,0,0,0" Appearance="Secondary"
+                                                   Content="Скачать" Click="DownloadPdf_Click" IsEnabled="False" />
                                     </UniformGrid>
                                 </StackPanel>
                             </StackPanel>
@@ -429,12 +476,15 @@
                                         <ui:Button x:Name="AddCirculationButton" Grid.Column="2" Appearance="Primary"
                                                    Content="Добавить тираж" Click="AddCirculation_Click" />
                                     </Grid>
-                                    <UniformGrid Columns="2" Margin="0,10,0,0">
-                                        <ui:Button x:Name="ResetMileageButton" Margin="0,0,5,0" Appearance="Secondary"
+                                    <UniformGrid Columns="3" Margin="0,10,0,0">
+                                        <ui:Button x:Name="ResetMileageButton" Margin="0,0,4,0" Appearance="Secondary"
                                                    Content="Сбросить тираж" Click="ResetMileage_Click" />
-                                        <ui:Button x:Name="RetireButton" Margin="5,0,0,0" Appearance="Secondary"
+                                        <ui:Button x:Name="RetireButton" Margin="4,0" Appearance="Secondary"
                                                    Foreground="#B42318" Content="Списать нож"
                                                    Click="RetireDieCut_Click" />
+                                        <ui:Button x:Name="DeleteButton" Margin="4,0,0,0" Appearance="Secondary"
+                                                   Foreground="#B42318" Content="Удалить нож"
+                                                   Click="DeleteDieCut_Click" />
                                     </UniformGrid>
                                 </StackPanel>
                             </StackPanel>

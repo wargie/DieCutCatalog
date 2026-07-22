@@ -1,6 +1,7 @@
 using DieCutCatalog.Application.Catalog;
 using DieCutCatalog.Application.Employees;
 using DieCutCatalog.Domain.Catalog;
+using Microsoft.AspNetCore.Mvc;
 
 namespace DieCutCatalog.Api;
 
@@ -83,11 +84,10 @@ internal static class DieCutEndpoints
             var employee = await AuthorizeAsync(context, accounts, cancellationToken);
             if (employee is null) return Results.Unauthorized();
             if (employee.MustChangePassword) return PasswordChangeRequired();
-            var token = GetBearerToken(context);
-            if (token is null || !await accounts.VerifyPasswordAsync(token, request.Password, cancellationToken))
-                return InvalidPassword();
+            var administrator = await accounts.VerifyAdministratorPasswordAsync(request.Password, cancellationToken);
+            if (administrator is null) return AdministratorPasswordRequired();
 
-            var dieCut = await catalog.ResetMileageAsync(id, employee.Id, cancellationToken);
+            var dieCut = await catalog.ResetMileageAsync(id, administrator.Id, cancellationToken);
             return dieCut is null ? Results.NotFound() : Results.Ok(dieCut);
         }).RequireRateLimiting("auth");
 
@@ -102,11 +102,28 @@ internal static class DieCutEndpoints
             var employee = await AuthorizeAsync(context, accounts, cancellationToken);
             if (employee is null) return Results.Unauthorized();
             if (employee.MustChangePassword) return PasswordChangeRequired();
-            var token = GetBearerToken(context);
-            if (token is null || !await accounts.VerifyPasswordAsync(token, request.Password, cancellationToken))
-                return InvalidPassword();
+            var administrator = await accounts.VerifyAdministratorPasswordAsync(request.Password, cancellationToken);
+            if (administrator is null) return AdministratorPasswordRequired();
 
-            var dieCut = await catalog.RetireAsync(id, employee.Id, cancellationToken);
+            var dieCut = await catalog.RetireAsync(id, administrator.Id, cancellationToken);
+            return dieCut is null ? Results.NotFound() : Results.Ok(dieCut);
+        }).RequireRateLimiting("auth");
+
+        group.MapDelete("/{id:guid}", async (
+            Guid id,
+            HttpContext context,
+            [FromBody] PasswordConfirmationRequest request,
+            IDieCutCatalogService catalog,
+            IAccountService accounts,
+            CancellationToken cancellationToken) =>
+        {
+            var employee = await AuthorizeAsync(context, accounts, cancellationToken);
+            if (employee is null) return Results.Unauthorized();
+            if (employee.MustChangePassword) return PasswordChangeRequired();
+            var administrator = await accounts.VerifyAdministratorPasswordAsync(request.Password, cancellationToken);
+            if (administrator is null) return AdministratorPasswordRequired();
+
+            var dieCut = await catalog.DeleteAsync(id, administrator.Id, cancellationToken);
             return dieCut is null ? Results.NotFound() : Results.Ok(dieCut);
         }).RequireRateLimiting("auth");
 
@@ -202,8 +219,10 @@ internal static class DieCutEndpoints
     private static IResult PasswordChangeRequired() =>
         Results.Json(new { error = "Необходимо заменить временный пароль." }, statusCode: StatusCodes.Status428PreconditionRequired);
 
-    private static IResult InvalidPassword() =>
-        Results.Json(new { error = "Неверный пароль. Операция отменена." }, statusCode: StatusCodes.Status401Unauthorized);
+    private static IResult AdministratorPasswordRequired() =>
+        Results.Json(
+            new { error = "Недостаточно прав: требуется пароль суперпользователя." },
+            statusCode: StatusCodes.Status403Forbidden);
 }
 
 internal sealed record SaveDieCutRequest(

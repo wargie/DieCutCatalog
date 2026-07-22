@@ -70,6 +70,42 @@ public sealed class AccountServiceTests
         Assert.True(await fixture.Service.VerifyPasswordAsync(login.AccessToken, password));
         Assert.False(await fixture.Service.VerifyPasswordAsync(login.AccessToken, "wrong-password"));
     }
+
+    [Fact]
+    public async Task VerifyAdministratorPassword_RejectsEmployeeAndAcceptsAdministrator()
+    {
+        await using var fixture = CreateFixture();
+        var employee = new Employee
+        {
+            Email = "operator@example.com",
+            NormalizedEmail = "OPERATOR@EXAMPLE.COM",
+            FirstName = "Operator",
+            LastName = "User",
+            Role = EmployeeRole.Employee,
+            MustChangePassword = false
+        };
+        employee.PasswordHash = fixture.PasswordHasher.HashPassword(employee, "Employee!2026");
+
+        var administrator = new Employee
+        {
+            Email = "admin@example.com",
+            NormalizedEmail = "ADMIN@EXAMPLE.COM",
+            FirstName = "Admin",
+            LastName = "User",
+            Role = EmployeeRole.Administrator,
+            MustChangePassword = false
+        };
+        administrator.PasswordHash = fixture.PasswordHasher.HashPassword(administrator, "Admin!2026");
+
+        fixture.DbContext.Employees.AddRange(employee, administrator);
+        await fixture.DbContext.SaveChangesAsync();
+
+        Assert.Null(await fixture.Service.VerifyAdministratorPasswordAsync("Employee!2026"));
+        var verified = await fixture.Service.VerifyAdministratorPasswordAsync("Admin!2026");
+        Assert.NotNull(verified);
+        Assert.Equal(administrator.Id, verified.Id);
+        Assert.Equal(EmployeeRole.Administrator, verified.Role);
+    }
     [Fact]
     public async Task DuplicateEmail_IsRejectedCaseInsensitively()
     {

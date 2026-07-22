@@ -14,13 +14,13 @@ public sealed class DieCutCatalogServiceTests
     public async Task Create_RejectsDuplicateNumberForSameEquipment()
     {
         await using var fixture = CreateFixture();
-        await fixture.Service.CreateAsync(NewDieCut("001", "NilPeter"), fixture.EmployeeId);
+        await fixture.Service.CreateAsync(NewDieCut("001", "Nilpeter/Lesko"), fixture.EmployeeId);
 
         await Assert.ThrowsAsync<ValidationException>(() =>
-            fixture.Service.CreateAsync(NewDieCut(" 001 ", "nilpeter"), fixture.EmployeeId));
+            fixture.Service.CreateAsync(NewDieCut(" 001 ", "nilpeter/lesko"), fixture.EmployeeId));
 
-        var otherEquipment = await fixture.Service.CreateAsync(NewDieCut("001", "Lesko"), fixture.EmployeeId);
-        Assert.Equal("Lesko", otherEquipment.Equipment);
+        var otherEquipment = await fixture.Service.CreateAsync(NewDieCut("001", "Big Lesko"), fixture.EmployeeId);
+        Assert.Equal("Big Lesko", otherEquipment.Equipment);
     }
 
     [Fact]
@@ -29,7 +29,7 @@ public sealed class DieCutCatalogServiceTests
         await using var fixture = CreateFixture();
         var earliest = DateTimeOffset.UtcNow;
 
-        var created = await fixture.Service.CreateAsync(NewDieCut("001", "NilPeter"), fixture.EmployeeId);
+        var created = await fixture.Service.CreateAsync(NewDieCut("001", "Nilpeter/Lesko"), fixture.EmployeeId);
         var events = await fixture.Service.GetEventsAsync(created.Id);
 
         var createdEvent = Assert.Single(events!, item => item.Type == DieCutEventType.Created);
@@ -43,7 +43,7 @@ public sealed class DieCutCatalogServiceTests
         await using var fixture = CreateFixture();
 
         var created = await fixture.Service.CreateAsync(
-            NewDieCut("010", "Lesko", x: 101), fixture.EmployeeId);
+            NewDieCut("010", "Big Lesko", x: 101), fixture.EmployeeId);
 
         Assert.Equal(0.026m, created.GapX);
         Assert.Equal(0.0022m, created.GapY);
@@ -53,7 +53,7 @@ public sealed class DieCutCatalogServiceTests
     public async Task Create_PersistsDrawingParameters()
     {
         await using var fixture = CreateFixture();
-        var command = NewDieCut("011", "Lesko") with
+        var command = NewDieCut("011", "Big Lesko") with
         {
             GrooveSpacing = 2.75m,
             LabelCornerRadius = 4.5m
@@ -73,24 +73,24 @@ public sealed class DieCutCatalogServiceTests
         await using var fixture = CreateFixture();
 
         await Assert.ThrowsAsync<ValidationException>(() => fixture.Service.CreateAsync(
-            NewDieCut("011", "Lesko") with { GrooveSpacing = -0.001m }, fixture.EmployeeId));
+            NewDieCut("011", "Big Lesko") with { GrooveSpacing = -0.001m }, fixture.EmployeeId));
         await Assert.ThrowsAsync<ValidationException>(() => fixture.Service.CreateAsync(
-            NewDieCut("012", "Lesko") with { LabelCornerRadius = -0.001m }, fixture.EmployeeId));
+            NewDieCut("012", "Big Lesko") with { LabelCornerRadius = -0.001m }, fixture.EmployeeId));
         await Assert.ThrowsAsync<ValidationException>(() => fixture.Service.CreateAsync(
-            NewDieCut("013", "Lesko") with { LabelCornerRadius = 38m }, fixture.EmployeeId));
+            NewDieCut("013", "Big Lesko") with { LabelCornerRadius = 38m }, fixture.EmployeeId));
     }
 
     [Fact]
     public async Task Search_AppliesFiltersPaginationAndJcOrderSearch()
     {
         await using var fixture = CreateFixture();
-        await fixture.Service.CreateAsync(NewDieCut("001", "NilPeter", material: "Paper", x: 58, jcOrderNumber: "JC-4201"), fixture.EmployeeId);
-        await fixture.Service.CreateAsync(NewDieCut("002", "NilPeter", material: "TTOP", x: 80), fixture.EmployeeId);
-        await fixture.Service.CreateAsync(NewDieCut("003", "Lesko", material: "Paper", x: 100), fixture.EmployeeId);
+        await fixture.Service.CreateAsync(NewDieCut("001", "Nilpeter/Lesko", material: "Paper", x: 58, jcOrderNumber: "JC-4201"), fixture.EmployeeId);
+        await fixture.Service.CreateAsync(NewDieCut("002", "Nilpeter/Lesko", material: "TTOP", x: 80), fixture.EmployeeId);
+        await fixture.Service.CreateAsync(NewDieCut("003", "Big Lesko", material: "Paper", x: 100), fixture.EmployeeId);
 
         var result = await fixture.Service.SearchAsync(new DieCutQuery(
             Search: "jc-4201",
-            Equipment: "NilPeter",
+            Equipment: "Nilpeter/Lesko",
             Material: "Paper",
             Figure: null,
             Status: DieCutStatus.Active,
@@ -112,7 +112,7 @@ public sealed class DieCutCatalogServiceTests
     public async Task Update_ChangesCardAndCreatesEquipmentFacet()
     {
         await using var fixture = CreateFixture();
-        var created = await fixture.Service.CreateAsync(NewDieCut("001", "NilPeter"), fixture.EmployeeId);
+        var created = await fixture.Service.CreateAsync(NewDieCut("001", "Nilpeter/Lesko"), fixture.EmployeeId);
         var command = NewDieCut("001A", "MarkAndy", material: "PP60 TOP WHITE", x: 85, jcOrderNumber: "JC-88") with
         {
             Comments = "RLL",
@@ -129,6 +129,22 @@ public sealed class DieCutCatalogServiceTests
         Assert.Equal(DieCutStatus.NeedsInspection, updated.Status);
         Assert.Contains("MarkAndy", facets.Equipment);
         Assert.Contains("PP60 TOP WHITE", facets.Materials);
+    }
+
+    [Fact]
+    public async Task Update_AllowsOrderNewStatus()
+    {
+        await using var fixture = CreateFixture();
+        var created = await fixture.Service.CreateAsync(
+            NewDieCut("ORDER-001", "Nilpeter/Lesko"), fixture.EmployeeId);
+
+        var updated = await fixture.Service.UpdateAsync(
+            created.Id,
+            NewDieCut("ORDER-001", "Nilpeter/Lesko") with { Status = DieCutStatus.OrderNew },
+            fixture.EmployeeId);
+
+        Assert.NotNull(updated);
+        Assert.Equal(DieCutStatus.OrderNew, updated.Status);
     }
 
     [Fact]
@@ -149,7 +165,7 @@ public sealed class DieCutCatalogServiceTests
     public async Task AddCirculation_SumsQuantityMetersAndRevolutionsAndWritesEvents()
     {
         await using var fixture = CreateFixture();
-        var created = await fixture.Service.CreateAsync(NewDieCut("001", "NilPeter"), fixture.EmployeeId);
+        var created = await fixture.Service.CreateAsync(NewDieCut("001", "Nilpeter/Lesko"), fixture.EmployeeId);
 
         await fixture.Service.AddCirculationAsync(created.Id, 1_000, fixture.EmployeeId);
         var updated = await fixture.Service.AddCirculationAsync(created.Id, 2_500, fixture.EmployeeId);
@@ -174,7 +190,7 @@ public sealed class DieCutCatalogServiceTests
     public async Task ResetMileage_StoresDateAndPreviousMileage()
     {
         await using var fixture = CreateFixture();
-        var created = await fixture.Service.CreateAsync(NewDieCut("001", "NilPeter"), fixture.EmployeeId);
+        var created = await fixture.Service.CreateAsync(NewDieCut("001", "Nilpeter/Lesko"), fixture.EmployeeId);
         await fixture.Service.AddCirculationAsync(created.Id, 7_500, fixture.EmployeeId);
         var earliest = DateTimeOffset.UtcNow;
 
@@ -200,7 +216,7 @@ public sealed class DieCutCatalogServiceTests
     public async Task Retire_WritesEventAndBlocksFurtherOperations()
     {
         await using var fixture = CreateFixture();
-        var created = await fixture.Service.CreateAsync(NewDieCut("001", "NilPeter"), fixture.EmployeeId);
+        var created = await fixture.Service.CreateAsync(NewDieCut("001", "Nilpeter/Lesko"), fixture.EmployeeId);
         await fixture.Service.AddCirculationAsync(created.Id, 500, fixture.EmployeeId);
 
         var retired = await fixture.Service.RetireAsync(created.Id, fixture.EmployeeId);
@@ -212,20 +228,57 @@ public sealed class DieCutCatalogServiceTests
         await Assert.ThrowsAsync<ValidationException>(() =>
             fixture.Service.AddCirculationAsync(created.Id, 100, fixture.EmployeeId));
         await Assert.ThrowsAsync<ValidationException>(() =>
-            fixture.Service.UpdateAsync(created.Id, NewDieCut("001", "NilPeter"), fixture.EmployeeId));
+            fixture.Service.UpdateAsync(created.Id, NewDieCut("001", "Nilpeter/Lesko"), fixture.EmployeeId));
+    }
+
+    [Fact]
+    public async Task Delete_HidesKnifeFromCatalogAndPreservesAuditEvent()
+    {
+        await using var fixture = CreateFixture();
+        var created = await fixture.Service.CreateAsync(
+            NewDieCut("DEL-001", "Nilpeter/Lesko"), fixture.EmployeeId);
+        await fixture.Service.AddCirculationAsync(created.Id, 1_200, fixture.EmployeeId);
+
+        var deleted = await fixture.Service.DeleteAsync(created.Id, fixture.EmployeeId);
+        var search = await fixture.Service.SearchAsync(new DieCutQuery(
+            null, null, null, null, null, null, null, null, null, null, 1, 50));
+        var facets = await fixture.Service.GetFacetsAsync();
+        var events = await fixture.Service.GetEventsAsync(created.Id);
+
+        Assert.NotNull(deleted);
+        Assert.Equal(DieCutStatus.Deleted, deleted.Status);
+        Assert.Equal(0, search.Total);
+        Assert.DoesNotContain("Nilpeter/Lesko", facets.Equipment);
+        Assert.Contains(events!, item =>
+            item.Type == DieCutEventType.Deleted
+            && item.EmployeeId == fixture.EmployeeId
+            && item.MileageAfter == 1_200);
+    }
+
+    [Fact]
+    public async Task Create_RejectsEquipmentAndFigureOutsideFixedLists()
+    {
+        await using var fixture = CreateFixture();
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            fixture.Service.CreateAsync(NewDieCut("BAD-E", "Unknown"), fixture.EmployeeId));
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            fixture.Service.CreateAsync(
+                NewDieCut("BAD-F", "MarkAndy") with { Figure = "овал" },
+                fixture.EmployeeId));
     }
 
     [Fact]
     public async Task Update_CannotRetireWithoutDedicatedOperation()
     {
         await using var fixture = CreateFixture();
-        var created = await fixture.Service.CreateAsync(NewDieCut("001", "NilPeter"), fixture.EmployeeId);
-        var command = NewDieCut("001", "NilPeter") with { Status = DieCutStatus.Retired };
+        var created = await fixture.Service.CreateAsync(NewDieCut("001", "Nilpeter/Lesko"), fixture.EmployeeId);
+        var command = NewDieCut("001", "Nilpeter/Lesko") with { Status = DieCutStatus.Retired };
 
         var exception = await Assert.ThrowsAsync<ValidationException>(() =>
             fixture.Service.UpdateAsync(created.Id, command, fixture.EmployeeId));
 
-        Assert.Contains("Списать нож", exception.Message);
+        Assert.Contains("защищённую операцию", exception.Message);
     }
 
     private static SaveDieCutCommand NewDieCut(

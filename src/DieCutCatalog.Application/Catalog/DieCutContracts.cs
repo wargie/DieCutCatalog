@@ -145,6 +145,7 @@ public interface IDieCutCatalogService
     Task<DieCutDetails?> AddCirculationAsync(Guid id, long quantity, Guid employeeId, CancellationToken cancellationToken = default);
     Task<DieCutDetails?> ResetMileageAsync(Guid id, Guid employeeId, CancellationToken cancellationToken = default);
     Task<DieCutDetails?> RetireAsync(Guid id, Guid employeeId, CancellationToken cancellationToken = default);
+    Task<DieCutDetails?> DeleteAsync(Guid id, Guid employeeId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<DieCutEventDetails>?> GetEventsAsync(Guid id, CancellationToken cancellationToken = default);
     Task<CatalogFacets> GetFacetsAsync(CancellationToken cancellationToken = default);
 }

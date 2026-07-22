@@ -8,11 +8,19 @@ namespace DieCutCatalog.Infrastructure.Catalog;
 
 public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCatalogService
 {
+    private static readonly HashSet<string> AllowedEquipment = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Nilpeter/Lesko", "MarkAndy", "Big Lesko", "Label Source"
+    };
+    private static readonly HashSet<string> AllowedFigures = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "прямоугольник", "круг", "квадрат", "специальная форма", "перфорация"
+    };
     public async Task<PagedResult<DieCutSummary>> SearchAsync(DieCutQuery query, CancellationToken cancellationToken = default)
     {
         var page = Math.Max(query.Page, 1);
         var pageSize = Math.Clamp(query.PageSize, 1, 200);
-        var dieCuts = dbContext.DieCuts.AsNoTracking().AsQueryable();
+        var dieCuts = dbContext.DieCuts.AsNoTracking().Where(x => x.Status != DieCutStatus.Deleted);
 
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
@@ -58,8 +66,8 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
     public async Task<DieCutDetails> CreateAsync(SaveDieCutCommand command, Guid employeeId, CancellationToken cancellationToken = default)
     {
         Validate(command);
-        if (command.Status == DieCutStatus.Retired)
-            throw new ValidationException("Новый нож нельзя сразу списать.");
+        if (command.Status is DieCutStatus.Retired or DieCutStatus.Deleted)
+            throw new ValidationException("Новый нож нельзя сразу списать или удалить.");
 
         var equipment = await GetOrCreateEquipmentAsync(command.Equipment, cancellationToken);
         var normalizedNumber = Normalize(command.Number);
@@ -81,10 +89,10 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
         Validate(command);
         var dieCut = await dbContext.DieCuts.Include(x => x.Equipment).SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (dieCut is null) return null;
-        if (dieCut.Status == DieCutStatus.Retired)
-            throw new ValidationException("Списанный нож нельзя изменять.");
-        if (command.Status == DieCutStatus.Retired)
-            throw new ValidationException("Используйте операцию «Списать нож» и подтвердите её паролем.");
+        if (dieCut.Status is DieCutStatus.Retired or DieCutStatus.Deleted)
+            throw new ValidationException("Списанный или удалённый нож нельзя изменять.");
+        if (command.Status is DieCutStatus.Retired or DieCutStatus.Deleted)
+            throw new ValidationException("Используйте защищённую операцию и подтвердите её паролем суперпользователя.");
 
         var equipment = await GetOrCreateEquipmentAsync(command.Equipment, cancellationToken);
         var normalizedNumber = Normalize(command.Number);
@@ -168,6 +176,24 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
         return Map(dieCut, dieCut.Equipment.Name);
     }
 
+    public async Task<DieCutDetails?> DeleteAsync(
+        Guid id,
+        Guid employeeId,
+        CancellationToken cancellationToken = default)
+    {
+        var dieCut = await dbContext.DieCuts.Include(x => x.Equipment)
+            .SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (dieCut is null || dieCut.Status == DieCutStatus.Deleted) return null;
+
+        var now = DateTimeOffset.UtcNow;
+        dieCut.Status = DieCutStatus.Deleted;
+        Touch(dieCut, employeeId, now);
+        var usage = UsageSnapshot.From(dieCut);
+        dbContext.DieCutEvents.Add(NewEvent(
+            dieCut.Id, employeeId, DieCutEventType.Deleted, null, usage, usage, now));
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return Map(dieCut, dieCut.Equipment.Name);
+    }
     public async Task<IReadOnlyList<DieCutEventDetails>?> GetEventsAsync(
         Guid id,
         CancellationToken cancellationToken = default)
@@ -195,9 +221,12 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
     }
 
     public async Task<CatalogFacets> GetFacetsAsync(CancellationToken cancellationToken = default) => new(
-        await dbContext.Equipment.AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.Name).Select(x => x.Name).ToListAsync(cancellationToken),
-        await dbContext.DieCuts.AsNoTracking().Select(x => x.Material).Distinct().OrderBy(x => x).ToListAsync(cancellationToken),
-        await dbContext.DieCuts.AsNoTracking().Select(x => x.Figure).Distinct().OrderBy(x => x).ToListAsync(cancellationToken));
+        await dbContext.DieCuts.AsNoTracking().Where(x => x.Status != DieCutStatus.Deleted)
+            .Select(x => x.Equipment.Name).Distinct().OrderBy(x => x).ToListAsync(cancellationToken),
+        await dbContext.DieCuts.AsNoTracking().Where(x => x.Status != DieCutStatus.Deleted)
+            .Select(x => x.Material).Distinct().OrderBy(x => x).ToListAsync(cancellationToken),
+        await dbContext.DieCuts.AsNoTracking().Where(x => x.Status != DieCutStatus.Deleted)
+            .Select(x => x.Figure).Distinct().OrderBy(x => x).ToListAsync(cancellationToken));
 
     private async Task<Equipment> GetOrCreateEquipmentAsync(string name, CancellationToken cancellationToken)
     {
@@ -236,11 +265,14 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
 
     private static void Validate(SaveDieCutCommand command)
     {
+        if (!Enum.IsDefined(command.Status)) throw new ValidationException("Выберите статус ножа из списка.");
         if (string.IsNullOrWhiteSpace(command.Number) || command.Number.Length > 50) throw new ValidationException("Укажите номер ножа длиной до 50 символов.");
         if (command.JcOrderNumber?.Trim().Length > 100) throw new ValidationException("Номер заказа JC не должен превышать 100 символов.");
-        if (string.IsNullOrWhiteSpace(command.Equipment) || command.Equipment.Length > 150) throw new ValidationException("Укажите оборудование.");
+        if (string.IsNullOrWhiteSpace(command.Equipment) || !AllowedEquipment.Contains(command.Equipment.Trim()))
+            throw new ValidationException("Выберите оборудование из списка.");
         if (string.IsNullOrWhiteSpace(command.Material) || command.Material.Length > 200) throw new ValidationException("Укажите материал.");
-        if (string.IsNullOrWhiteSpace(command.Figure) || command.Figure.Length > 100) throw new ValidationException("Укажите форму ножа.");
+        if (string.IsNullOrWhiteSpace(command.Figure) || !AllowedFigures.Contains(command.Figure.Trim()))
+            throw new ValidationException("Выберите фигуру из списка.");
         if (command.Shaft <= 0 || command.X <= 0 || command.Y <= 0) throw new ValidationException("Раппорт вала, L и B должны быть больше нуля.");
         if (command.Streams <= 0 || command.Repeats <= 0) throw new ValidationException("Количество ручьёв и этикеток в ручье должно быть больше нуля.");
         if (command.GrooveSpacing < 0) throw new ValidationException("Расстояние между ручьями не может быть отрицательным.");
@@ -255,8 +287,8 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
 
     private static void EnsureOperational(DieCut dieCut)
     {
-        if (dieCut.Status == DieCutStatus.Retired)
-            throw new ValidationException("Операция недоступна: нож уже списан.");
+        if (dieCut.Status is DieCutStatus.Retired or DieCutStatus.Deleted)
+            throw new ValidationException("Операция недоступна: нож списан или удалён.");
     }
 
     private static void Touch(DieCut dieCut, Guid employeeId, DateTimeOffset now)
