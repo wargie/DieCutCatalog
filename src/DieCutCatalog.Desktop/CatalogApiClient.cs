@@ -55,8 +55,8 @@ internal sealed partial class CatalogApiClient : IDisposable
 
     public Task<EmployeeActivityReport> GetEmployeeActivityAsync(Guid employeeId) =>
         SendAsync<EmployeeActivityReport>(HttpMethod.Get, $"api/employees/{employeeId}/activity");
-    public Task<EmployeeProfile> CreateEmployeeAsync(string email, string firstName, string lastName, string? position, string? phone, bool isAdministrator) =>
-        SendAsync<EmployeeProfile>(HttpMethod.Post, "api/employees", new { email, firstName, lastName, position, phone, isAdministrator });
+    public Task<CreateEmployeeResult> CreateEmployeeAsync(string email, string firstName, string lastName, string? position, string? phone, bool isAdministrator) =>
+        SendAsync<CreateEmployeeResult>(HttpMethod.Post, "api/employees", new { email, firstName, lastName, position, phone, isAdministrator });
 
     public async Task<EmployeeProfile> UploadPhotoAsync(string filePath)
     {

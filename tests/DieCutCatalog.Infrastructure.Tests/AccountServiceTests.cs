@@ -18,7 +18,8 @@ public sealed class AccountServiceTests
     {
         await using var fixture = CreateFixture();
 
-        var profile = await fixture.Service.CreateEmployeeAsync(NewEmployee());
+        var result = await fixture.Service.CreateEmployeeAsync(NewEmployee());
+        var profile = result.Profile;
 
         var employee = await fixture.DbContext.Employees.SingleAsync();
         Assert.Equal("employee@example.com", profile.Email);
@@ -113,12 +114,13 @@ public sealed class AccountServiceTests
     public async Task EmployeeActivity_SummarizesKnifeWork()
     {
         await using var fixture = CreateFixture();
-        var employee = await fixture.Service.CreateEmployeeAsync(NewEmployee());
+        var employee = (await fixture.Service.CreateEmployeeAsync(NewEmployee())).Profile;
         fixture.DbContext.Equipment.Add(new Equipment
         {
             Name = "Nilpeter/Lesko",
             NormalizedName = "NILPETER/LESKO"
-        });        fixture.DbContext.CatalogReferenceEntries.AddRange(
+        });
+        fixture.DbContext.CatalogReferenceEntries.AddRange(
             new CatalogReferenceEntry { Kind = CatalogReferenceKind.Material, Name = "Paper", NormalizedName = "PAPER" },
             new CatalogReferenceEntry { Kind = CatalogReferenceKind.Figure, Name = "прямоугольник", NormalizedName = "ПРЯМОУГОЛЬНИК" });
         await fixture.DbContext.SaveChangesAsync();
@@ -149,14 +151,15 @@ public sealed class AccountServiceTests
     }
 
     [Fact]
-    public async Task EmailFailure_RollsBackCreatedAccount()
+    public async Task EmailFailure_ReturnsTemporaryPassword_AndKeepsAccount()
     {
         await using var fixture = CreateFixture(emailShouldFail: true);
 
-        await Assert.ThrowsAsync<EmailDeliveryUnavailableException>(() =>
-            fixture.Service.CreateEmployeeAsync(NewEmployee()));
+        var result = await fixture.Service.CreateEmployeeAsync(NewEmployee());
 
-        Assert.False(await fixture.DbContext.Employees.AnyAsync());
+        Assert.False(result.EmailDelivered);
+        Assert.False(string.IsNullOrWhiteSpace(result.TemporaryPassword));
+        Assert.True(await fixture.DbContext.Employees.AnyAsync());
     }
 
     private static CreateEmployeeCommand NewEmployee() => new(

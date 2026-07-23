@@ -171,7 +171,7 @@ app.MapPost("/api/employees", async (
         return Results.Forbid();
     }
 
-    var profile = await accounts.CreateEmployeeAsync(
+    var result = await accounts.CreateEmployeeAsync(
         new CreateEmployeeCommand(
             request.Email,
             request.FirstName,
@@ -181,7 +181,7 @@ app.MapPost("/api/employees", async (
             request.IsAdministrator ? EmployeeRole.Administrator : EmployeeRole.Employee),
         cancellationToken);
 
-    return Results.Created($"/api/employees/{profile.Id}", profile);
+    return Results.Created($"/api/employees/{result.Profile.Id}", result);
 })
 .RequireRateLimiting("auth");
 

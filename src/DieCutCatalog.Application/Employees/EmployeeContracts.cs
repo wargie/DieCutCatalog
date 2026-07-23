@@ -51,6 +51,8 @@ public sealed record EmployeeActivityReport(
     int CreatedCount,
     int DeletedCount,
     long TotalCirculation);
+public sealed record CreateEmployeeResult(EmployeeProfile Profile, bool EmailDelivered, string? TemporaryPassword);
+
 public sealed record UpdateEmployeeProfileCommand(
     string FirstName,
     string LastName,
@@ -70,7 +72,7 @@ public interface IAccountService
 
     Task<EmployeeActivityReport?> GetEmployeeActivityAsync(Guid employeeId, CancellationToken cancellationToken = default);
 
-    Task<EmployeeProfile> CreateEmployeeAsync(
+    Task<CreateEmployeeResult> CreateEmployeeAsync(
         CreateEmployeeCommand command,
         CancellationToken cancellationToken = default);
 

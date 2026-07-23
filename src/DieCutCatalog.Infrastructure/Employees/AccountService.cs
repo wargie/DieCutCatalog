@@ -56,12 +56,12 @@ public sealed class AccountService(
             activities.Count(x => x.Type == DieCutEventType.Deleted),
             activities.Where(x => x.Type == DieCutEventType.CirculationAdded).Sum(x => x.Quantity ?? 0));
     }
-    public async Task<EmployeeProfile> CreateEmployeeAsync(
+    public async Task<CreateEmployeeResult> CreateEmployeeAsync(
         CreateEmployeeCommand command,
         CancellationToken cancellationToken = default)
     {
         ValidateCreateCommand(command);
-        return await CreateEmployeeCoreAsync(command, cancellationToken);
+        return await CreateEmployeeCoreAsync(command, true, cancellationToken);
     }
 
     public async Task<EmployeeProfile> CreateInitialAdministratorAsync(
@@ -81,9 +81,10 @@ public sealed class AccountService(
         }
 
         ValidateCreateCommand(command);
-        return await CreateEmployeeCoreAsync(
+        return (await CreateEmployeeCoreAsync(
             command with { Role = EmployeeRole.Administrator },
-            cancellationToken);
+            false,
+            cancellationToken)).Profile;
     }
 
     public async Task<LoginResult?> LoginAsync(
@@ -398,8 +399,9 @@ public sealed class AccountService(
         return employee is { Role: EmployeeRole.Administrator, MustChangePassword: false };
     }
 
-    private async Task<EmployeeProfile> CreateEmployeeCoreAsync(
+    private async Task<CreateEmployeeResult> CreateEmployeeCoreAsync(
         CreateEmployeeCommand command,
+        bool returnPasswordOnEmailFailure,
         CancellationToken cancellationToken)
     {
         var normalizedEmail = NormalizeEmail(command.Email);
@@ -434,6 +436,11 @@ public sealed class AccountService(
                 $"{employee.FirstName} {employee.LastName}".Trim(),
                 temporaryPassword,
                 cancellationToken);
+            return new CreateEmployeeResult(ToProfile(employee), true, null);
+        }
+        catch (EmailDeliveryUnavailableException) when (returnPasswordOnEmailFailure)
+        {
+            return new CreateEmployeeResult(ToProfile(employee), false, temporaryPassword);
         }
         catch
         {
@@ -441,8 +448,6 @@ public sealed class AccountService(
             await dbContext.SaveChangesAsync(CancellationToken.None);
             throw;
         }
-
-        return ToProfile(employee);
     }
 
     private async Task<Employee?> FindEmployeeByTokenAsync(

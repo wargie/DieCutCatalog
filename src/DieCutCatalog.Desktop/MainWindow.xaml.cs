@@ -206,13 +206,27 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     {
         await RunBusyAsync((Button)sender, async () =>
         {
-            var employee = await _api.CreateEmployeeAsync(EmployeeEmailBox.Text, EmployeeFirstNameBox.Text, EmployeeLastNameBox.Text,
+            var result = await _api.CreateEmployeeAsync(EmployeeEmailBox.Text, EmployeeFirstNameBox.Text, EmployeeLastNameBox.Text,
                 NullIfEmpty(EmployeePositionBox.Text), NullIfEmpty(EmployeePhoneBox.Text), EmployeeAdministratorBox.IsChecked == true);
             EmployeeEmailBox.Clear(); EmployeeFirstNameBox.Clear(); EmployeeLastNameBox.Clear(); EmployeePositionBox.Clear(); EmployeePhoneBox.Clear();
             EmployeeAdministratorBox.IsChecked = false;
-            MessageBox.Show($"Учётная запись для {employee.Email} создана. Временный пароль отправлен по почте.",
-                "DieCut Catalog", MessageBoxButton.OK, MessageBoxImage.Information);
-        });
+            await EmployeesView.ReloadAsync();
+            if (result.EmailDelivered)
+            {
+                MessageBox.Show($"Учётная запись для {result.Profile.Email} создана. Временный пароль отправлен по почте.",
+                    "DieCut Catalog", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(result.TemporaryPassword))
+            {
+                try { Clipboard.SetText(result.TemporaryPassword); }
+                catch { }
+            }
+            MessageBox.Show(
+                $"Учётная запись для {result.Profile.Email} создана, но почтовый сервер не настроен.\n\n" +
+                $"Временный пароль: {result.TemporaryPassword}\n\nПароль скопирован в буфер обмена. Передайте его сотруднику безопасным способом.",
+                "Временный пароль", MessageBoxButton.OK, MessageBoxImage.Warning);        });
     }
 
     private async void Logout_Click(object sender, RoutedEventArgs e)

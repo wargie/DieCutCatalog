@@ -102,7 +102,7 @@ public partial class EmployeesView : UserControl
             : employee.AdditionalContacts;
         EmployeeRoleText.Text = employee.Role == EmployeeRole.Administrator ? "Администратор" : "Сотрудник";
         EmployeeStateText.Text = employee.IsActive
-            ? employee.MustChangePassword ? "Ожидается смена временного пароля" : "Учётная запись активна"
+            ? employee.MustChangePassword ? "Требуется смена временного пароля" : "Учётная запись активна"
             : "Учётная запись отключена";
 
         KnivesCountText.Text = report.KnivesCount.ToString("N0", Russian);
