@@ -929,6 +929,8 @@ public partial class CatalogView : UserControl
                     "Нож удалён из каталога",
                 DieCutEventType.Created =>
                     "Создана карточка ножа",
+                DieCutEventType.Updated =>
+                    "Изменены параметры ножа",
                 DieCutEventType.DrawingGenerated =>
                     "Сформирован PDF-чертёж ножа",
                 _ => "Изменение ножа"

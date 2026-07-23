@@ -104,6 +104,47 @@ public sealed record CatalogFacets(
     IReadOnlyList<string> Materials,
     IReadOnlyList<string> Figures);
 
+public enum CatalogReferenceType
+{
+    Material,
+    Figure,
+    Equipment
+}
+
+public sealed record CatalogReferenceItem(Guid Id, CatalogReferenceType Type, string Name);
+public sealed record CatalogReferences(
+    IReadOnlyList<CatalogReferenceItem> Materials,
+    IReadOnlyList<CatalogReferenceItem> Figures,
+    IReadOnlyList<CatalogReferenceItem> Equipment);
+
+public sealed record AuditLogEntry(
+    Guid Id,
+    Guid DieCutId,
+    string DieCutNumber,
+    string Equipment,
+    DieCutEventType Type,
+    long? Quantity,
+    long MileageBefore,
+    long MileageAfter,
+    decimal RunLengthMetersBefore,
+    decimal RunLengthMetersAfter,
+    long RevolutionsBefore,
+    long RevolutionsAfter,
+    DateTimeOffset OccurredAt,
+    string EmployeeName);
+
+public sealed record ExportedFile(string FileName, string ContentType, byte[] Content);
+
+public interface ICatalogAdministrationService
+{
+    Task<CatalogReferences> GetReferencesAsync(CancellationToken cancellationToken = default);
+    Task<CatalogReferenceItem> AddReferenceAsync(CatalogReferenceType type, string name, CancellationToken cancellationToken = default);
+    Task<CatalogReferenceItem?> RenameReferenceAsync(CatalogReferenceType type, Guid id, string name, CancellationToken cancellationToken = default);
+    Task<bool> DeleteReferenceAsync(CatalogReferenceType type, Guid id, CancellationToken cancellationToken = default);
+    Task<PagedResult<AuditLogEntry>> SearchAuditLogAsync(string? search, int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<ExportedFile> ExportAuditLogAsync(string? search, bool pdf, CancellationToken cancellationToken = default);
+}
+
 public sealed record PdfImportPreview(
     string? Number,
     int? Shaft,

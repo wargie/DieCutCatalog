@@ -50,6 +50,11 @@ internal sealed partial class CatalogApiClient : IDisposable
     public Task ChangeEmailAsync(string currentPassword, string newEmail) =>
         SendAsync(HttpMethod.Post, "api/employees/me/change-email", new { currentPassword, newEmail });
 
+    public Task<IReadOnlyList<EmployeeProfile>> GetEmployeesAsync() =>
+        SendAsync<IReadOnlyList<EmployeeProfile>>(HttpMethod.Get, "api/employees");
+
+    public Task<EmployeeActivityReport> GetEmployeeActivityAsync(Guid employeeId) =>
+        SendAsync<EmployeeActivityReport>(HttpMethod.Get, $"api/employees/{employeeId}/activity");
     public Task<EmployeeProfile> CreateEmployeeAsync(string email, string firstName, string lastName, string? position, string? phone, bool isAdministrator) =>
         SendAsync<EmployeeProfile>(HttpMethod.Post, "api/employees", new { email, firstName, lastName, position, phone, isAdministrator });
 

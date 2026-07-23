@@ -1,5 +1,8 @@
+using DieCutCatalog.Application.Catalog;
 using DieCutCatalog.Application.Employees;
+using DieCutCatalog.Domain.Catalog;
 using DieCutCatalog.Domain.Employees;
+using DieCutCatalog.Infrastructure.Catalog;
 using DieCutCatalog.Infrastructure.Employees;
 using DieCutCatalog.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
@@ -105,6 +108,34 @@ public sealed class AccountServiceTests
         Assert.NotNull(verified);
         Assert.Equal(administrator.Id, verified.Id);
         Assert.Equal(EmployeeRole.Administrator, verified.Role);
+    }
+    [Fact]
+    public async Task EmployeeActivity_SummarizesKnifeWork()
+    {
+        await using var fixture = CreateFixture();
+        var employee = await fixture.Service.CreateEmployeeAsync(NewEmployee());
+        fixture.DbContext.Equipment.Add(new Equipment
+        {
+            Name = "Nilpeter/Lesko",
+            NormalizedName = "NILPETER/LESKO"
+        });        fixture.DbContext.CatalogReferenceEntries.AddRange(
+            new CatalogReferenceEntry { Kind = CatalogReferenceKind.Material, Name = "Paper", NormalizedName = "PAPER" },
+            new CatalogReferenceEntry { Kind = CatalogReferenceKind.Figure, Name = "прямоугольник", NormalizedName = "ПРЯМОУГОЛЬНИК" });
+        await fixture.DbContext.SaveChangesAsync();
+        var catalog = new DieCutCatalogService(fixture.DbContext);
+        var knife = await catalog.CreateAsync(new SaveDieCutCommand(
+            "001", null, "Nilpeter/Lesko", 96, 58, 74, 4, 4, 2, 1.5m,
+            "Paper", 430, "прямоугольник", null, new DateOnly(2026, 7, 23),
+            DieCutStatus.Active), employee.Id);
+        await catalog.AddCirculationAsync(knife.Id, 1000, employee.Id);
+
+        var report = await fixture.Service.GetEmployeeActivityAsync(employee.Id);
+
+        Assert.NotNull(report);
+        Assert.Equal(1, report.KnivesCount);
+        Assert.Equal(1, report.CreatedCount);
+        Assert.Equal(1000, report.TotalCirculation);
+        Assert.Equal(2, report.Activities.Count);
     }
     [Fact]
     public async Task DuplicateEmail_IsRejectedCaseInsensitively()

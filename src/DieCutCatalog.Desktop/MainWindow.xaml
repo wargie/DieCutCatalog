@@ -99,8 +99,17 @@
                                    Click="ShowCatalog_Click">
                             <ui:Button.Icon><ui:SymbolIcon Symbol="Database20" /></ui:Button.Icon>
                         </ui:Button>
-                        <ui:Button x:Name="EmployeeNavButton" Height="42" Padding="12,0"
-                                   Appearance="Transparent" Content="Сотрудник" HorizontalContentAlignment="Left"
+                        <ui:Button x:Name="ReferenceDataNavButton" Height="42" Margin="0,0,0,4" Padding="12,0" HorizontalAlignment="Stretch"
+                                   Appearance="Transparent" Content="Справочники" HorizontalContentAlignment="Left" Click="ShowReferenceData_Click">
+                            <ui:Button.Icon><ui:SymbolIcon Symbol="BookInformation24" /></ui:Button.Icon>
+                        </ui:Button>
+                        <ui:Button x:Name="EmployeesNavButton" Height="42" Margin="0,0,0,4" Padding="12,0" HorizontalAlignment="Stretch"
+                                   Appearance="Transparent" Content="Сотрудники" HorizontalContentAlignment="Left"
+                                   Click="ShowEmployees_Click">
+                            <ui:Button.Icon><ui:SymbolIcon Symbol="People20" /></ui:Button.Icon>
+                        </ui:Button>
+                        <ui:Button x:Name="EmployeeNavButton" Height="42" Margin="0,0,0,4" Padding="12,0" HorizontalAlignment="Stretch"
+                                   Appearance="Transparent" Content="Личный кабинет" HorizontalContentAlignment="Left"
                                    Click="ShowEmployee_Click">
                             <ui:Button.Icon><ui:SymbolIcon Symbol="Person20" /></ui:Button.Icon>
                         </ui:Button>
@@ -110,10 +119,12 @@
 
             <Grid Grid.Column="1">
                 <views:CatalogView x:Name="CatalogView" />
+                <views:ReferenceDataView x:Name="ReferenceDataView" Visibility="Collapsed" />
+                <views:EmployeesView x:Name="EmployeesView" Visibility="Collapsed" />
 
                 <ScrollViewer x:Name="EmployeeView" Margin="28,22,28,24" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
                     <StackPanel MaxWidth="980" HorizontalAlignment="Left">
-                        <TextBlock Text="Сотрудник" Style="{StaticResource PageTitle}" />
+                        <TextBlock Text="Личный кабинет" Style="{StaticResource PageTitle}" />
                         <TextBlock Margin="0,5,0,0" Text="Профиль, контактные данные и параметры учётной записи"
                                    Style="{StaticResource CaptionText}" />
 

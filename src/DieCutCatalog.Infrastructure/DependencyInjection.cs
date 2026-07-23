@@ -54,6 +54,7 @@ public static class DependencyInjection
         services.AddScoped<IAccountEmailSender, SmtpAccountEmailSender>();
         services.AddScoped<IAccountService, AccountService>();
         services.AddScoped<IDieCutCatalogService, DieCutCatalogService>();
+        services.AddScoped<ICatalogAdministrationService, CatalogAdministrationService>();
         services.AddScoped<IExcelCatalogImportService, ExcelCatalogImportService>();
         services.AddScoped<IDieCutPdfService, DieCutPdfService>();
 

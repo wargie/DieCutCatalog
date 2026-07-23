@@ -320,6 +320,13 @@ public sealed class DieCutCatalogServiceTests
             FirstName = "Adrian",
             LastName = "Test"
         });
+        dbContext.Equipment.AddRange(new[] { "Nilpeter/Lesko", "MarkAndy", "Big Lesko", "Label Source" }
+            .Select(name => new Equipment { Name = name, NormalizedName = name.ToUpperInvariant() }));
+        dbContext.CatalogReferenceEntries.AddRange(
+            new CatalogReferenceEntry { Kind = CatalogReferenceKind.Material, Name = "Paper", NormalizedName = "PAPER" },
+            new CatalogReferenceEntry { Kind = CatalogReferenceKind.Material, Name = "TTOP", NormalizedName = "TTOP" },
+            new CatalogReferenceEntry { Kind = CatalogReferenceKind.Material, Name = "PP60 TOP WHITE", NormalizedName = "PP60 TOP WHITE" },
+            new CatalogReferenceEntry { Kind = CatalogReferenceKind.Figure, Name = "прямоугольник", NormalizedName = "ПРЯМОУГОЛЬНИК" });
         dbContext.SaveChanges();
         return new TestFixture(dbContext, new DieCutCatalogService(dbContext), employeeId);
     }

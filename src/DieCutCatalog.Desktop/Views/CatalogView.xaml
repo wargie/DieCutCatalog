@@ -266,7 +266,7 @@
                                     <TextBlock Grid.Row="3" Grid.Column="2" Style="{StaticResource EditorLabel}" Text="Материал" />
                                     <TextBox x:Name="JcOrderNumberBox" Grid.Row="4" Style="{StaticResource CompactTextBox}" />
                                     <ComboBox x:Name="MaterialBox" Grid.Row="4" Grid.Column="2"
-                                              Style="{StaticResource CompactComboBox}" IsEditable="True" />
+                                              Style="{StaticResource CompactComboBox}" />
 
                                     <TextBlock Grid.Row="6" Style="{StaticResource EditorLabel}" Text="Фигура" />
                                     <ComboBox x:Name="FigureBox" Grid.Row="7" Grid.ColumnSpan="3"

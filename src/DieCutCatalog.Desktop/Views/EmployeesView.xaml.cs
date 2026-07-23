@@ -1,0 +1,204 @@
+using System.Collections.ObjectModel;
+using System.Globalization;
+using System.IO;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media.Imaging;
+using DieCutCatalog.Application.Employees;
+using DieCutCatalog.Domain.Catalog;
+using DieCutCatalog.Domain.Employees;
+
+namespace DieCutCatalog.Desktop.Views;
+
+public partial class EmployeesView : UserControl
+{
+    private static readonly CultureInfo Russian = CultureInfo.GetCultureInfo("ru-RU");
+    private readonly List<EmployeeListRow> _allEmployees = [];
+    private readonly ObservableCollection<EmployeeListRow> _visibleEmployees = [];
+    private readonly ObservableCollection<ActivityRow> _activities = [];
+    private CatalogApiClient? _api;
+    private int _selectionVersion;
+
+    public EmployeesView()
+    {
+        InitializeComponent();
+        EmployeesGrid.ItemsSource = _visibleEmployees;
+        ActivityGrid.ItemsSource = _activities;
+    }
+
+    internal async Task InitializeAsync(CatalogApiClient api)
+    {
+        _api = api;
+        await ReloadAsync();
+    }
+
+    internal async Task ReloadAsync()
+    {
+        if (_api is null) return;
+        StatusText.Text = string.Empty;
+        try
+        {
+            var selectedId = (EmployeesGrid.SelectedItem as EmployeeListRow)?.Profile.Id;
+            _allEmployees.Clear();
+            _allEmployees.AddRange((await _api.GetEmployeesAsync()).Select(x => new EmployeeListRow(x)));
+            ApplyFilter(selectedId);
+        }
+        catch (CatalogApiException exception)
+        {
+            StatusText.Text = exception.Message;
+        }
+    }
+
+    internal void Clear()
+    {
+        _api = null;
+        _allEmployees.Clear();
+        _visibleEmployees.Clear();
+        _activities.Clear();
+        ClearDetails();
+    }
+
+    private void ApplyFilter(Guid? selectedId = null)
+    {
+        var search = SearchBox.Text.Trim();
+        var filtered = string.IsNullOrWhiteSpace(search)
+            ? _allEmployees
+            : _allEmployees.Where(x => x.SearchText.Contains(search, StringComparison.CurrentCultureIgnoreCase)).ToList();
+        _visibleEmployees.Clear();
+        foreach (var employee in filtered) _visibleEmployees.Add(employee);
+        EmployeesGrid.SelectedItem = selectedId is null
+            ? _visibleEmployees.FirstOrDefault()
+            : _visibleEmployees.FirstOrDefault(x => x.Profile.Id == selectedId) ?? _visibleEmployees.FirstOrDefault();
+        if (_visibleEmployees.Count == 0) ClearDetails();
+    }
+
+    private async Task LoadEmployeeAsync(EmployeeListRow selected)
+    {
+        if (_api is null) return;
+        var version = ++_selectionVersion;
+        StatusText.Text = string.Empty;
+        try
+        {
+            var report = await _api.GetEmployeeActivityAsync(selected.Profile.Id);
+            var photoBytes = await _api.DownloadPhotoAsync(report.Employee.PhotoUrl);
+            if (version != _selectionVersion) return;
+            ShowReport(report, photoBytes);
+        }
+        catch (CatalogApiException exception)
+        {
+            if (version == _selectionVersion) StatusText.Text = exception.Message;
+        }
+    }
+
+    private void ShowReport(EmployeeActivityReport report, byte[]? photoBytes)
+    {
+        var employee = report.Employee;
+        EmployeeNameText.Text = $"{employee.FirstName} {employee.LastName}".Trim();
+        EmployeePositionText.Text = employee.Position ?? "Должность не указана";
+        EmployeeEmailText.Text = employee.Email;
+        EmployeePhoneText.Text = string.IsNullOrWhiteSpace(employee.Phone) ? "Телефон не указан" : employee.Phone;
+        EmployeeContactsText.Text = string.IsNullOrWhiteSpace(employee.AdditionalContacts)
+            ? "Дополнительные контакты не указаны"
+            : employee.AdditionalContacts;
+        EmployeeRoleText.Text = employee.Role == EmployeeRole.Administrator ? "Администратор" : "Сотрудник";
+        EmployeeStateText.Text = employee.IsActive
+            ? employee.MustChangePassword ? "Ожидается смена временного пароля" : "Учётная запись активна"
+            : "Учётная запись отключена";
+
+        KnivesCountText.Text = report.KnivesCount.ToString("N0", Russian);
+        CreatedCountText.Text = report.CreatedCount.ToString("N0", Russian);
+        DeletedCountText.Text = report.DeletedCount.ToString("N0", Russian);
+        CirculationText.Text = report.TotalCirculation.ToString("N0", Russian);
+        ActivityCountText.Text = $"Записей: {report.Activities.Count:N0}";
+
+        EmployeePhoto.Source = ToImage(photoBytes);
+        _activities.Clear();
+        foreach (var activity in report.Activities) _activities.Add(new ActivityRow(activity));
+    }
+
+    private void ClearDetails()
+    {
+        ++_selectionVersion;
+        EmployeePhoto.Source = null;
+        EmployeeNameText.Text = "Выберите сотрудника";
+        EmployeePositionText.Text = string.Empty;
+        EmployeeEmailText.Text = string.Empty;
+        EmployeePhoneText.Text = string.Empty;
+        EmployeeContactsText.Text = string.Empty;
+        EmployeeRoleText.Text = string.Empty;
+        EmployeeStateText.Text = string.Empty;
+        KnivesCountText.Text = "0";
+        CreatedCountText.Text = "0";
+        DeletedCountText.Text = "0";
+        CirculationText.Text = "0";
+        ActivityCountText.Text = string.Empty;
+        _activities.Clear();
+    }
+
+    private static BitmapImage? ToImage(byte[]? bytes)
+    {
+        if (bytes is null || bytes.Length == 0) return null;
+        using var stream = new MemoryStream(bytes);
+        var image = new BitmapImage();
+        image.BeginInit();
+        image.CacheOption = BitmapCacheOption.OnLoad;
+        image.StreamSource = stream;
+        image.EndInit();
+        image.Freeze();
+        return image;
+    }
+
+    private void SearchBox_TextChanged(object sender, TextChangedEventArgs e) => ApplyFilter();
+
+    private async void EmployeesGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (EmployeesGrid.SelectedItem is EmployeeListRow selected)
+            await LoadEmployeeAsync(selected);
+    }
+
+    private sealed class EmployeeListRow(EmployeeProfile profile)
+    {
+        public EmployeeProfile Profile { get; } = profile;
+        public string Name { get; } = $"{profile.LastName} {profile.FirstName}".Trim();
+        public string Position { get; } = profile.Position ?? "";
+        public string SearchText { get; } = string.Join(" ", new[]
+        {
+            profile.FirstName, profile.LastName, profile.Email, profile.Position,
+            profile.Phone, profile.AdditionalContacts
+        }.Where(x => !string.IsNullOrWhiteSpace(x)));
+    }
+
+    private sealed class ActivityRow
+    {
+        public ActivityRow(EmployeeActivityEntry entry)
+        {
+            OccurredAt = entry.OccurredAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss");
+            Action = EventName(entry.Type);
+            DieCutNumber = entry.DieCutNumber;
+            Equipment = entry.Equipment;
+            Quantity = entry.Quantity?.ToString("N0", Russian) ?? "";
+            Mileage = entry.MileageAfter.ToString("N0", Russian);
+            Revolutions = entry.RevolutionsAfter.ToString("N0", Russian);
+        }
+
+        public string OccurredAt { get; }
+        public string Action { get; }
+        public string DieCutNumber { get; }
+        public string Equipment { get; }
+        public string Quantity { get; }
+        public string Mileage { get; }
+        public string Revolutions { get; }
+
+        private static string EventName(DieCutEventType type) => type switch
+        {
+            DieCutEventType.Created => "Создал нож",
+            DieCutEventType.Updated => "Изменил параметры",
+            DieCutEventType.CirculationAdded => "Добавил тираж",
+            DieCutEventType.MileageReset => "Сбросил тираж",
+            DieCutEventType.Retired => "Списал нож",
+            DieCutEventType.DrawingGenerated => "Сформировал PDF",
+            DieCutEventType.Deleted => "Удалил нож",
+            _ => type.ToString()
+        };
+    }
+}

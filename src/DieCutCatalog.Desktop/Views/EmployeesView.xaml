@@ -1,0 +1,137 @@
+<UserControl x:Class="DieCutCatalog.Desktop.Views.EmployeesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             Background="{StaticResource AppBackgroundBrush}">
+    <Grid Margin="28,22,28,24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="18" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid>
+            <StackPanel>
+                <TextBlock Text="Сотрудники" Style="{StaticResource PageTitle}" />
+                <TextBlock Margin="0,5,0,0" Text="Контактные данные и история работы с ножами"
+                           Style="{StaticResource CaptionText}" />
+            </StackPanel>
+            <TextBlock x:Name="StatusText" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                       Foreground="{StaticResource ErrorTextBrush}" />
+        </Grid>
+
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="330" />
+                <ColumnDefinition Width="18" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Style="{StaticResource SurfaceCard}" Padding="16">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="12" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <TextBox x:Name="SearchBox" Style="{StaticResource CompactTextBox}"
+                             ToolTip="Поиск по имени, почте, должности или телефону"
+                             TextChanged="SearchBox_TextChanged" />
+                    <DataGrid x:Name="EmployeesGrid" Grid.Row="2" AutoGenerateColumns="False" IsReadOnly="True"
+                              HeadersVisibility="Column" SelectionMode="Single"
+                              SelectionChanged="EmployeesGrid_SelectionChanged">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Сотрудник" Binding="{Binding Name}" Width="*" />
+                            <DataGridTextColumn Header="Должность" Binding="{Binding Position}" Width="120" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </Border>
+
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="14" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="14" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Border Style="{StaticResource SurfaceCard}" Padding="20">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="112" />
+                            <ColumnDefinition Width="20" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="220" />
+                        </Grid.ColumnDefinitions>
+                        <Border Width="96" Height="96" CornerRadius="8" ClipToBounds="True"
+                                Background="{StaticResource SurfaceMutedBrush}" BorderBrush="{StaticResource DividerBrush}" BorderThickness="1">
+                            <Grid>
+                                <ui:SymbolIcon Symbol="Person32" Foreground="#9B9B9B"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <Image x:Name="EmployeePhoto" Stretch="UniformToFill" />
+                            </Grid>
+                        </Border>
+                        <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                            <TextBlock x:Name="EmployeeNameText" FontSize="22" FontWeight="SemiBold" />
+                            <TextBlock x:Name="EmployeePositionText" Margin="0,4,0,0" Foreground="{StaticResource SecondaryTextBrush}" />
+                            <TextBlock x:Name="EmployeeEmailText" Margin="0,10,0,0" />
+                            <TextBlock x:Name="EmployeePhoneText" Margin="0,3,0,0" />
+                            <TextBlock x:Name="EmployeeContactsText" Margin="0,3,0,0" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="3" VerticalAlignment="Center">
+                            <TextBlock Text="Учётная запись" Style="{StaticResource FieldLabel}" />
+                            <TextBlock x:Name="EmployeeRoleText" FontWeight="SemiBold" />
+                            <TextBlock x:Name="EmployeeStateText" Margin="0,8,0,0" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <UniformGrid Grid.Row="2" Columns="4">
+                    <Border Margin="0,0,5,0" Style="{StaticResource SurfaceCard}" Padding="16">
+                        <StackPanel><TextBlock Text="Ножей в истории" Style="{StaticResource CaptionText}" />
+                            <TextBlock x:Name="KnivesCountText" Margin="0,5,0,0" FontSize="22" FontWeight="SemiBold" /></StackPanel>
+                    </Border>
+                    <Border Margin="5,0" Style="{StaticResource SurfaceCard}" Padding="16">
+                        <StackPanel><TextBlock Text="Создано ножей" Style="{StaticResource CaptionText}" />
+                            <TextBlock x:Name="CreatedCountText" Margin="0,5,0,0" FontSize="22" FontWeight="SemiBold" /></StackPanel>
+                    </Border>
+                    <Border Margin="5,0" Style="{StaticResource SurfaceCard}" Padding="16">
+                        <StackPanel><TextBlock Text="Удалено ножей" Style="{StaticResource CaptionText}" />
+                            <TextBlock x:Name="DeletedCountText" Margin="0,5,0,0" FontSize="22" FontWeight="SemiBold" /></StackPanel>
+                    </Border>
+                    <Border Margin="5,0,0,0" Style="{StaticResource SurfaceCard}" Padding="16">
+                        <StackPanel><TextBlock Text="Введено тиража" Style="{StaticResource CaptionText}" />
+                            <TextBlock x:Name="CirculationText" Margin="0,5,0,0" FontSize="22" FontWeight="SemiBold" /></StackPanel>
+                    </Border>
+                </UniformGrid>
+
+                <Border Grid.Row="4" Style="{StaticResource SurfaceCard}" Padding="0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <Grid Margin="16,14,16,12">
+                            <TextBlock Text="История действий" Style="{StaticResource SectionTitle}" />
+                            <TextBlock x:Name="ActivityCountText" HorizontalAlignment="Right"
+                                       Style="{StaticResource CaptionText}" />
+                        </Grid>
+                        <DataGrid x:Name="ActivityGrid" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Дата и время" Binding="{Binding OccurredAt}" Width="135" />
+                                <DataGridTextColumn Header="Действие" Binding="{Binding Action}" Width="165" />
+                                <DataGridTextColumn Header="Нож" Binding="{Binding DieCutNumber}" Width="85" />
+                                <DataGridTextColumn Header="Оборудование" Binding="{Binding Equipment}" Width="140" />
+                                <DataGridTextColumn Header="Тираж, шт." Binding="{Binding Quantity}" Width="100" />
+                                <DataGridTextColumn Header="Пробег" Binding="{Binding Mileage}" Width="105" />
+                                <DataGridTextColumn Header="Обороты" Binding="{Binding Revolutions}" Width="105" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+    </Grid>
+</UserControl>

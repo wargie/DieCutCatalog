@@ -10,6 +10,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     public DbSet<Employee> Employees => Set<Employee>();
     public DbSet<UserSession> UserSessions => Set<UserSession>();
     public DbSet<Equipment> Equipment => Set<Equipment>();
+    public DbSet<CatalogReferenceEntry> CatalogReferenceEntries => Set<CatalogReferenceEntry>();
     public DbSet<DieCut> DieCuts => Set<DieCut>();
     public DbSet<DieCutEvent> DieCutEvents => Set<DieCutEvent>();
     public DbSet<DieCutDocument> DieCutDocuments => Set<DieCutDocument>();
@@ -48,6 +49,14 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
         equipment.HasIndex(x => x.NormalizedName).IsUnique();
         equipment.Property(x => x.Name).HasMaxLength(150).IsRequired();
         equipment.Property(x => x.NormalizedName).HasMaxLength(150).IsRequired();
+
+        var reference = modelBuilder.Entity<CatalogReferenceEntry>();
+        reference.ToTable("catalog_reference_entries");
+        reference.HasKey(x => x.Id);
+        reference.HasIndex(x => new { x.Kind, x.NormalizedName }).IsUnique();
+        reference.Property(x => x.Kind).HasConversion<string>().HasMaxLength(32);
+        reference.Property(x => x.Name).HasMaxLength(200).IsRequired();
+        reference.Property(x => x.NormalizedName).HasMaxLength(200).IsRequired();
 
         var dieCut = modelBuilder.Entity<DieCut>();
         dieCut.ToTable("die_cuts");

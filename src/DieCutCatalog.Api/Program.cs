@@ -135,6 +135,30 @@ app.MapGet("/api/employees/me", async (
     return profile is null ? Results.Unauthorized() : Results.Ok(profile);
 });
 
+app.MapGet("/api/employees", async (
+    HttpContext context,
+    IAccountService accounts,
+    CancellationToken cancellationToken) =>
+{
+    var authorization = await GetReadyProfileAsync(
+        accounts, GetBearerToken(context), cancellationToken);
+    return authorization.Error is not null
+        ? authorization.Error
+        : Results.Ok(await accounts.GetEmployeesAsync(cancellationToken));
+});
+
+app.MapGet("/api/employees/{employeeId:guid}/activity", async (
+    Guid employeeId,
+    HttpContext context,
+    IAccountService accounts,
+    CancellationToken cancellationToken) =>
+{
+    var authorization = await GetReadyProfileAsync(
+        accounts, GetBearerToken(context), cancellationToken);
+    if (authorization.Error is not null) return authorization.Error;
+    var report = await accounts.GetEmployeeActivityAsync(employeeId, cancellationToken);
+    return report is null ? Results.NotFound() : Results.Ok(report);
+});
 app.MapPost("/api/employees", async (
     HttpContext context,
     CreateEmployeeRequest request,
@@ -301,6 +325,7 @@ app.MapGet("/api/employees/{employeeId:guid}/photo", async (
 });
 
 app.MapDieCutEndpoints();
+app.MapCatalogAdministrationEndpoints();
 app.MapExcelImportEndpoints();
 
 await using (var scope = app.Services.CreateAsyncScope())

@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Security.Cryptography;
 using System.Text;
 using DieCutCatalog.Application.Employees;
+using DieCutCatalog.Domain.Catalog;
 using DieCutCatalog.Domain.Employees;
 using DieCutCatalog.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
@@ -22,6 +23,39 @@ public sealed class AccountService(
     private readonly AccountOptions _accountOptions = accountOptions.Value;
     private readonly StorageOptions _storageOptions = storageOptions.Value;
 
+    public async Task<IReadOnlyList<EmployeeProfile>> GetEmployeesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var employees = await dbContext.Employees.AsNoTracking()
+            .OrderBy(x => x.LastName)
+            .ThenBy(x => x.FirstName)
+            .ToListAsync(cancellationToken);
+        return employees.Select(ToProfile).ToArray();
+    }
+
+    public async Task<EmployeeActivityReport?> GetEmployeeActivityAsync(
+        Guid employeeId, CancellationToken cancellationToken = default)
+    {
+        var employee = await dbContext.Employees.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.Id == employeeId, cancellationToken);
+        if (employee is null) return null;
+
+        var activities = await dbContext.DieCutEvents.AsNoTracking()
+            .Where(x => x.EmployeeId == employeeId)
+            .OrderByDescending(x => x.OccurredAt)
+            .Select(x => new EmployeeActivityEntry(
+                x.Id, x.DieCutId, x.DieCut.Number, x.DieCut.Equipment.Name, x.Type,
+                x.Quantity, x.MileageAfter, x.RunLengthMetersAfter, x.RevolutionsAfter, x.OccurredAt))
+            .ToListAsync(cancellationToken);
+
+        return new EmployeeActivityReport(
+            ToProfile(employee),
+            activities,
+            activities.Select(x => x.DieCutId).Distinct().Count(),
+            activities.Count(x => x.Type == DieCutEventType.Created),
+            activities.Count(x => x.Type == DieCutEventType.Deleted),
+            activities.Where(x => x.Type == DieCutEventType.CirculationAdded).Sum(x => x.Quantity ?? 0));
+    }
     public async Task<EmployeeProfile> CreateEmployeeAsync(
         CreateEmployeeCommand command,
         CancellationToken cancellationToken = default)

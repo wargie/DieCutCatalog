@@ -1,3 +1,4 @@
+using DieCutCatalog.Domain.Catalog;
 using DieCutCatalog.Domain.Employees;
 
 namespace DieCutCatalog.Application.Employees;
@@ -31,6 +32,25 @@ public sealed record EmployeeProfile(
     bool MustChangePassword,
     bool IsActive);
 
+public sealed record EmployeeActivityEntry(
+    Guid Id,
+    Guid DieCutId,
+    string DieCutNumber,
+    string Equipment,
+    DieCutEventType Type,
+    long? Quantity,
+    long MileageAfter,
+    decimal RunLengthMetersAfter,
+    long RevolutionsAfter,
+    DateTimeOffset OccurredAt);
+
+public sealed record EmployeeActivityReport(
+    EmployeeProfile Employee,
+    IReadOnlyList<EmployeeActivityEntry> Activities,
+    int KnivesCount,
+    int CreatedCount,
+    int DeletedCount,
+    long TotalCirculation);
 public sealed record UpdateEmployeeProfileCommand(
     string FirstName,
     string LastName,
@@ -46,6 +66,10 @@ public sealed record StoredPhoto(string FileName, string ContentType, Stream Con
 
 public interface IAccountService
 {
+    Task<IReadOnlyList<EmployeeProfile>> GetEmployeesAsync(CancellationToken cancellationToken = default);
+
+    Task<EmployeeActivityReport?> GetEmployeeActivityAsync(Guid employeeId, CancellationToken cancellationToken = default);
+
     Task<EmployeeProfile> CreateEmployeeAsync(
         CreateEmployeeCommand command,
         CancellationToken cancellationToken = default);

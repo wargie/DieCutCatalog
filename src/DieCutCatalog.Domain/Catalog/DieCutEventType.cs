@@ -7,5 +7,6 @@ public enum DieCutEventType
     Retired = 2,
     Created = 3,
     DrawingGenerated = 4,
-    Deleted = 5
+    Deleted = 5,
+    Updated = 6
 }

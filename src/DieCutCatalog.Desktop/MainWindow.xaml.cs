@@ -17,6 +17,8 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     public MainWindow()
     {
         InitializeComponent();
+        ReferenceDataView.ReferencesChanged += async (_, _) => await CatalogView.ReloadReferenceDataAsync();
+        ReferenceDataView.BackRequested += (_, _) => ShowCatalog();
 
         Closed += async (_, _) =>
         {
@@ -74,6 +76,9 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         PopulateProfile();
         await LoadPhotoAsync();
         await CatalogView.InitializeAsync(_api, _profile?.Role == EmployeeRole.Administrator);
+        await ReferenceDataView.InitializeAsync(_api, _profile?.Role == EmployeeRole.Administrator);
+        await EmployeesView.InitializeAsync(_api);
+        await CatalogView.ReloadReferenceDataAsync();
         LoginView.Visibility = Visibility.Collapsed;
         ShellView.Visibility = Visibility.Visible;
         ShowCatalog();
@@ -112,15 +117,45 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     private void ShowCatalog()
     {
         CatalogView.Visibility = Visibility.Visible;
+        ReferenceDataView.Visibility = Visibility.Collapsed;
+        EmployeesView.Visibility = Visibility.Collapsed;
         EmployeeView.Visibility = Visibility.Collapsed;
         CatalogNavButton.Appearance = Wpf.Ui.Controls.ControlAppearance.Primary;
+        ReferenceDataNavButton.Appearance = Wpf.Ui.Controls.ControlAppearance.Transparent;
+        EmployeesNavButton.Appearance = Wpf.Ui.Controls.ControlAppearance.Transparent;
         EmployeeNavButton.Appearance = Wpf.Ui.Controls.ControlAppearance.Transparent;
+    }
+    private async void ShowReferenceData_Click(object sender, RoutedEventArgs e)
+    {
+        CatalogView.Visibility = Visibility.Collapsed;
+        ReferenceDataView.Visibility = Visibility.Visible;
+        EmployeeView.Visibility = Visibility.Collapsed;
+        CatalogNavButton.Appearance = Wpf.Ui.Controls.ControlAppearance.Transparent;
+        ReferenceDataNavButton.Appearance = Wpf.Ui.Controls.ControlAppearance.Primary;
+        EmployeeNavButton.Appearance = Wpf.Ui.Controls.ControlAppearance.Transparent;
+        await ReferenceDataView.ReloadAsync();
+    }
+    private async void ShowEmployees_Click(object sender, RoutedEventArgs e)
+    {
+        CatalogView.Visibility = Visibility.Collapsed;
+        ReferenceDataView.Visibility = Visibility.Collapsed;
+        EmployeesView.Visibility = Visibility.Visible;
+        EmployeeView.Visibility = Visibility.Collapsed;
+        CatalogNavButton.Appearance = Wpf.Ui.Controls.ControlAppearance.Transparent;
+        ReferenceDataNavButton.Appearance = Wpf.Ui.Controls.ControlAppearance.Transparent;
+        EmployeesNavButton.Appearance = Wpf.Ui.Controls.ControlAppearance.Primary;
+        EmployeeNavButton.Appearance = Wpf.Ui.Controls.ControlAppearance.Transparent;
+        await EmployeesView.ReloadAsync();
     }
     private void ShowEmployee_Click(object sender, RoutedEventArgs e)
     {
         CatalogView.Visibility = Visibility.Collapsed;
+        ReferenceDataView.Visibility = Visibility.Collapsed;
+        EmployeesView.Visibility = Visibility.Collapsed;
         EmployeeView.Visibility = Visibility.Visible;
         CatalogNavButton.Appearance = Wpf.Ui.Controls.ControlAppearance.Transparent;
+        ReferenceDataNavButton.Appearance = Wpf.Ui.Controls.ControlAppearance.Transparent;
+        EmployeesNavButton.Appearance = Wpf.Ui.Controls.ControlAppearance.Transparent;
         EmployeeNavButton.Appearance = Wpf.Ui.Controls.ControlAppearance.Primary;
     }
 
@@ -185,7 +220,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         await RunBusyAsync((Button)sender, async () =>
         {
             await _api.LogoutAsync();
-            _profile = null; ProfilePhoto.Source = null; CatalogView.Clear();
+            _profile = null; ProfilePhoto.Source = null; CatalogView.Clear(); ReferenceDataView.Clear(); EmployeesView.Clear();
             ShellView.Visibility = Visibility.Collapsed; LoginView.Visibility = Visibility.Visible; EmailBox.Focus();
         });
     }

@@ -81,7 +81,7 @@ internal static class DieCutDrawingPdfGenerator
         return output.ToArray();
     }
 
-    private static void EnsureFontResolver()
+    internal static void EnsureFontResolver()
     {
         lock (FontLock)
         {
