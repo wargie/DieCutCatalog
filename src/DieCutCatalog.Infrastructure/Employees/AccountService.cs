@@ -85,6 +85,11 @@ public sealed class AccountService(
                 x.Id, x.DieCutId, x.DieCut.Number, x.DieCut.Equipment.Name, x.Type,
                 x.Quantity, x.MileageAfter, x.RunLengthMetersAfter, x.RevolutionsAfter, x.OccurredAt))
             .ToListAsync(cancellationToken);
+        var accessActivities = await dbContext.EmployeeAccessEvents.AsNoTracking()
+            .Where(x => x.EmployeeId == employeeId)
+            .OrderByDescending(x => x.OccurredAt)
+            .Select(x => new EmployeeAccessActivityEntry(x.Id, x.Type, x.OccurredAt))
+            .ToListAsync(cancellationToken);
 
         return new EmployeeActivityReport(
             ToProfile(employee),
@@ -92,7 +97,8 @@ public sealed class AccountService(
             activities.Select(x => x.DieCutId).Distinct().Count(),
             activities.Count(x => x.Type == DieCutEventType.Created),
             activities.Count(x => x.Type == DieCutEventType.Deleted),
-            activities.Where(x => x.Type == DieCutEventType.CirculationAdded).Sum(x => x.Quantity ?? 0));
+            activities.Where(x => x.Type == DieCutEventType.CirculationAdded).Sum(x => x.Quantity ?? 0),
+            accessActivities);
     }
     public async Task<CreateEmployeeResult> CreateEmployeeAsync(
         CreateEmployeeCommand command,
@@ -163,6 +169,11 @@ public sealed class AccountService(
             TokenHash = HashToken(rawToken),
             ExpiresAt = expiresAt
         });
+        dbContext.EmployeeAccessEvents.Add(new EmployeeAccessEvent
+        {
+            EmployeeId = employee.Id,
+            Type = EmployeeAccessEventType.LoggedIn
+        });
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -191,7 +202,14 @@ public sealed class AccountService(
             return false;
         }
 
-        session.RevokedAt = DateTimeOffset.UtcNow;
+        var occurredAt = DateTimeOffset.UtcNow;
+        session.RevokedAt = occurredAt;
+        dbContext.EmployeeAccessEvents.Add(new EmployeeAccessEvent
+        {
+            EmployeeId = session.EmployeeId,
+            Type = EmployeeAccessEventType.LoggedOut,
+            OccurredAt = occurredAt
+        });
         await dbContext.SaveChangesAsync(cancellationToken);
         return true;
     }

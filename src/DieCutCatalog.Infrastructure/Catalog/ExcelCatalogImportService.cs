@@ -23,7 +23,7 @@ public sealed class ExcelCatalogImportService(CatalogDbContext dbContext) : IExc
             parsed.Rows.Count - existing,
             existing,
             parsed.ErrorRows,
-            parsed.Rows.Select(x => x.Equipment).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x).ToArray(),
+            parsed.Rows.Select(x => CanonicalEquipmentName(x.Equipment)).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x).ToArray(),
             parsed.Issues);
     }
 
@@ -56,10 +56,10 @@ public sealed class ExcelCatalogImportService(CatalogDbContext dbContext) : IExc
                 continue;
             }
 
-            var equipmentKey = Normalize(row.Equipment);
+            var equipmentKey = NormalizeEquipment(row.Equipment);
             if (!equipmentByName.TryGetValue(equipmentKey, out var equipment))
             {
-                equipment = new Equipment { Name = row.Equipment, NormalizedName = equipmentKey };
+                equipment = new Equipment { Name = CanonicalEquipmentName(row.Equipment), NormalizedName = equipmentKey };
                 dbContext.Equipment.Add(equipment);
                 equipmentByName.Add(equipmentKey, equipment);
             }
@@ -297,7 +297,15 @@ public sealed class ExcelCatalogImportService(CatalogDbContext dbContext) : IExc
     };
 
     private static string Normalize(string value) => value.Trim().ToUpperInvariant();
-    private static string Key(string equipment, string number) => Normalize(equipment) + "\n" + Normalize(number);
+
+    private static string CanonicalEquipmentName(string value) => Normalize(value) switch
+    {
+        "NILPETER" or "NILPETER/LESKO" => "Nilpeter/Lesko",
+        _ => value.Trim()
+    };
+
+    private static string NormalizeEquipment(string value) => Normalize(CanonicalEquipmentName(value));
+    private static string Key(string equipment, string number) => NormalizeEquipment(equipment) + "\n" + Normalize(number);
 
     private sealed record ImportRow(
         string Number, string Equipment, int Shaft, decimal X, decimal Y,

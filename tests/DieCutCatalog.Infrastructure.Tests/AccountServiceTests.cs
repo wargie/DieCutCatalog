@@ -64,6 +64,26 @@ public sealed class AccountServiceTests
     }
 
     [Fact]
+    public async Task LoginAndLogout_AreRecordedOnceInEmployeeActivity()
+    {
+        await using var fixture = CreateFixture();
+        var employee = await fixture.Service.CreateEmployeeAsync(NewEmployee());
+        var password = fixture.EmailSender.TemporaryPassword!;
+
+        Assert.Null(await fixture.Service.LoginAsync(new LoginCommand(employee.Profile.Email, "wrong-password")));
+        var login = await fixture.Service.LoginAsync(new LoginCommand(employee.Profile.Email, password));
+
+        Assert.NotNull(login);
+        Assert.True(await fixture.Service.LogoutAsync(login.AccessToken));
+        Assert.False(await fixture.Service.LogoutAsync(login.AccessToken));
+        var report = await fixture.Service.GetEmployeeActivityAsync(employee.Profile.Id);
+
+        Assert.NotNull(report);
+        Assert.Collection(report.AccessActivities.OrderBy(x => x.OccurredAt),
+            x => Assert.Equal(EmployeeAccessEventType.LoggedIn, x.Type),
+            x => Assert.Equal(EmployeeAccessEventType.LoggedOut, x.Type));
+    }
+    [Fact]
     public async Task VerifyPassword_UsesCurrentAuthenticatedEmployee()
     {
         await using var fixture = CreateFixture();

@@ -108,11 +108,14 @@ public partial class EmployeesView : UserControl
         CreatedCountText.Text = report.CreatedCount.ToString("N0", Russian);
         DeletedCountText.Text = report.DeletedCount.ToString("N0", Russian);
         CirculationText.Text = report.TotalCirculation.ToString("N0", Russian);
-        ActivityCountText.Text = $"Записей: {report.Activities.Count:N0}";
+        ActivityCountText.Text = $"Записей: {report.Activities.Count + report.AccessActivities.Count:N0}";
 
         EmployeePhoto.Source = ToImage(photoBytes);
         _activities.Clear();
-        foreach (var activity in report.Activities) _activities.Add(new ActivityRow(activity));
+        var rows = report.Activities.Select(x => new ActivityRow(x))
+            .Concat(report.AccessActivities.Select(x => new ActivityRow(x)))
+            .OrderByDescending(x => x.SortAt);
+        foreach (var row in rows) _activities.Add(row);
     }
 
     private void ClearDetails()
@@ -200,6 +203,7 @@ public partial class EmployeesView : UserControl
     {
         public ActivityRow(EmployeeActivityEntry entry)
         {
+            SortAt = entry.OccurredAt;
             OccurredAt = entry.OccurredAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss");
             Action = EventName(entry.Type);
             DieCutNumber = entry.DieCutNumber;
@@ -209,6 +213,21 @@ public partial class EmployeesView : UserControl
             Revolutions = entry.RevolutionsAfter.ToString("N0", Russian);
         }
 
+        public ActivityRow(EmployeeAccessActivityEntry entry)
+        {
+            SortAt = entry.OccurredAt;
+            OccurredAt = entry.OccurredAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss");
+            Action = entry.Type == EmployeeAccessEventType.LoggedIn
+                ? "Вошёл в систему"
+                : "Вышел из системы";
+            DieCutNumber = "";
+            Equipment = "";
+            Quantity = "";
+            Mileage = "";
+            Revolutions = "";
+        }
+
+        public DateTimeOffset SortAt { get; }
         public string OccurredAt { get; }
         public string Action { get; }
         public string DieCutNumber { get; }

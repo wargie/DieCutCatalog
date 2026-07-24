@@ -9,6 +9,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
 {
     public DbSet<Employee> Employees => Set<Employee>();
     public DbSet<UserSession> UserSessions => Set<UserSession>();
+    public DbSet<EmployeeAccessEvent> EmployeeAccessEvents => Set<EmployeeAccessEvent>();
     public DbSet<Equipment> Equipment => Set<Equipment>();
     public DbSet<CatalogReferenceEntry> CatalogReferenceEntries => Set<CatalogReferenceEntry>();
     public DbSet<DieCut> DieCuts => Set<DieCut>();
@@ -43,6 +44,16 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             .HasForeignKey(x => x.EmployeeId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        var accessEvent = modelBuilder.Entity<EmployeeAccessEvent>();
+        accessEvent.ToTable("employee_access_events");
+        accessEvent.HasKey(x => x.Id);
+        accessEvent.HasIndex(x => new { x.EmployeeId, x.OccurredAt });
+        accessEvent.Property(x => x.Type).HasConversion<string>().HasMaxLength(32);
+        accessEvent.HasOne(x => x.Employee)
+            .WithMany(x => x.AccessEvents)
+            .HasForeignKey(x => x.EmployeeId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         var equipment = modelBuilder.Entity<Equipment>();
         equipment.ToTable("equipment");
         equipment.HasKey(x => x.Id);
@@ -61,7 +72,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
         var dieCut = modelBuilder.Entity<DieCut>();
         dieCut.ToTable("die_cuts");
         dieCut.HasKey(x => x.Id);
-        dieCut.HasIndex(x => new { x.EquipmentId, x.NormalizedNumber }).IsUnique();
+        dieCut.HasIndex(x => new { x.EquipmentId, x.NormalizedNumber }).IsUnique().HasFilter("\"Status\" <> 'Deleted'");
         dieCut.HasIndex(x => x.Status);
         dieCut.HasIndex(x => x.Material);
         dieCut.Property(x => x.Number).HasMaxLength(50).IsRequired();

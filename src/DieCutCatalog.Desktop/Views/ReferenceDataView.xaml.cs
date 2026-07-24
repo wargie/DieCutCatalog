@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using DieCutCatalog.Application.Catalog;
 using DieCutCatalog.Domain.Catalog;
+using DieCutCatalog.Domain.Employees;
 using Microsoft.Win32;
 
 namespace DieCutCatalog.Desktop.Views;
@@ -219,7 +220,7 @@ public partial class ReferenceDataView : UserControl
             OccurredAt = entry.OccurredAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss");
             DieCutNumber = entry.DieCutNumber;
             Equipment = entry.Equipment;
-            Action = EventName(entry.Type);
+            Action = EventName(entry);
             Quantity = entry.Quantity?.ToString("N0", Russian) ?? "";
             Mileage = $"{entry.MileageBefore:N0} -> {entry.MileageAfter:N0}";
             RunLength = $"{entry.RunLengthMetersBefore:N2} -> {entry.RunLengthMetersAfter:N2}";
@@ -236,6 +237,13 @@ public partial class ReferenceDataView : UserControl
         public string RunLength { get; }
         public string Revolutions { get; }
         public string EmployeeName { get; }
+
+        private static string EventName(AuditLogEntry entry) => entry.AccessType switch
+        {
+            EmployeeAccessEventType.LoggedIn => "Вход в систему",
+            EmployeeAccessEventType.LoggedOut => "Выход из системы",
+            _ => EventName(entry.Type)
+        };
 
         private static string EventName(DieCutEventType type) => type switch
         {

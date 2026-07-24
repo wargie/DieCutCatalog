@@ -44,13 +44,19 @@ public sealed record EmployeeActivityEntry(
     long RevolutionsAfter,
     DateTimeOffset OccurredAt);
 
+public sealed record EmployeeAccessActivityEntry(
+    Guid Id,
+    EmployeeAccessEventType Type,
+    DateTimeOffset OccurredAt);
+
 public sealed record EmployeeActivityReport(
     EmployeeProfile Employee,
     IReadOnlyList<EmployeeActivityEntry> Activities,
     int KnivesCount,
     int CreatedCount,
     int DeletedCount,
-    long TotalCirculation);
+    long TotalCirculation,
+    IReadOnlyList<EmployeeAccessActivityEntry> AccessActivities);
 public sealed record CreateEmployeeResult(EmployeeProfile Profile, bool EmailDelivered, string? TemporaryPassword);
 
 public sealed record UpdateEmployeeProfileCommand(

@@ -24,7 +24,7 @@ public sealed class ExcelCatalogImportServiceTests
         Assert.Equal(1, preview.NewRows);
         Assert.Equal(1, preview.ErrorRows);
         Assert.Single(preview.Issues);
-        Assert.Equal("NilPeter", preview.Equipment[0]);
+        Assert.Equal("Nilpeter/Lesko", preview.Equipment[0]);
     }
 
     [Fact]
@@ -39,7 +39,7 @@ public sealed class ExcelCatalogImportServiceTests
 
         Assert.Equal(1, result.ImportedRows);
         Assert.Equal("001", dieCut.Number);
-        Assert.Equal("NilPeter", dieCut.Equipment.Name);
+        Assert.Equal("Nilpeter/Lesko", dieCut.Equipment.Name);
         Assert.Equal(96, dieCut.Shaft);
         Assert.Equal(0.028m, dieCut.GapX);
         Assert.Equal(0.0048m, dieCut.GapY);

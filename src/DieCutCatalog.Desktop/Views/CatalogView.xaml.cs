@@ -88,7 +88,10 @@ public partial class CatalogView : UserControl
     {
         if (_api is null) return;
         var facets = await _api.GetCatalogFacetsAsync();
-        SetEquipmentTabs(EquipmentOptions);
+        var equipment = EquipmentOptions.Concat(facets.Equipment)
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        SetEquipmentTabs(equipment);
+        SetEditorItems(EquipmentBox, equipment);
         SetFilterItems(MaterialFilter, facets.Materials);
         SetFilterItems(FigureFilter, facets.Figures);
         SetEditorItems(MaterialBox, facets.Materials);
@@ -649,7 +652,7 @@ public partial class CatalogView : UserControl
         EditorTitle.Text = $"Нож {details.Number}";
         NumberBox.Text = details.Number;
         JcOrderNumberBox.Text = details.JcOrderNumber;
-        EquipmentBox.SelectedItem = EquipmentOptions.FirstOrDefault(x => string.Equals(x, details.Equipment, StringComparison.OrdinalIgnoreCase));
+        EquipmentBox.SelectedItem = EquipmentBox.Items.Cast<string>().FirstOrDefault(x => string.Equals(x, details.Equipment, StringComparison.OrdinalIgnoreCase));
         ShaftBox.Text = Format(details.Shaft);
         XBox.Text = Format(details.X);
         YBox.Text = Format(details.Y);

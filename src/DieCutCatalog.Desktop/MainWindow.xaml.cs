@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -14,6 +15,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 {
     private readonly CatalogApiClient _api = new();
     private EmployeeProfile? _profile;
+    private bool _isClosing;
 
     public MainWindow()
     {
@@ -21,14 +23,23 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         ReferenceDataView.ReferencesChanged += async (_, _) => await CatalogView.ReloadReferenceDataAsync();
         ReferenceDataView.BackRequested += (_, _) => ShowCatalog();
 
-        Closed += async (_, _) =>
-        {
-            try { await _api.LogoutAsync(); }
-            catch { }
-            _api.Dispose();
-        };
+        Closing += MainWindow_Closing;
     }
 
+    private async void MainWindow_Closing(object? sender, CancelEventArgs e)
+    {
+        if (_isClosing) return;
+
+        e.Cancel = true;
+        _isClosing = true;
+        try { await _api.LogoutAsync(); }
+        catch { }
+        finally
+        {
+            _api.Dispose();
+            Close();
+        }
+    }
     private async void Login_Click(object sender, RoutedEventArgs e)
     {
         await RunBusyAsync(LoginButton, async () =>

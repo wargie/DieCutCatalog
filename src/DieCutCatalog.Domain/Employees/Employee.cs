@@ -21,4 +21,5 @@ public sealed class Employee
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     public ICollection<UserSession> Sessions { get; set; } = new List<UserSession>();
+    public ICollection<EmployeeAccessEvent> AccessEvents { get; set; } = new List<EmployeeAccessEvent>();
 }

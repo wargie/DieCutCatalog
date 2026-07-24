@@ -1,4 +1,5 @@
 using DieCutCatalog.Domain.Catalog;
+using DieCutCatalog.Domain.Employees;
 
 namespace DieCutCatalog.Application.Catalog;
 
@@ -141,7 +142,8 @@ public sealed record AuditLogEntry(
     long RevolutionsBefore,
     long RevolutionsAfter,
     DateTimeOffset OccurredAt,
-    string EmployeeName);
+    string EmployeeName,
+    EmployeeAccessEventType? AccessType = null);
 
 public sealed record ExportedFile(string FileName, string ContentType, byte[] Content);
 

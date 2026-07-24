@@ -3,6 +3,7 @@ using System;
 using DieCutCatalog.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DieCutCatalog.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(CatalogDbContext))]
-    partial class CatalogDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260724053621_MergeLegacyNilPeterEquipment")]
+    partial class MergeLegacyNilPeterEquipment
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -388,30 +391,6 @@ namespace DieCutCatalog.Infrastructure.Persistence.Migrations
                     b.ToTable("employees", (string)null);
                 });
 
-            modelBuilder.Entity("DieCutCatalog.Domain.Employees.EmployeeAccessEvent", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("EmployeeId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("OccurredAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("EmployeeId", "OccurredAt");
-
-                    b.ToTable("employee_access_events", (string)null);
-                });
-
             modelBuilder.Entity("DieCutCatalog.Domain.Employees.UserSession", b =>
                 {
                     b.Property<Guid>("Id")
@@ -486,17 +465,6 @@ namespace DieCutCatalog.Infrastructure.Persistence.Migrations
                     b.Navigation("Employee");
                 });
 
-            modelBuilder.Entity("DieCutCatalog.Domain.Employees.EmployeeAccessEvent", b =>
-                {
-                    b.HasOne("DieCutCatalog.Domain.Employees.Employee", "Employee")
-                        .WithMany("AccessEvents")
-                        .HasForeignKey("EmployeeId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Employee");
-                });
-
             modelBuilder.Entity("DieCutCatalog.Domain.Employees.UserSession", b =>
                 {
                     b.HasOne("DieCutCatalog.Domain.Employees.Employee", "Employee")
@@ -522,8 +490,6 @@ namespace DieCutCatalog.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("DieCutCatalog.Domain.Employees.Employee", b =>
                 {
-                    b.Navigation("AccessEvents");
-
                     b.Navigation("Sessions");
                 });
 #pragma warning restore 612, 618

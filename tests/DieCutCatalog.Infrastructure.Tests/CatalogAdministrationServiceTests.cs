@@ -70,6 +70,26 @@ public sealed class CatalogAdministrationServiceTests
         Assert.StartsWith("%PDF", Encoding.ASCII.GetString(pdf.Content, 0, 4));
     }
 
+    [Fact]
+    public async Task AuditLog_IncludesEmployeeLoginAndExportsIt()
+    {
+        await using var fixture = CreateFixture();
+        fixture.DbContext.EmployeeAccessEvents.Add(new EmployeeAccessEvent
+        {
+            EmployeeId = fixture.EmployeeId,
+            Type = EmployeeAccessEventType.LoggedIn
+        });
+        await fixture.DbContext.SaveChangesAsync();
+
+        var log = await fixture.Administration.SearchAuditLogAsync("Adrian", 1, 50);
+        var csv = await fixture.Administration.ExportAuditLogAsync("Adrian", false);
+        var pdf = await fixture.Administration.ExportAuditLogAsync("Adrian", true);
+
+        var entry = Assert.Single(log.Items);
+        Assert.Equal(EmployeeAccessEventType.LoggedIn, entry.AccessType);
+        Assert.Contains("Вход в систему", Encoding.UTF8.GetString(csv.Content));
+        Assert.StartsWith("%PDF", Encoding.ASCII.GetString(pdf.Content, 0, 4));
+    }
     private static Fixture CreateFixture()
     {
         var options = new DbContextOptionsBuilder<CatalogDbContext>()

@@ -67,7 +67,7 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
         var references = await ResolveReferencesAsync(command, cancellationToken);
         var equipment = references.Equipment;
         var normalizedNumber = Normalize(command.Number);
-        if (await dbContext.DieCuts.AnyAsync(x => x.EquipmentId == equipment.Id && x.NormalizedNumber == normalizedNumber, cancellationToken))
+        if (await dbContext.DieCuts.AnyAsync(x => x.EquipmentId == equipment.Id && x.NormalizedNumber == normalizedNumber && x.Status != DieCutStatus.Deleted, cancellationToken))
             throw new ValidationException("Нож с таким номером уже существует для выбранного оборудования.");
 
         var dieCut = new DieCut { Equipment = equipment, EquipmentId = equipment.Id, CreatedByEmployeeId = employeeId };
@@ -93,7 +93,7 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
         var references = await ResolveReferencesAsync(command, cancellationToken);
         var equipment = references.Equipment;
         var normalizedNumber = Normalize(command.Number);
-        if (await dbContext.DieCuts.AnyAsync(x => x.Id != id && x.EquipmentId == equipment.Id && x.NormalizedNumber == normalizedNumber, cancellationToken))
+        if (await dbContext.DieCuts.AnyAsync(x => x.Id != id && x.EquipmentId == equipment.Id && x.NormalizedNumber == normalizedNumber && x.Status != DieCutStatus.Deleted, cancellationToken))
             throw new ValidationException("Нож с таким номером уже существует для выбранного оборудования.");
 
         dieCut.Equipment = equipment;

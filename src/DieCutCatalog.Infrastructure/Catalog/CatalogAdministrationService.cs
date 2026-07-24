@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Text;
 using DieCutCatalog.Application.Catalog;
 using DieCutCatalog.Domain.Catalog;
+using DieCutCatalog.Domain.Employees;
 using DieCutCatalog.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using PdfSharp.Drawing;
@@ -130,45 +131,56 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
     {
         page = Math.Max(page, 1);
         pageSize = Math.Clamp(pageSize, 1, 500);
-        var query = AuditQuery(search);
-        var total = await query.CountAsync(cancellationToken);
-        var items = await query.OrderByDescending(x => x.OccurredAt)
-            .Skip((page - 1) * pageSize).Take(pageSize)
-            .Select(x => new AuditLogEntry(
-                x.Id, x.DieCutId, x.DieCut.Number, x.DieCut.Equipment.Name, x.Type, x.Quantity,
-                x.MileageBefore, x.MileageAfter, x.RunLengthMetersBefore, x.RunLengthMetersAfter,
-                x.RevolutionsBefore, x.RevolutionsAfter, x.OccurredAt,
-                (x.Employee.FirstName + " " + x.Employee.LastName).Trim()))
-            .ToListAsync(cancellationToken);
-        return new PagedResult<AuditLogEntry>(items, total, page, pageSize);
+        var entries = await LoadAuditEntriesAsync(search, cancellationToken);
+        var items = entries.Skip((page - 1) * pageSize).Take(pageSize).ToArray();
+        return new PagedResult<AuditLogEntry>(items, entries.Count, page, pageSize);
     }
 
     public async Task<ExportedFile> ExportAuditLogAsync(
         string? search, bool pdf, CancellationToken cancellationToken = default)
     {
-        var entries = await AuditQuery(search).OrderByDescending(x => x.OccurredAt)
-            .Select(x => new AuditLogEntry(
-                x.Id, x.DieCutId, x.DieCut.Number, x.DieCut.Equipment.Name, x.Type, x.Quantity,
-                x.MileageBefore, x.MileageAfter, x.RunLengthMetersBefore, x.RunLengthMetersAfter,
-                x.RevolutionsBefore, x.RevolutionsAfter, x.OccurredAt,
-                (x.Employee.FirstName + " " + x.Employee.LastName).Trim()))
-            .ToListAsync(cancellationToken);
+        var entries = await LoadAuditEntriesAsync(search, cancellationToken);
         var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
         return pdf
             ? new ExportedFile($"knife-audit-{stamp}.pdf", "application/pdf", BuildPdf(entries))
             : new ExportedFile($"knife-audit-{stamp}.csv", "text/csv; charset=utf-8", BuildCsv(entries));
     }
 
-    private IQueryable<DieCutEvent> AuditQuery(string? search)
+    private async Task<IReadOnlyList<AuditLogEntry>> LoadAuditEntriesAsync(
+        string? search, CancellationToken cancellationToken)
     {
-        var query = dbContext.DieCutEvents.AsNoTracking();
-        if (string.IsNullOrWhiteSpace(search)) return query;
-        var term = search.Trim().ToLower();
-        return query.Where(x =>
-            x.DieCut.Number.ToLower().Contains(term) ||
-            x.DieCut.Equipment.Name.ToLower().Contains(term) ||
-            x.Employee.FirstName.ToLower().Contains(term) ||
-            x.Employee.LastName.ToLower().Contains(term));
+        var term = search?.Trim().ToLowerInvariant();
+        var knifeQuery = dbContext.DieCutEvents.AsNoTracking();
+        var accessQuery = dbContext.EmployeeAccessEvents.AsNoTracking();
+        if (!string.IsNullOrWhiteSpace(term))
+        {
+            knifeQuery = knifeQuery.Where(x =>
+                x.DieCut.Number.ToLower().Contains(term) ||
+                x.DieCut.Equipment.Name.ToLower().Contains(term) ||
+                x.Employee.FirstName.ToLower().Contains(term) ||
+                x.Employee.LastName.ToLower().Contains(term) ||
+                x.Employee.Email.ToLower().Contains(term));
+            accessQuery = accessQuery.Where(x =>
+                x.Employee.FirstName.ToLower().Contains(term) ||
+                x.Employee.LastName.ToLower().Contains(term) ||
+                x.Employee.Email.ToLower().Contains(term));
+        }
+
+        var knifeEntries = await knifeQuery.Select(x => new AuditLogEntry(
+            x.Id, x.DieCutId, x.DieCut.Number, x.DieCut.Equipment.Name, x.Type, x.Quantity,
+            x.MileageBefore, x.MileageAfter, x.RunLengthMetersBefore, x.RunLengthMetersAfter,
+            x.RevolutionsBefore, x.RevolutionsAfter, x.OccurredAt,
+            (x.Employee.FirstName + " " + x.Employee.LastName).Trim(), null))
+            .ToListAsync(cancellationToken);
+        var accessEntries = await accessQuery.Select(x => new AuditLogEntry(
+            x.Id, Guid.Empty, "", "", DieCutEventType.Updated, null,
+            0, 0, 0, 0, 0, 0, x.OccurredAt,
+            (x.Employee.FirstName + " " + x.Employee.LastName).Trim(), x.Type))
+            .ToListAsync(cancellationToken);
+
+        return knifeEntries.Concat(accessEntries)
+            .OrderByDescending(x => x.OccurredAt)
+            .ToArray();
     }
 
     private static byte[] BuildCsv(IEnumerable<AuditLogEntry> entries)
@@ -178,7 +190,7 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         {
             csv.Append(Csv(x.OccurredAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss"))).Append(';')
                 .Append(Csv(x.DieCutNumber)).Append(';').Append(Csv(x.Equipment)).Append(';')
-                .Append(Csv(EventName(x.Type))).Append(';').Append(x.Quantity?.ToString(CultureInfo.InvariantCulture)).Append(';')
+                .Append(Csv(EventName(x))).Append(';').Append(x.Quantity?.ToString(CultureInfo.InvariantCulture)).Append(';')
                 .Append(x.MileageBefore).Append(';').Append(x.MileageAfter).Append(';')
                 .Append(x.RunLengthMetersBefore.ToString("0.###", CultureInfo.InvariantCulture)).Append(';')
                 .Append(x.RunLengthMetersAfter.ToString("0.###", CultureInfo.InvariantCulture)).Append(';')
@@ -192,7 +204,7 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
     {
         DieCutDrawingPdfGenerator.EnsureFontResolver();
         using var document = new PdfDocument();
-        document.Info.Title = "Журнал действий по ножам";
+        document.Info.Title = "Журнал действий";
         const double margin = 28;
         const double rowHeight = 18;
         PdfPage? page = null;
@@ -208,7 +220,7 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
             page = document.AddPage();
             page.Orientation = PdfSharp.PageOrientation.Landscape;
             graphics = XGraphics.FromPdfPage(page);
-            graphics.DrawString("Журнал действий по ножам", new XFont("Arial", 14, XFontStyleEx.Bold),
+            graphics.DrawString("Журнал действий", new XFont("Arial", 14, XFontStyleEx.Bold),
                 XBrushes.Black, new XRect(margin, 10, page.Width.Point - margin * 2, 24), XStringFormats.TopLeft);
             y = 45;
             graphics.DrawString($"Страница {document.PageCount}", regular, XBrushes.Gray,
@@ -236,7 +248,7 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
             DrawRow(new[]
             {
                 entry.OccurredAt.ToLocalTime().ToString("dd.MM.yy HH:mm"),
-                entry.DieCutNumber, entry.Equipment, EventName(entry.Type),
+                entry.DieCutNumber, entry.Equipment, EventName(entry),
                 entry.Quantity?.ToString(CultureInfo.InvariantCulture) ?? "",
                 $"{entry.MileageBefore} -> {entry.MileageAfter}",
                 $"{entry.RunLengthMetersBefore.ToString("0.##", CultureInfo.InvariantCulture)} -> {entry.RunLengthMetersAfter.ToString("0.##", CultureInfo.InvariantCulture)}",
@@ -266,6 +278,13 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         return clean;
     }
     private static string Normalize(string value) => value.Trim().ToUpperInvariant();
+    private static string EventName(AuditLogEntry entry) => entry.AccessType switch
+    {
+        EmployeeAccessEventType.LoggedIn => "Вход в систему",
+        EmployeeAccessEventType.LoggedOut => "Выход из системы",
+        _ => EventName(entry.Type)
+    };
+
     private static string EventName(DieCutEventType type) => type switch
     {
         DieCutEventType.Created => "Нож создан",

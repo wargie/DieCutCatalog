@@ -24,6 +24,21 @@ public sealed class DieCutCatalogServiceTests
     }
 
     [Fact]
+    public async Task Update_CanMoveLegacyKnifeWhenTargetNumberWasDeleted()
+    {
+        await using var fixture = CreateFixture();
+        var deletedTarget = await fixture.Service.CreateAsync(NewDieCut("001", "Nilpeter/Lesko"), fixture.EmployeeId);
+        await fixture.Service.DeleteAsync(deletedTarget.Id, fixture.EmployeeId);
+        var legacy = await fixture.Service.CreateAsync(NewDieCut("001", "NilPeter"), fixture.EmployeeId);
+
+        var moved = await fixture.Service.UpdateAsync(legacy.Id, NewDieCut("001", "Nilpeter/Lesko"), fixture.EmployeeId);
+
+        Assert.NotNull(moved);
+        Assert.Equal("Nilpeter/Lesko", moved.Equipment);
+        Assert.Equal(legacy.Id, moved.Id);
+    }
+
+    [Fact]
     public async Task Create_WritesCreatedEvent()
     {
         await using var fixture = CreateFixture();
@@ -342,7 +357,7 @@ public sealed class DieCutCatalogServiceTests
             FirstName = "Adrian",
             LastName = "Test"
         });
-        dbContext.Equipment.AddRange(new[] { "Nilpeter/Lesko", "MarkAndy", "Big Lesko", "Label Source" }
+        dbContext.Equipment.AddRange(new[] { "Nilpeter/Lesko", "NilPeter", "MarkAndy", "Big Lesko", "Label Source" }
             .Select(name => new Equipment { Name = name, NormalizedName = name.ToUpperInvariant() }));
         dbContext.CatalogReferenceEntries.AddRange(
             new CatalogReferenceEntry { Kind = CatalogReferenceKind.Material, Name = "Paper", NormalizedName = "PAPER" },
