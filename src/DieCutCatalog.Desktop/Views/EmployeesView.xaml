@@ -83,7 +83,9 @@
                         <StackPanel Grid.Column="3" VerticalAlignment="Center">
                             <TextBlock Text="Учётная запись" Style="{StaticResource FieldLabel}" />
                             <TextBlock x:Name="EmployeeRoleText" FontWeight="SemiBold" />
-                            <TextBlock x:Name="EmployeeStateText" Margin="0,8,0,0" TextWrapping="Wrap" />
+                            <TextBlock x:Name="EmployeeStateText" Margin="0,8,0,0" TextWrapping="Wrap" />                            <ui:Button x:Name="DeleteEmployeeButton" Margin="0,14,0,0" HorizontalAlignment="Left"
+                                       Content="Удалить сотрудника" Background="#B42318" Foreground="White"
+                                       Click="DeleteEmployee_Click" />
                         </StackPanel>
                     </Grid>
                 </Border>

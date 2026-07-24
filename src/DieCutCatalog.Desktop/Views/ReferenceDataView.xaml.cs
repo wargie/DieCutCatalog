@@ -243,6 +243,7 @@ public partial class ReferenceDataView : UserControl
             DieCutEventType.Updated => "Параметры изменены",
             DieCutEventType.CirculationAdded => "Добавлен тираж",
             DieCutEventType.MileageReset => "Пробег сброшен",
+            DieCutEventType.ReplacementInstalled => "Установлен новый нож",
             DieCutEventType.Retired => "Нож списан",
             DieCutEventType.DrawingGenerated => "PDF сформирован",
             DieCutEventType.Deleted => "Нож удалён",

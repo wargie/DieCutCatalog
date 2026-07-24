@@ -54,6 +54,11 @@ public sealed record DieCutSummary(
     long Mileage,
     decimal RunLengthMeters,
     long Revolutions,
+    long LifetimeMileage,
+    decimal LifetimeRunLengthMeters,
+    long LifetimeRevolutions,
+    int Generation,
+    long NextInspectionRevolutions,
     DieCutStatus Status,
     DateTimeOffset UpdatedAt);
 
@@ -79,6 +84,11 @@ public sealed record DieCutDetails(
     long Mileage,
     decimal RunLengthMeters,
     long Revolutions,
+    long LifetimeMileage,
+    decimal LifetimeRunLengthMeters,
+    long LifetimeRevolutions,
+    int Generation,
+    long NextInspectionRevolutions,
     DieCutStatus Status,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
@@ -184,7 +194,7 @@ public interface IDieCutCatalogService
     Task<DieCutDetails> CreateAsync(SaveDieCutCommand command, Guid employeeId, CancellationToken cancellationToken = default);
     Task<DieCutDetails?> UpdateAsync(Guid id, SaveDieCutCommand command, Guid employeeId, CancellationToken cancellationToken = default);
     Task<DieCutDetails?> AddCirculationAsync(Guid id, long quantity, Guid employeeId, CancellationToken cancellationToken = default);
-    Task<DieCutDetails?> ResetMileageAsync(Guid id, Guid employeeId, CancellationToken cancellationToken = default);
+    Task<DieCutDetails?> InstallReplacementAsync(Guid id, Guid employeeId, CancellationToken cancellationToken = default);
     Task<DieCutDetails?> RetireAsync(Guid id, Guid employeeId, CancellationToken cancellationToken = default);
     Task<DieCutDetails?> DeleteAsync(Guid id, Guid employeeId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<DieCutEventDetails>?> GetEventsAsync(Guid id, CancellationToken cancellationToken = default);

@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using DieCutCatalog.Application.Employees;
 using DieCutCatalog.Domain.Employees;
+using DieCutCatalog.Desktop.Views;
 using Microsoft.Win32;
 
 namespace DieCutCatalog.Desktop;
@@ -77,7 +78,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         await LoadPhotoAsync();
         await CatalogView.InitializeAsync(_api, _profile?.Role == EmployeeRole.Administrator);
         await ReferenceDataView.InitializeAsync(_api, _profile?.Role == EmployeeRole.Administrator);
-        await EmployeesView.InitializeAsync(_api);
+        EmployeesView.Initialize(_api);
         await CatalogView.ReloadReferenceDataAsync();
         LoginView.Visibility = Visibility.Collapsed;
         ShellView.Visibility = Visibility.Visible;
@@ -137,17 +138,28 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     }
     private async void ShowEmployees_Click(object sender, RoutedEventArgs e)
     {
-        CatalogView.Visibility = Visibility.Collapsed;
-        ReferenceDataView.Visibility = Visibility.Collapsed;
-        EmployeesView.Visibility = Visibility.Visible;
-        EmployeeView.Visibility = Visibility.Collapsed;
-        CatalogNavButton.Appearance = Wpf.Ui.Controls.ControlAppearance.Transparent;
-        ReferenceDataNavButton.Appearance = Wpf.Ui.Controls.ControlAppearance.Transparent;
-        EmployeesNavButton.Appearance = Wpf.Ui.Controls.ControlAppearance.Primary;
-        EmployeeNavButton.Appearance = Wpf.Ui.Controls.ControlAppearance.Transparent;
-        await EmployeesView.ReloadAsync();
-    }
-    private void ShowEmployee_Click(object sender, RoutedEventArgs e)
+        var dialog = new PasswordConfirmationWindow(
+            "Доступ к справочнику сотрудников",
+            "Справочник содержит персональные данные и историю действий. Для доступа введите мастер-пароль администратора.",
+            "Открыть справочник")
+        {
+            Owner = this
+        };
+        if (dialog.ShowDialog() != true) return;
+
+        await RunBusyAsync((Button)sender, async () =>
+        {
+            await EmployeesView.UnlockAsync(dialog.Password);
+            CatalogView.Visibility = Visibility.Collapsed;
+            ReferenceDataView.Visibility = Visibility.Collapsed;
+            EmployeesView.Visibility = Visibility.Visible;
+            EmployeeView.Visibility = Visibility.Collapsed;
+            CatalogNavButton.Appearance = Wpf.Ui.Controls.ControlAppearance.Transparent;
+            ReferenceDataNavButton.Appearance = Wpf.Ui.Controls.ControlAppearance.Transparent;
+            EmployeesNavButton.Appearance = Wpf.Ui.Controls.ControlAppearance.Primary;
+            EmployeeNavButton.Appearance = Wpf.Ui.Controls.ControlAppearance.Transparent;
+        });
+    }    private void ShowEmployee_Click(object sender, RoutedEventArgs e)
     {
         CatalogView.Visibility = Visibility.Collapsed;
         ReferenceDataView.Visibility = Visibility.Collapsed;
@@ -210,7 +222,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                 NullIfEmpty(EmployeePositionBox.Text), NullIfEmpty(EmployeePhoneBox.Text), EmployeeAdministratorBox.IsChecked == true);
             EmployeeEmailBox.Clear(); EmployeeFirstNameBox.Clear(); EmployeeLastNameBox.Clear(); EmployeePositionBox.Clear(); EmployeePhoneBox.Clear();
             EmployeeAdministratorBox.IsChecked = false;
-            await EmployeesView.ReloadAsync();
+            EmployeesView.Invalidate();
             if (result.EmailDelivered)
             {
                 MessageBox.Show($"Учётная запись для {result.Profile.Email} создана. Временный пароль отправлен по почте.",

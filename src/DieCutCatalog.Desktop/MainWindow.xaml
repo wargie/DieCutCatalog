@@ -38,7 +38,7 @@
                     <TextBlock Margin="0,6,0,10" Text="Каталог вырубных ножей" Style="{StaticResource CaptionText}" />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Адрес сервера" />
-                    <TextBox x:Name="ServerAddressBox" Text="http://localhost:5080" />
+                    <TextBox x:Name="ServerAddressBox" Text="https://diecutcatalog.duckdns.org" />
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Электронная почта" />
                     <TextBox x:Name="EmailBox" />
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Пароль" />

@@ -187,31 +187,53 @@ public sealed class DieCutCatalogServiceTests
     }
 
     [Fact]
-    public async Task ResetMileage_StoresDateAndPreviousMileage()
+    public async Task InstallReplacement_RequiresOrderAndPreservesLifetimeResource()
+    {
+        await using var fixture = CreateFixture();
+        var command = NewDieCut("001", "Nilpeter/Lesko");
+        var created = await fixture.Service.CreateAsync(command, fixture.EmployeeId);
+        var used = await fixture.Service.AddCirculationAsync(created.Id, 7_500, fixture.EmployeeId);
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            fixture.Service.InstallReplacementAsync(created.Id, fixture.EmployeeId));
+
+        await fixture.Service.UpdateAsync(
+            created.Id, command with { Status = DieCutStatus.OrderNew }, fixture.EmployeeId);
+        var replaced = await fixture.Service.InstallReplacementAsync(created.Id, fixture.EmployeeId);
+        var events = await fixture.Service.GetEventsAsync(created.Id);
+        var replacementEvent = Assert.Single(events!, item => item.Type == DieCutEventType.ReplacementInstalled);
+
+        Assert.NotNull(used);
+        Assert.NotNull(replaced);
+        Assert.Equal(0, replaced.Mileage);
+        Assert.Equal(0, replaced.RunLengthMeters);
+        Assert.Equal(0, replaced.Revolutions);
+        Assert.Equal(7_500, replaced.LifetimeMileage);
+        Assert.Equal(142.875m, replaced.LifetimeRunLengthMeters);
+        Assert.Equal(469, replaced.LifetimeRevolutions);
+        Assert.Equal(2, replaced.Generation);
+        Assert.Equal(DieCutStatus.Active, replaced.Status);
+        Assert.Equal(7_500, replacementEvent.MileageBefore);
+        Assert.Equal(0, replacementEvent.MileageAfter);
+    }
+
+    [Fact]
+    public async Task AddCirculation_ReachingInspectionThresholdChangesStatus()
     {
         await using var fixture = CreateFixture();
         var created = await fixture.Service.CreateAsync(NewDieCut("001", "Nilpeter/Lesko"), fixture.EmployeeId);
-        await fixture.Service.AddCirculationAsync(created.Id, 7_500, fixture.EmployeeId);
-        var earliest = DateTimeOffset.UtcNow;
+        var entity = await fixture.DbContext.DieCuts.SingleAsync(x => x.Id == created.Id);
+        entity.Revolutions = 999_999;
+        entity.LifetimeRevolutions = 999_999;
+        await fixture.DbContext.SaveChangesAsync();
 
-        var reset = await fixture.Service.ResetMileageAsync(created.Id, fixture.EmployeeId);
-        var latest = DateTimeOffset.UtcNow;
-        var events = await fixture.Service.GetEventsAsync(created.Id);
-        var resetEvent = Assert.Single(events!, item => item.Type == DieCutEventType.MileageReset);
+        var updated = await fixture.Service.AddCirculationAsync(created.Id, 100, fixture.EmployeeId);
 
-        Assert.NotNull(reset);
-        Assert.Equal(0, reset.Mileage);
-        Assert.Equal(0, reset.RunLengthMeters);
-        Assert.Equal(0, reset.Revolutions);
-        Assert.Equal(7_500, resetEvent.MileageBefore);
-        Assert.Equal(142.875m, resetEvent.RunLengthMetersBefore);
-        Assert.Equal(469, resetEvent.RevolutionsBefore);
-        Assert.Equal(0, resetEvent.MileageAfter);
-        Assert.Equal(0, resetEvent.RunLengthMetersAfter);
-        Assert.Equal(0, resetEvent.RevolutionsAfter);
-        Assert.InRange(resetEvent.OccurredAt, earliest, latest);
+        Assert.NotNull(updated);
+        Assert.Equal(DieCutStatus.NeedsInspection, updated.Status);
+        Assert.True(updated.Revolutions >= 1_000_000);
+        Assert.Equal(updated.Revolutions, updated.LifetimeRevolutions);
     }
-
     [Fact]
     public async Task Retire_WritesEventAndBlocksFurtherOperations()
     {

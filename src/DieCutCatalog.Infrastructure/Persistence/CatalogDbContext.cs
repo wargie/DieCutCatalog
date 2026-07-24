@@ -76,6 +76,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
         dieCut.Property(x => x.Material).HasMaxLength(200).IsRequired();
         dieCut.Property(x => x.H).HasPrecision(10, 2);
         dieCut.Property(x => x.RunLengthMeters).HasPrecision(18, 6);
+        dieCut.Property(x => x.LifetimeRunLengthMeters).HasPrecision(18, 6);
         dieCut.Property(x => x.Figure).HasMaxLength(100).IsRequired();
         dieCut.Property(x => x.Comments).HasMaxLength(2000);
         dieCut.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);

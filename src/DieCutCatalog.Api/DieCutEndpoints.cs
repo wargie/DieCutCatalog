@@ -73,7 +73,7 @@ internal static class DieCutEndpoints
             return dieCut is null ? Results.NotFound() : Results.Ok(dieCut);
         });
 
-        group.MapPost("/{id:guid}/reset-mileage", async (
+        group.MapPost("/{id:guid}/install-replacement", async (
             Guid id,
             HttpContext context,
             PasswordConfirmationRequest request,
@@ -87,7 +87,7 @@ internal static class DieCutEndpoints
             var administrator = await accounts.VerifyAdministratorPasswordAsync(request.Password, cancellationToken);
             if (administrator is null) return AdministratorPasswordRequired();
 
-            var dieCut = await catalog.ResetMileageAsync(id, administrator.Id, cancellationToken);
+            var dieCut = await catalog.InstallReplacementAsync(id, administrator.Id, cancellationToken);
             return dieCut is null ? Results.NotFound() : Results.Ok(dieCut);
         }).RequireRateLimiting("auth");
 

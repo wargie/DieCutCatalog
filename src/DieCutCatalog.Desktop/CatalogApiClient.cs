@@ -12,6 +12,7 @@ internal sealed partial class CatalogApiClient : IDisposable
 {
     private readonly HttpClient _httpClient = new();
     private readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web);
+    private Uri? _baseAddress;
 
     public string? AccessToken { get; private set; }
 
@@ -24,7 +25,8 @@ internal sealed partial class CatalogApiClient : IDisposable
             throw new CatalogApiException("Укажите корректный адрес сервера, например https://catalog.company.ru.");
         }
 
-        _httpClient.BaseAddress = new Uri(uri.ToString().TrimEnd('/') + "/");
+        _baseAddress = new Uri(uri.ToString().TrimEnd('/') + "/");
+        AccessToken = null;
     }
 
     public async Task<LoginResult> LoginAsync(string email, string password)
@@ -50,11 +52,11 @@ internal sealed partial class CatalogApiClient : IDisposable
     public Task ChangeEmailAsync(string currentPassword, string newEmail) =>
         SendAsync(HttpMethod.Post, "api/employees/me/change-email", new { currentPassword, newEmail });
 
-    public Task<IReadOnlyList<EmployeeProfile>> GetEmployeesAsync() =>
-        SendAsync<IReadOnlyList<EmployeeProfile>>(HttpMethod.Get, "api/employees");
+    public Task<IReadOnlyList<EmployeeActivityReport>> GetEmployeeDirectoryAsync(string password) =>
+        SendAsync<IReadOnlyList<EmployeeActivityReport>>(HttpMethod.Post, "api/employees/directory", new { password });
 
-    public Task<EmployeeActivityReport> GetEmployeeActivityAsync(Guid employeeId) =>
-        SendAsync<EmployeeActivityReport>(HttpMethod.Get, $"api/employees/{employeeId}/activity");
+    public Task<EmployeeProfile> DeleteEmployeeAsync(Guid employeeId, string password) =>
+        SendAsync<EmployeeProfile>(HttpMethod.Delete, $"api/employees/{employeeId}", new { password });
     public Task<CreateEmployeeResult> CreateEmployeeAsync(string email, string firstName, string lastName, string? position, string? phone, bool isAdministrator) =>
         SendAsync<CreateEmployeeResult>(HttpMethod.Post, "api/employees", new { email, firstName, lastName, position, phone, isAdministrator });
 
@@ -99,8 +101,8 @@ internal sealed partial class CatalogApiClient : IDisposable
 
     private HttpRequestMessage CreateRequest(HttpMethod method, string path, bool authorize = true)
     {
-        if (_httpClient.BaseAddress is null) throw new CatalogApiException("Адрес сервера не задан.");
-        var request = new HttpRequestMessage(method, path.TrimStart('/'));
+        if (_baseAddress is null) throw new CatalogApiException("Адрес сервера не задан.");
+        var request = new HttpRequestMessage(method, new Uri(_baseAddress, path.TrimStart('/')));
         if (authorize && AccessToken is not null)
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", AccessToken);
         return request;

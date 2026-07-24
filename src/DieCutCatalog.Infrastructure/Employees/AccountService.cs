@@ -23,6 +23,44 @@ public sealed class AccountService(
     private readonly AccountOptions _accountOptions = accountOptions.Value;
     private readonly StorageOptions _storageOptions = storageOptions.Value;
 
+    public async Task<IReadOnlyList<EmployeeActivityReport>> GetEmployeeDirectoryAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var employees = await GetEmployeesAsync(cancellationToken);
+        var reports = new List<EmployeeActivityReport>(employees.Count);
+        foreach (var employee in employees)
+        {
+            var report = await GetEmployeeActivityAsync(employee.Id, cancellationToken);
+            if (report is not null) reports.Add(report);
+        }
+        return reports;
+    }
+
+    public async Task<EmployeeProfile?> DeactivateEmployeeAsync(
+        Guid employeeId, Guid requestingEmployeeId, CancellationToken cancellationToken = default)
+    {
+        if (employeeId == requestingEmployeeId)
+            throw new ValidationException("Нельзя удалить собственную учётную запись.");
+
+        var employee = await dbContext.Employees.SingleOrDefaultAsync(
+            x => x.Id == employeeId && x.IsActive, cancellationToken);
+        if (employee is null) return null;
+        if (employee.Role == EmployeeRole.Administrator
+            && await dbContext.Employees.CountAsync(
+                x => x.IsActive && x.Role == EmployeeRole.Administrator, cancellationToken) <= 1)
+        {
+            throw new ValidationException("Нельзя удалить последнего активного администратора.");
+        }
+
+        employee.IsActive = false;
+        employee.UpdatedAt = DateTimeOffset.UtcNow;
+        var sessions = await dbContext.UserSessions
+            .Where(x => x.EmployeeId == employeeId && x.RevokedAt == null)
+            .ToListAsync(cancellationToken);
+        foreach (var session in sessions) session.RevokedAt = DateTimeOffset.UtcNow;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return ToProfile(employee);
+    }
     public async Task<IReadOnlyList<EmployeeProfile>> GetEmployeesAsync(
         CancellationToken cancellationToken = default)
     {

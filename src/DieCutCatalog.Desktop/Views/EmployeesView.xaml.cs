@@ -26,38 +26,36 @@ public partial class EmployeesView : UserControl
         ActivityGrid.ItemsSource = _activities;
     }
 
-    internal async Task InitializeAsync(CatalogApiClient api)
+    internal void Initialize(CatalogApiClient api)
     {
         _api = api;
-        await ReloadAsync();
+        Invalidate();
     }
 
-    internal async Task ReloadAsync()
+    internal async Task UnlockAsync(string password)
     {
         if (_api is null) return;
         StatusText.Text = string.Empty;
-        try
-        {
-            var selectedId = (EmployeesGrid.SelectedItem as EmployeeListRow)?.Profile.Id;
-            _allEmployees.Clear();
-            _allEmployees.AddRange((await _api.GetEmployeesAsync()).Select(x => new EmployeeListRow(x)));
-            ApplyFilter(selectedId);
-        }
-        catch (CatalogApiException exception)
-        {
-            StatusText.Text = exception.Message;
-        }
+        var selectedId = (EmployeesGrid.SelectedItem as EmployeeListRow)?.Profile.Id;
+        var reports = await _api.GetEmployeeDirectoryAsync(password);
+        _allEmployees.Clear();
+        _allEmployees.AddRange(reports.Select(x => new EmployeeListRow(x)));
+        ApplyFilter(selectedId);
     }
 
-    internal void Clear()
+    internal void Invalidate()
     {
-        _api = null;
         _allEmployees.Clear();
         _visibleEmployees.Clear();
         _activities.Clear();
         ClearDetails();
     }
 
+    internal void Clear()
+    {
+        _api = null;
+        Invalidate();
+    }
     private void ApplyFilter(Guid? selectedId = null)
     {
         var search = SearchBox.Text.Trim();
@@ -79,7 +77,7 @@ public partial class EmployeesView : UserControl
         StatusText.Text = string.Empty;
         try
         {
-            var report = await _api.GetEmployeeActivityAsync(selected.Profile.Id);
+            var report = selected.Report;
             var photoBytes = await _api.DownloadPhotoAsync(report.Employee.PhotoUrl);
             if (version != _selectionVersion) return;
             ShowReport(report, photoBytes);
@@ -101,6 +99,7 @@ public partial class EmployeesView : UserControl
             ? "Дополнительные контакты не указаны"
             : employee.AdditionalContacts;
         EmployeeRoleText.Text = employee.Role == EmployeeRole.Administrator ? "Администратор" : "Сотрудник";
+        DeleteEmployeeButton.IsEnabled = employee.IsActive;
         EmployeeStateText.Text = employee.IsActive
             ? employee.MustChangePassword ? "Требуется смена временного пароля" : "Учётная запись активна"
             : "Учётная запись отключена";
@@ -127,6 +126,7 @@ public partial class EmployeesView : UserControl
         EmployeeContactsText.Text = string.Empty;
         EmployeeRoleText.Text = string.Empty;
         EmployeeStateText.Text = string.Empty;
+        DeleteEmployeeButton.IsEnabled = false;
         KnivesCountText.Text = "0";
         CreatedCountText.Text = "0";
         DeletedCountText.Text = "0";
@@ -148,6 +148,33 @@ public partial class EmployeesView : UserControl
         return image;
     }
 
+    private async void DeleteEmployee_Click(object sender, RoutedEventArgs e)
+    {
+        if (_api is null || EmployeesGrid.SelectedItem is not EmployeeListRow selected) return;
+        var dialog = new PasswordConfirmationWindow(
+            "Удалить сотрудника",
+            $"Учётная запись «{selected.Name}» будет отключена, активные сеансы завершены. Контакты и история действий сохранятся в журнале.",
+            "Удалить сотрудника")
+        {
+            Owner = Window.GetWindow(this)
+        };
+        if (dialog.ShowDialog() != true) return;
+
+        DeleteEmployeeButton.IsEnabled = false;
+        try
+        {
+            await _api.DeleteEmployeeAsync(selected.Profile.Id, dialog.Password);
+            await UnlockAsync(dialog.Password);
+            StatusText.Foreground = (System.Windows.Media.Brush)FindResource("SuccessTextBrush");
+            StatusText.Text = "Учётная запись сотрудника отключена.";
+        }
+        catch (CatalogApiException exception)
+        {
+            StatusText.Foreground = (System.Windows.Media.Brush)FindResource("ErrorTextBrush");
+            StatusText.Text = exception.Message;
+            DeleteEmployeeButton.IsEnabled = selected.Profile.IsActive;
+        }
+    }
     private void SearchBox_TextChanged(object sender, TextChangedEventArgs e) => ApplyFilter();
 
     private async void EmployeesGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -156,15 +183,16 @@ public partial class EmployeesView : UserControl
             await LoadEmployeeAsync(selected);
     }
 
-    private sealed class EmployeeListRow(EmployeeProfile profile)
+    private sealed class EmployeeListRow(EmployeeActivityReport report)
     {
-        public EmployeeProfile Profile { get; } = profile;
-        public string Name { get; } = $"{profile.LastName} {profile.FirstName}".Trim();
-        public string Position { get; } = profile.Position ?? "";
+        public EmployeeActivityReport Report { get; } = report;
+        public EmployeeProfile Profile { get; } = report.Employee;
+        public string Name { get; } = $"{report.Employee.LastName} {report.Employee.FirstName}".Trim();
+        public string Position { get; } = report.Employee.Position ?? "";
         public string SearchText { get; } = string.Join(" ", new[]
         {
-            profile.FirstName, profile.LastName, profile.Email, profile.Position,
-            profile.Phone, profile.AdditionalContacts
+            report.Employee.FirstName, report.Employee.LastName, report.Employee.Email, report.Employee.Position,
+            report.Employee.Phone, report.Employee.AdditionalContacts
         }.Where(x => !string.IsNullOrWhiteSpace(x)));
     }
 
@@ -195,6 +223,7 @@ public partial class EmployeesView : UserControl
             DieCutEventType.Updated => "Изменил параметры",
             DieCutEventType.CirculationAdded => "Добавил тираж",
             DieCutEventType.MileageReset => "Сбросил тираж",
+            DieCutEventType.ReplacementInstalled => "Установил новый нож",
             DieCutEventType.Retired => "Списал нож",
             DieCutEventType.DrawingGenerated => "Сформировал PDF",
             DieCutEventType.Deleted => "Удалил нож",

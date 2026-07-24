@@ -8,6 +8,8 @@ namespace DieCutCatalog.Infrastructure.Catalog;
 
 public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCatalogService
 {
+    public const long InspectionIntervalRevolutions = 1_000_000;
+    public const long WarningRevolutions = 900_000;
     public async Task<PagedResult<DieCutSummary>> SearchAsync(DieCutQuery query, CancellationToken cancellationToken = default)
     {
         var page = Math.Max(query.Page, 1);
@@ -46,7 +48,8 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
             .Select(x => new DieCutSummary(
                 x.Id, x.Number, x.JcOrderNumber, x.Equipment.Name, x.Shaft, x.X, x.Y, x.Streams, x.Repeats,
                 x.GapX, x.GapY, x.Material, x.H, x.Figure, x.Comments, x.Date, x.Mileage,
-                x.RunLengthMeters, x.Revolutions, x.Status, x.UpdatedAt))
+                x.RunLengthMeters, x.Revolutions, x.LifetimeMileage, x.LifetimeRunLengthMeters, x.LifetimeRevolutions,
+                x.Generation, x.NextInspectionRevolutions, x.Status, x.UpdatedAt))
             .ToListAsync(cancellationToken);
 
         return new PagedResult<DieCutSummary>(items, total, page, pageSize);
@@ -95,8 +98,13 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
 
         dieCut.Equipment = equipment;
         dieCut.EquipmentId = equipment.Id;
+        var previousStatus = dieCut.Status;
         var usage = UsageSnapshot.From(dieCut);
         Apply(dieCut, command, employeeId, references.Material, references.Figure);
+        if (previousStatus == DieCutStatus.NeedsInspection && command.Status == DieCutStatus.Active)
+            dieCut.NextInspectionRevolutions = checked(dieCut.Revolutions + InspectionIntervalRevolutions);
+        else if (dieCut.Status == DieCutStatus.Active && dieCut.Revolutions >= dieCut.NextInspectionRevolutions)
+            dieCut.Status = DieCutStatus.NeedsInspection;
         dbContext.DieCutEvents.Add(NewEvent(dieCut.Id, employeeId, DieCutEventType.Updated, null, usage, usage, dieCut.UpdatedAt));
         await dbContext.SaveChangesAsync(cancellationToken);
         return Map(dieCut, equipment.Name);
@@ -113,7 +121,7 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
         var dieCut = await dbContext.DieCuts.Include(x => x.Equipment).SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (dieCut is null) return null;
         EnsureOperational(dieCut);
-        if (quantity > long.MaxValue - dieCut.Mileage)
+        if (quantity > long.MaxValue - dieCut.Mileage || quantity > long.MaxValue - dieCut.LifetimeMileage)
             throw new ValidationException("Итоговый тираж превышает допустимое значение.");
 
         var before = UsageSnapshot.From(dieCut);
@@ -122,7 +130,12 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
         var now = DateTimeOffset.UtcNow;
         dieCut.Mileage += quantity;
         dieCut.RunLengthMeters += runLengthMeters;
-        dieCut.Revolutions += revolutions;
+        dieCut.Revolutions = checked(dieCut.Revolutions + revolutions);
+        dieCut.LifetimeMileage += quantity;
+        dieCut.LifetimeRunLengthMeters += runLengthMeters;
+        dieCut.LifetimeRevolutions = checked(dieCut.LifetimeRevolutions + revolutions);
+        if (dieCut.Status == DieCutStatus.Active && dieCut.Revolutions >= dieCut.NextInspectionRevolutions)
+            dieCut.Status = DieCutStatus.NeedsInspection;
         var after = UsageSnapshot.From(dieCut);
         Touch(dieCut, employeeId, now);
         dbContext.DieCutEvents.Add(NewEvent(
@@ -131,28 +144,31 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
         return Map(dieCut, dieCut.Equipment.Name);
     }
 
-    public async Task<DieCutDetails?> ResetMileageAsync(
+    public async Task<DieCutDetails?> InstallReplacementAsync(
         Guid id,
         Guid employeeId,
         CancellationToken cancellationToken = default)
     {
         var dieCut = await dbContext.DieCuts.Include(x => x.Equipment).SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (dieCut is null) return null;
-        EnsureOperational(dieCut);
+        if (dieCut.Status != DieCutStatus.OrderNew)
+            throw new ValidationException("Сначала установите статус «Заказать новый» и сохраните карточку.");
 
         var before = UsageSnapshot.From(dieCut);
         var now = DateTimeOffset.UtcNow;
         dieCut.Mileage = 0;
         dieCut.RunLengthMeters = 0;
         dieCut.Revolutions = 0;
+        dieCut.Generation = checked(dieCut.Generation + 1);
+        dieCut.NextInspectionRevolutions = InspectionIntervalRevolutions;
+        dieCut.Status = DieCutStatus.Active;
         var after = UsageSnapshot.From(dieCut);
         Touch(dieCut, employeeId, now);
         dbContext.DieCutEvents.Add(NewEvent(
-            dieCut.Id, employeeId, DieCutEventType.MileageReset, null, before, after, now));
+            dieCut.Id, employeeId, DieCutEventType.ReplacementInstalled, null, before, after, now));
         await dbContext.SaveChangesAsync(cancellationToken);
         return Map(dieCut, dieCut.Equipment.Name);
     }
-
     public async Task<DieCutDetails?> RetireAsync(
         Guid id,
         Guid employeeId,
@@ -332,10 +348,12 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
     private static DieCutDetails Map(DieCut x, string equipment) => new(
         x.Id, x.Number, x.JcOrderNumber, equipment, x.Shaft, x.X, x.Y, x.Streams, x.Repeats,
         x.GrooveSpacing, x.LabelCornerRadius, x.GapX, x.GapY, x.Material, x.H, x.Figure, x.Comments, x.Date, x.Mileage,
-        x.RunLengthMeters, x.Revolutions, x.Status, x.CreatedAt, x.UpdatedAt);
+        x.RunLengthMeters, x.Revolutions, x.LifetimeMileage, x.LifetimeRunLengthMeters, x.LifetimeRevolutions,
+        x.Generation, x.NextInspectionRevolutions, x.Status, x.CreatedAt, x.UpdatedAt);
 
     private static System.Linq.Expressions.Expression<Func<DieCut, DieCutDetails>> ToDetails() => x => new DieCutDetails(
         x.Id, x.Number, x.JcOrderNumber, x.Equipment.Name, x.Shaft, x.X, x.Y, x.Streams, x.Repeats,
         x.GrooveSpacing, x.LabelCornerRadius, x.GapX, x.GapY, x.Material, x.H, x.Figure, x.Comments, x.Date, x.Mileage,
-        x.RunLengthMeters, x.Revolutions, x.Status, x.CreatedAt, x.UpdatedAt);
+        x.RunLengthMeters, x.Revolutions, x.LifetimeMileage, x.LifetimeRunLengthMeters, x.LifetimeRevolutions,
+        x.Generation, x.NextInspectionRevolutions, x.Status, x.CreatedAt, x.UpdatedAt);
 }

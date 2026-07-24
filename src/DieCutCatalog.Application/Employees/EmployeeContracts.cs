@@ -68,6 +68,9 @@ public sealed record StoredPhoto(string FileName, string ContentType, Stream Con
 
 public interface IAccountService
 {
+    Task<IReadOnlyList<EmployeeActivityReport>> GetEmployeeDirectoryAsync(CancellationToken cancellationToken = default);
+
+    Task<EmployeeProfile?> DeactivateEmployeeAsync(Guid employeeId, Guid requestingEmployeeId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<EmployeeProfile>> GetEmployeesAsync(CancellationToken cancellationToken = default);
 
     Task<EmployeeActivityReport?> GetEmployeeActivityAsync(Guid employeeId, CancellationToken cancellationToken = default);

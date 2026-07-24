@@ -1,6 +1,7 @@
 using DieCutCatalog.Api;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.Mvc;
 using System.ComponentModel.DataAnnotations;
 using DieCutCatalog.Application.Employees;
 using DieCutCatalog.Domain.Employees;
@@ -135,30 +136,20 @@ app.MapGet("/api/employees/me", async (
     return profile is null ? Results.Unauthorized() : Results.Ok(profile);
 });
 
-app.MapGet("/api/employees", async (
+app.MapPost("/api/employees/directory", async (
     HttpContext context,
-    IAccountService accounts,
-    CancellationToken cancellationToken) =>
-{
-    var authorization = await GetReadyProfileAsync(
-        accounts, GetBearerToken(context), cancellationToken);
-    return authorization.Error is not null
-        ? authorization.Error
-        : Results.Ok(await accounts.GetEmployeesAsync(cancellationToken));
-});
-
-app.MapGet("/api/employees/{employeeId:guid}/activity", async (
-    Guid employeeId,
-    HttpContext context,
+    PasswordConfirmationRequest request,
     IAccountService accounts,
     CancellationToken cancellationToken) =>
 {
     var authorization = await GetReadyProfileAsync(
         accounts, GetBearerToken(context), cancellationToken);
     if (authorization.Error is not null) return authorization.Error;
-    var report = await accounts.GetEmployeeActivityAsync(employeeId, cancellationToken);
-    return report is null ? Results.NotFound() : Results.Ok(report);
-});
+    var administrator = await accounts.VerifyAdministratorPasswordAsync(request.Password, cancellationToken);
+    if (administrator is null) return AdministratorPasswordRequired();
+    return Results.Ok(await accounts.GetEmployeeDirectoryAsync(cancellationToken));
+})
+.RequireRateLimiting("auth");
 app.MapPost("/api/employees", async (
     HttpContext context,
     CreateEmployeeRequest request,
@@ -185,6 +176,23 @@ app.MapPost("/api/employees", async (
 })
 .RequireRateLimiting("auth");
 
+app.MapDelete("/api/employees/{employeeId:guid}", async (
+    Guid employeeId,
+    HttpContext context,
+    [FromBody] PasswordConfirmationRequest request,
+    IAccountService accounts,
+    CancellationToken cancellationToken) =>
+{
+    var authorization = await GetReadyProfileAsync(
+        accounts, GetBearerToken(context), cancellationToken);
+    if (authorization.Error is not null) return authorization.Error;
+    var administrator = await accounts.VerifyAdministratorPasswordAsync(request.Password, cancellationToken);
+    if (administrator is null) return AdministratorPasswordRequired();
+    var employee = await accounts.DeactivateEmployeeAsync(
+        employeeId, authorization.Profile!.Id, cancellationToken);
+    return employee is null ? Results.NotFound() : Results.Ok(employee);
+})
+.RequireRateLimiting("auth");
 app.MapPut("/api/employees/me", async (
     HttpContext context,
     UpdateEmployeeRequest request,
@@ -336,6 +344,9 @@ await using (var scope = app.Services.CreateAsyncScope())
 
 app.Run();
 
+static IResult AdministratorPasswordRequired() => Results.Json(
+    new { error = "Недостаточно прав: требуется пароль суперпользователя." },
+    statusCode: StatusCodes.Status403Forbidden);
 static string? GetBearerToken(HttpContext context)
 {
     var header = context.Request.Headers.Authorization.ToString();

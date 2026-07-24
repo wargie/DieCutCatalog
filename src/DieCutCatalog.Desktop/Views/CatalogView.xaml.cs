@@ -484,13 +484,13 @@ public partial class CatalogView : UserControl
         }
     }
 
-    private async void ResetMileage_Click(object sender, RoutedEventArgs e)
+    private async void InstallReplacement_Click(object sender, RoutedEventArgs e)
     {
         if (_api is null || _editingId is null) return;
         var dialog = new PasswordConfirmationWindow(
-            "Сбросить тираж",
-            $"Суммарный тираж {MileageText.Text} шт, пробег {RunLengthMetersText.Text} м, обороты {RevolutionsText.Text}. После подтверждения все три счётчика станут равны нулю.",
-            "Сбросить")
+            "Установить новый нож",
+            $"Подтвердите, что новый физический нож уже установлен. Текущий ресурс ({MileageText.Text} шт, {RunLengthMetersText.Text} м, {RevolutionsText.Text} об.) будет закрыт в журнале. Общий ресурс за всё время сохранится.",
+            "Установить новый")
         {
             Owner = Window.GetWindow(this)
         };
@@ -499,15 +499,14 @@ public partial class CatalogView : UserControl
         try
         {
             await RunOperationalActionAsync(
-                () => _api.ResetMileageAsync(_editingId.Value, dialog.Password),
-                "Счётчики тиража сброшены");
+                () => _api.InstallReplacementAsync(_editingId.Value, dialog.Password),
+                "Установка нового ножа зафиксирована");
         }
         catch (CatalogApiException exception)
         {
             ShowEditorError(exception.Message);
         }
     }
-
     private async void RetireDieCut_Click(object sender, RoutedEventArgs e)
     {
         if (_api is null || _editingId is null) return;
@@ -672,6 +671,7 @@ public partial class CatalogView : UserControl
         MileageText.Text = details.Mileage.ToString("N0", CultureInfo.CurrentCulture);
         RunLengthMetersText.Text = FormatRunMetric(details.RunLengthMeters);
         RevolutionsText.Text = details.Revolutions.ToString("N0", CultureInfo.CurrentCulture);
+        UpdateResourceIndicators(details);
         OperationsPanel.Visibility = Visibility.Visible;
         EventsSection.Visibility = Visibility.Visible;
         DrawingSection.Visibility = Visibility.Visible;
@@ -691,9 +691,38 @@ public partial class CatalogView : UserControl
         MaterialBox.Text = string.Empty; HBox.Clear(); FigureBox.SelectedIndex = 0; CommentsBox.Clear();
         DateBox.SelectedDate = DateTime.Today; StatusBox.SelectedIndex = 0; CirculationBox.Clear();
         MileageText.Text = "0"; RunLengthMetersText.Text = FormatRunMetric(0); RevolutionsText.Text = "0";
+        ResourceStateText.Text = "Ресурс не начислен"; GenerationText.Text = "Нож №1"; LifetimeUsageText.Text = "Общий ресурс: 0 шт · 0,00 м · 0 об.";
+        ResourceProgressBar.Maximum = 1_000_000; ResourceProgressBar.Value = 0;
         StatusBox.IsEnabled = true;
     }
 
+    private void UpdateResourceIndicators(DieCutDetails details)
+    {
+        var threshold = Math.Max(details.NextInspectionRevolutions, 1_000_000);
+        var warningAt = Math.Max(0, threshold - 100_000);
+        var requiresInspection = details.Status == DieCutStatus.NeedsInspection || details.Revolutions >= threshold;
+        var warning = !requiresInspection && details.Revolutions >= warningAt;
+        var color = requiresInspection
+            ? System.Windows.Media.Color.FromRgb(180, 35, 24)
+            : warning
+                ? System.Windows.Media.Color.FromRgb(184, 134, 11)
+                : System.Windows.Media.Color.FromRgb(20, 125, 115);
+
+        ResourceProgressBar.Maximum = threshold;
+        ResourceProgressBar.Value = Math.Min(details.Revolutions, threshold);
+        ResourceProgressBar.Foreground = new System.Windows.Media.SolidColorBrush(color);
+        ResourceStateText.Foreground = new System.Windows.Media.SolidColorBrush(color);
+        ResourceStateText.Text = details.Status switch
+        {
+            DieCutStatus.NeedsInspection => "Требуется проверка",
+            DieCutStatus.OrderNew => "Ожидается новый нож",
+            DieCutStatus.Retired => "Нож списан",
+            _ when warning => "Скоро проверка",
+            _ => $"До проверки: {Math.Max(0, threshold - details.Revolutions):N0} об."
+        };
+        GenerationText.Text = $"Физический нож №{details.Generation}";
+        LifetimeUsageText.Text = $"За всё время: {details.LifetimeMileage:N0} шт · {FormatRunMetric(details.LifetimeRunLengthMeters)} м · {details.LifetimeRevolutions:N0} об.";
+    }
     private void UpdateStatusBadge(DieCutStatus status)
     {
         EditorStatusBadge.Visibility = Visibility.Visible;
@@ -725,7 +754,7 @@ public partial class CatalogView : UserControl
     {
         CirculationBox.IsEnabled = enabled;
         AddCirculationButton.IsEnabled = enabled;
-        ResetMileageButton.IsEnabled = enabled;
+        InstallReplacementButton.IsEnabled = enabled && _loadedStatus == DieCutStatus.OrderNew;
         RetireButton.IsEnabled = enabled;
         DeleteButton.IsEnabled = enableDelete && _editingId is not null;
     }
@@ -888,6 +917,23 @@ public partial class CatalogView : UserControl
         public Guid Id => Source.Id;
         public string Number => Source.Number;
         public string StatusText => StatusName(Source.Status);
+        public System.Windows.Media.Brush RowBackground
+        {
+            get
+            {
+                var threshold = Math.Max(Source.NextInspectionRevolutions, 1_000_000);
+                var color = Source.Status switch
+                {
+                    DieCutStatus.Retired => System.Windows.Media.Color.FromRgb(245, 245, 245),
+                    DieCutStatus.OrderNew => System.Windows.Media.Color.FromRgb(236, 244, 255),
+                    DieCutStatus.NeedsInspection => System.Windows.Media.Color.FromRgb(255, 232, 230),
+                    _ when Source.Revolutions >= threshold => System.Windows.Media.Color.FromRgb(255, 232, 230),
+                    _ when Source.Revolutions >= threshold - 100_000 => System.Windows.Media.Color.FromRgb(255, 248, 218),
+                    _ => System.Windows.Media.Color.FromRgb(237, 249, 244)
+                };
+                return new System.Windows.Media.SolidColorBrush(color);
+            }
+        }
         public string? JcOrderNumber => Source.JcOrderNumber;
         public string MileageText => Source.Mileage.ToString("N0", CultureInfo.CurrentCulture);
         public string RunLengthMetersText => FormatRunMetric(Source.RunLengthMeters);
@@ -923,6 +969,8 @@ public partial class CatalogView : UserControl
                     $"Добавлен тираж +{source.Quantity.GetValueOrDefault():N0} · итог {source.MileageAfter:N0} шт · {source.RunLengthMetersAfter:N2} м · {source.RevolutionsAfter:N0} об.",
                 DieCutEventType.MileageReset =>
                     $"Счётчики сброшены · было {source.MileageBefore:N0} шт · {source.RunLengthMetersBefore:N2} м · {source.RevolutionsBefore:N0} об.",
+                DieCutEventType.ReplacementInstalled =>
+                    $"Установлен новый нож · ресурс заменённого ножа {source.MileageBefore:N0} шт · {source.RunLengthMetersBefore:N2} м · {source.RevolutionsBefore:N0} об.",
                 DieCutEventType.Retired =>
                     $"Нож списан · тираж {source.MileageAfter:N0} шт · {source.RunLengthMetersAfter:N2} м · {source.RevolutionsAfter:N0} об.",
                 DieCutEventType.Deleted =>

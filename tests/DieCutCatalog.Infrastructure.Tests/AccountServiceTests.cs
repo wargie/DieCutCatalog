@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using DieCutCatalog.Application.Catalog;
 using DieCutCatalog.Application.Employees;
 using DieCutCatalog.Domain.Catalog;
@@ -138,6 +139,21 @@ public sealed class AccountServiceTests
         Assert.Equal(1, report.CreatedCount);
         Assert.Equal(1000, report.TotalCirculation);
         Assert.Equal(2, report.Activities.Count);
+    }
+    [Fact]
+    public async Task DeactivateEmployee_BlocksLogin_AndRejectsSelfDeletion()
+    {
+        await using var fixture = CreateFixture();
+        var result = await fixture.Service.CreateEmployeeAsync(NewEmployee());
+        var password = fixture.EmailSender.TemporaryPassword!;
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            fixture.Service.DeactivateEmployeeAsync(result.Profile.Id, result.Profile.Id));
+        var deactivated = await fixture.Service.DeactivateEmployeeAsync(result.Profile.Id, Guid.NewGuid());
+
+        Assert.NotNull(deactivated);
+        Assert.False(deactivated.IsActive);
+        Assert.Null(await fixture.Service.LoginAsync(new LoginCommand(result.Profile.Email, password)));
     }
     [Fact]
     public async Task DuplicateEmail_IsRejectedCaseInsensitively()
