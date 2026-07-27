@@ -599,23 +599,62 @@ public partial class CatalogView : UserControl
     private void CalculationInput_TextChanged(object sender, TextChangedEventArgs e)
     {
         if (GapXBox is null || GapYBox is null) return;
+
+        MarkNegativeInput(ShaftBox);
+        MarkNegativeInput(XBox);
+        MarkNegativeInput(YBox);
+        MarkNegativeInput(StreamsBox);
+        MarkNegativeInput(RepeatsBox);
+        MarkNegativeInput(GrooveSpacingBox);
+        MarkNegativeInput(LabelCornerRadiusBox);
+        MarkNegativeInput(HBox);
+
         if (!int.TryParse(ShaftBox.Text, NumberStyles.Integer, CultureInfo.CurrentCulture, out var shaft)
             || !TryParseDecimal(XBox.Text, out var x)
             || !TryParseDecimal(YBox.Text, out var y)
             || !int.TryParse(StreamsBox.Text, NumberStyles.Integer, CultureInfo.CurrentCulture, out var streams)
             || !int.TryParse(RepeatsBox.Text, NumberStyles.Integer, CultureInfo.CurrentCulture, out var repeats)
+            || !TryParseDecimal(GrooveSpacingBox.Text, out var grooveSpacing)
             || !TryParseDecimal(HBox.Text, out var h)
             || streams <= 0
             || repeats <= 0)
         {
             GapXBox.Clear();
             GapYBox.Clear();
+            UpdateNegativeState(GapXBox, false);
+            UpdateNegativeState(GapYBox, false);
             return;
         }
 
-        var (gapX, gapY) = DieCutCalculations.Calculate(shaft, x, y, streams, repeats, h);
-        GapXBox.Text = FormatGap(gapX);
-        GapYBox.Text = FormatGap(gapY);
+        var (gapX, gapY) = DieCutCalculations.Calculate(
+            shaft, x, y, streams, repeats, h, grooveSpacing);
+        SetCalculatedValue(GapXBox, gapX);
+        SetCalculatedValue(GapYBox, gapY);
+    }
+
+    private static void MarkNegativeInput(TextBox box) =>
+        UpdateNegativeState(box, TryParseDecimal(box.Text, out var value) && value < 0);
+
+    private static void SetCalculatedValue(TextBox box, decimal value)
+    {
+        box.Text = FormatGap(value);
+        UpdateNegativeState(box, value < 0);
+    }
+
+    private static void UpdateNegativeState(TextBox box, bool isNegative)
+    {
+        if (!isNegative)
+        {
+            box.ClearValue(Control.ForegroundProperty);
+            box.ClearValue(Control.BackgroundProperty);
+            box.ClearValue(Control.BorderBrushProperty);
+            return;
+        }
+
+        box.Foreground = System.Windows.Media.Brushes.Firebrick;
+        box.Background = new System.Windows.Media.SolidColorBrush(
+            System.Windows.Media.Color.FromRgb(255, 238, 236));
+        box.BorderBrush = System.Windows.Media.Brushes.Firebrick;
     }
 
     private SaveDieCutCommand ReadCommand()
@@ -627,19 +666,44 @@ public partial class CatalogView : UserControl
             throw new FormatException("Для списания используйте кнопку «Списать нож» и подтвердите операцию паролем.");
         }
 
+        var shaft = ParseInt(ShaftBox.Text, "shaft — требуется целое число");
+        var x = ParseDecimal(XBox.Text, "ширину этикетки L");
+        var y = ParseDecimal(YBox.Text, "длину этикетки B");
+        var streams = ParseInt(StreamsBox.Text, "количество ручьёв");
+        var repeats = ParseInt(RepeatsBox.Text, "количество этикеток в ручье");
+        var grooveSpacing = ParseNonNegativeDecimal(GrooveSpacingBox.Text, "расстояние между ручьями");
+        var labelCornerRadius = ParseNonNegativeDecimal(LabelCornerRadiusBox.Text, "радиус скругления этикетки");
+        var h = ParseDecimal(HBox.Text, "ширину материала");
+
+        if (shaft <= 0 || x <= 0 || y <= 0 || h <= 0)
+            throw new FormatException("Вал, L, B и ширина материала должны быть больше нуля.");
+        if (streams <= 0 || repeats <= 0)
+            throw new FormatException("Количество ручьёв и этикеток в ручье должно быть больше нуля.");
+        if (labelCornerRadius > Math.Min(x, y) / 2)
+            throw new FormatException("Радиус скругления не может превышать половину меньшей стороны этикетки.");
+
+        var (gapX, gapY) = DieCutCalculations.Calculate(
+            shaft, x, y, streams, repeats, h, grooveSpacing);
+        if (gapX < 0)
+            throw new FormatException(
+                $"Недопустимая раскладка: ширина материала не вмещает этикетки и расстояния между ручьями (A1 = {FormatGap(gapX)}).");
+        if (gapY < 0)
+            throw new FormatException(
+                $"Недопустимая раскладка: раппорт не вмещает этикетки в ручье (A2 = {FormatGap(gapY)}).");
+
         return new SaveDieCutCommand(
             NumberBox.Text,
             string.IsNullOrWhiteSpace(JcOrderNumberBox.Text) ? null : JcOrderNumberBox.Text,
             EquipmentBox.Text,
-            ParseInt(ShaftBox.Text, "shaft — требуется целое число"),
-            ParseDecimal(XBox.Text, "ширину этикетки L"),
-            ParseDecimal(YBox.Text, "длину этикетки B"),
-            ParseInt(StreamsBox.Text, "количество ручьёв"),
-            ParseInt(RepeatsBox.Text, "количество этикеток в ручье"),
-            ParseNonNegativeDecimal(GrooveSpacingBox.Text, "расстояние между ручьями"),
-            ParseNonNegativeDecimal(LabelCornerRadiusBox.Text, "радиус скругления этикетки"),
+            shaft,
+            x,
+            y,
+            streams,
+            repeats,
+            grooveSpacing,
+            labelCornerRadius,
             MaterialBox.Text,
-            ParseDecimal(HBox.Text, "ширину материала"),
+            h,
             FigureBox.Text,
             string.IsNullOrWhiteSpace(CommentsBox.Text) ? null : CommentsBox.Text,
             DateBox.SelectedDate is DateTime date ? DateOnly.FromDateTime(date) : null,
@@ -660,8 +724,11 @@ public partial class CatalogView : UserControl
         RepeatsBox.Text = details.Repeats.ToString(CultureInfo.CurrentCulture);
         GrooveSpacingBox.Text = Format(details.GrooveSpacing);
         LabelCornerRadiusBox.Text = Format(details.LabelCornerRadius);
-        GapXBox.Text = Format(details.GapX);
-        GapYBox.Text = Format(details.GapY);
+        var (gapX, gapY) = DieCutCalculations.Calculate(
+            details.Shaft, details.X, details.Y, details.Streams, details.Repeats,
+            details.H, details.GrooveSpacing);
+        SetCalculatedValue(GapXBox, gapX);
+        SetCalculatedValue(GapYBox, gapY);
         MaterialBox.Text = details.Material;
         HBox.Text = Format(details.H);
         FigureBox.SelectedItem = FigureOptions.FirstOrDefault(x => string.Equals(x, details.Figure, StringComparison.OrdinalIgnoreCase));
@@ -949,6 +1016,8 @@ public partial class CatalogView : UserControl
         public int Repeats => Source.Repeats;
         public string GapXText => FormatTableGap(Source.GapX);
         public string GapYText => FormatTableGap(Source.GapY);
+        public bool IsGapXNegative => Source.GapX < 0;
+        public bool IsGapYNegative => Source.GapY < 0;
         public string Material => Source.Material;
         public string HText => Format(Source.H);
         public string Figure => Source.Figure;

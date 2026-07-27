@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using DieCutCatalog.Domain.Catalog;
 using PdfSharp.Drawing;
@@ -29,7 +30,19 @@ internal static class DieCutDrawingPdfGenerator
             $"Corner radius = {Format(dieCut.LabelCornerRadius)} mm; vertical break = {Format(dieCut.GrooveSpacing)} mm; " +
             $"horizontal break = {Format(dieCut.GapY * 1000)} mm; streams = {dieCut.Streams}; labels/stream = {dieCut.Repeats}";
 
-        var rapport = dieCut.Shaft * 3.175m;
+        var rapport = dieCut.Shaft * DieCutCalculations.ShaftPitchMm;
+        var (gapX, gapY) = DieCutCalculations.Calculate(
+            dieCut.Shaft,
+            dieCut.X,
+            dieCut.Y,
+            dieCut.Streams,
+            dieCut.Repeats,
+            dieCut.H,
+            dieCut.GrooveSpacing);
+        if (gapX < 0)
+            throw new ValidationException("Чертёж нельзя сформировать: ширина материала не вмещает этикетки и расстояния между ручьями.");
+        if (gapY < 0)
+            throw new ValidationException("Чертёж нельзя сформировать: раппорт не вмещает этикетки в ручье.");
         var pageWidthMm = Math.Max(MinimumPageWidthMm, (double)dieCut.H + SideMarginMm * 2);
         var pageHeightMm = Math.Max(MinimumPageHeightMm, (double)rapport + HeaderHeightMm + BottomMarginMm);
 
@@ -57,7 +70,7 @@ internal static class DieCutDrawingPdfGenerator
         var frameY = MillimetersToPoints(HeaderHeightMm);
         graphics.DrawRectangle(pen, frameX, frameY, frameWidth, frameHeight);
 
-        var groupWidthMm = dieCut.Streams * dieCut.X + (dieCut.Streams - 1) * dieCut.GrooveSpacing;
+        var groupWidthMm = DieCutCalculations.CalculateLayoutWidth(dieCut.X, dieCut.Streams, dieCut.GrooveSpacing);
         var labelStartMm = (dieCut.H - groupWidthMm) / 2;
         var pitchMm = rapport / dieCut.Repeats;
         var radius = Math.Max(0, MillimetersToPoints(dieCut.LabelCornerRadius));

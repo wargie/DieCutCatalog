@@ -257,7 +257,7 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
 
     private static void Apply(DieCut target, SaveDieCutCommand source, Guid employeeId, string material, string figure)
     {
-        var (gapX, gapY) = DieCutCalculations.Calculate(source.Shaft, source.X, source.Y, source.Streams, source.Repeats, source.H);
+        var (gapX, gapY) = DieCutCalculations.Calculate(source.Shaft, source.X, source.Y, source.Streams, source.Repeats, source.H, source.GrooveSpacing);
         target.Number = source.Number.Trim();
         target.NormalizedNumber = Normalize(source.Number);
         target.JcOrderNumber = TrimToNull(source.JcOrderNumber);
@@ -296,8 +296,8 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
         if (command.LabelCornerRadius < 0) throw new ValidationException("Радиус скругления этикетки не может быть отрицательным.");
         if (command.LabelCornerRadius > Math.Min(command.X, command.Y) / 2) throw new ValidationException("Радиус скругления не может превышать половину меньшей стороны этикетки.");
         if (command.H <= 0) throw new ValidationException("Ширина материала должна быть больше нуля.");
-        var (gapX, gapY) = DieCutCalculations.Calculate(command.Shaft, command.X, command.Y, command.Streams, command.Repeats, command.H);
-        if (gapX < 0) throw new ValidationException("Ширина материала не может быть меньше L × количество ручьёв.");
+        var (gapX, gapY) = DieCutCalculations.Calculate(command.Shaft, command.X, command.Y, command.Streams, command.Repeats, command.H, command.GrooveSpacing);
+        if (gapX < 0) throw new ValidationException("Ширина материала не вмещает L × ручьи и расстояния между ручьями.");
         if (gapY < 0) throw new ValidationException("Длина окружности вала не вмещает B × количество этикеток в ручье.");
         if (command.Comments?.Length > 2000) throw new ValidationException("Комментарий не должен превышать 2000 символов.");
     }

@@ -129,7 +129,7 @@ public sealed class ExcelCatalogImportService(CatalogDbContext dbContext) : IExc
                         if (shaft <= 0 || x <= 0 || y <= 0 || streams <= 0 || repeats <= 0 || h <= 0)
                             throw new InvalidDataException("shaft, X (L), Y (B), streams (ручьи), repeats (этикеток в ручье) и H (ширина материала) должны быть больше нуля.");
 
-                        var (gapX, gapY) = DieCutCalculations.Calculate(shaft, x, y, streams, repeats, h);
+                        var (gapX, gapY) = DieCutCalculations.Calculate(shaft, x, y, streams, repeats, h, grooveSpacing: 0);
                         if (gapX < 0) throw new InvalidDataException("H (ширина материала) меньше X (L) × streams (ручьи).");
                         if (gapY < 0) throw new InvalidDataException("Длина окружности shaft не вмещает Y (B) × repeats (этикеток в ручье).");
                         CompareCalculatedValue(cells, 7, "x", gapX, sheetName, rowNumber, number, issues);

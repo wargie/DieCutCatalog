@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using DieCutCatalog.Domain.Catalog;
 using DieCutCatalog.Infrastructure.Catalog;
 using DieCutCatalog.Infrastructure.Employees;
@@ -140,6 +141,31 @@ public sealed class DieCutPdfServiceTests
         });
     }
 
+    [Fact]
+    public async Task Generate_rejects_layout_that_exceeds_material_width()
+    {
+        using var storage = new TemporaryStorage();
+        await using var db = CreateDatabase();
+        var dieCut = CreateDieCut();
+        dieCut.Number = "01010";
+        dieCut.NormalizedNumber = "01010";
+        dieCut.X = 33;
+        dieCut.Y = 33;
+        dieCut.Streams = 6;
+        dieCut.Repeats = 8;
+        dieCut.GrooveSpacing = 3;
+        dieCut.H = 200;
+        dieCut.Figure = "круг";
+        db.DieCuts.Add(dieCut);
+        await db.SaveChangesAsync();
+        var service = CreateService(db, storage.Path);
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.GenerateAsync(dieCut.Id, Guid.NewGuid()));
+
+        Assert.Contains("расстояния между ручьями", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(await db.DieCutDocuments.ToListAsync());
+    }
     private static CatalogDbContext CreateDatabase()
     {
         var options = new DbContextOptionsBuilder<CatalogDbContext>()

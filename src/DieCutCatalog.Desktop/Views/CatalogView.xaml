@@ -159,8 +159,30 @@
                             <DataGridTextColumn Header="B" Binding="{Binding YText}" Width="62" />
                             <DataGridTextColumn Header="Ручьи" Binding="{Binding Streams}" Width="68" />
                             <DataGridTextColumn Header="Эт. в ручье" Binding="{Binding Repeats}" Width="92" />
-                            <DataGridTextColumn Header="A1" Binding="{Binding GapXText}" Width="72" />
-                            <DataGridTextColumn Header="A2" Binding="{Binding GapYText}" Width="72" />
+                            <DataGridTextColumn Header="A1" Binding="{Binding GapXText}" Width="72">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsGapXNegative}" Value="True">
+                                                <Setter Property="Foreground" Value="#C42B1C" />
+                                                <Setter Property="FontWeight" Value="SemiBold" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="A2" Binding="{Binding GapYText}" Width="72">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsGapYNegative}" Value="True">
+                                                <Setter Property="Foreground" Value="#C42B1C" />
+                                                <Setter Property="FontWeight" Value="SemiBold" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
                             <DataGridTextColumn Header="Материал" Binding="{Binding Material}" Width="140" />
                             <DataGridTextColumn Header="Ширина материала" Binding="{Binding HText}" Width="128" />
                             <DataGridTextColumn Header="Фигура" Binding="{Binding Figure}" Width="118" />
@@ -356,9 +378,11 @@
                                         <TextBlock Style="{StaticResource EditorLabel}" Text="Расстояние между ручьями, мм" />
                                         <TextBlock Grid.Column="2" Style="{StaticResource EditorLabel}"
                                                    Text="Радиус скругления этикетки, мм" />
-                                        <TextBox x:Name="GrooveSpacingBox" Grid.Row="1" Style="{StaticResource CompactTextBox}" />
+                                        <TextBox x:Name="GrooveSpacingBox" Grid.Row="1" Style="{StaticResource CompactTextBox}"
+                                                 TextChanged="CalculationInput_TextChanged" />
                                         <TextBox x:Name="LabelCornerRadiusBox" Grid.Row="1" Grid.Column="2"
-                                                 Style="{StaticResource CompactTextBox}" />
+                                                 Style="{StaticResource CompactTextBox}"
+                                                 TextChanged="CalculationInput_TextChanged" />
                                     </Grid>
                                     <TextBlock Margin="0,12,0,0" Text="Расчётные значения" FontSize="11"
                                                FontWeight="SemiBold" Foreground="#315E91" />
@@ -371,7 +395,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <StackPanel>
-                                                <TextBlock Style="{StaticResource EditorLabel}" Text="A1" ToolTip="A1 = (ширина материала − L × ручьи) / 1000" />
+                                                <TextBlock Style="{StaticResource EditorLabel}" Text="A1" ToolTip="A1 = (ширина материала − L × ручьи − расстояние × (ручьи − 1)) / 1000" />
                                                 <TextBox x:Name="GapXBox" Style="{StaticResource ReadOnlyTextBox}" />
                                             </StackPanel>
                                             <StackPanel Grid.Column="2">

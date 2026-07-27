@@ -60,10 +60,38 @@ public sealed class DieCutCatalogServiceTests
         var created = await fixture.Service.CreateAsync(
             NewDieCut("010", "Big Lesko", x: 101), fixture.EmployeeId);
 
-        Assert.Equal(0.026m, created.GapX);
+        Assert.Equal(0.020m, created.GapX);
         Assert.Equal(0.0022m, created.GapY);
     }
 
+    [Fact]
+    public async Task Create_RejectsLayoutWhenGrooveSpacingExceedsMaterialWidth()
+    {
+        await using var fixture = CreateFixture();
+        var command = NewDieCut("01010", "Nilpeter/Lesko", x: 33) with
+        {
+            Y = 33,
+            Streams = 6,
+            Repeats = 8,
+            GrooveSpacing = 3,
+            H = 200,
+            Figure = "круг"
+        };
+
+        var (gapX, _) = DieCutCalculations.Calculate(
+            command.Shaft,
+            command.X,
+            command.Y,
+            command.Streams,
+            command.Repeats,
+            command.H,
+            command.GrooveSpacing);
+        Assert.Equal(-0.013m, gapX);
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(() =>
+            fixture.Service.CreateAsync(command, fixture.EmployeeId));
+        Assert.Contains("расстояния между ручьями", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
     [Fact]
     public async Task Create_PersistsDrawingParameters()
     {

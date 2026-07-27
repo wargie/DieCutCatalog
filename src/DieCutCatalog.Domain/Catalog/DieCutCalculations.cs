@@ -4,8 +4,18 @@ public static class DieCutCalculations
 {
     public const decimal ShaftPitchMm = 3.175m;
 
-    public static decimal CalculateA1(decimal materialWidth, decimal labelLength, int grooves) =>
-        (materialWidth - labelLength * grooves) / 1000m;
+    public static decimal CalculateLayoutWidth(
+        decimal labelLength,
+        int grooves,
+        decimal grooveSpacing) =>
+        labelLength * grooves + grooveSpacing * Math.Max(0, grooves - 1);
+
+    public static decimal CalculateA1(
+        decimal materialWidth,
+        decimal labelLength,
+        int grooves,
+        decimal grooveSpacing) =>
+        (materialWidth - CalculateLayoutWidth(labelLength, grooves, grooveSpacing)) / 1000m;
 
     public static decimal CalculateA2(int shaft, decimal labelWidth, int labelsPerGroove) =>
         ((shaft * ShaftPitchMm / labelsPerGroove) - labelWidth) / 1000m;
@@ -28,6 +38,8 @@ public static class DieCutCalculations
         decimal labelWidth,
         int grooves,
         int labelsPerGroove,
-        decimal materialWidth) =>
-        (CalculateA1(materialWidth, labelLength, grooves), CalculateA2(shaft, labelWidth, labelsPerGroove));
+        decimal materialWidth,
+        decimal grooveSpacing) =>
+        (CalculateA1(materialWidth, labelLength, grooves, grooveSpacing),
+            CalculateA2(shaft, labelWidth, labelsPerGroove));
 }
