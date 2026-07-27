@@ -42,7 +42,18 @@
                               SelectionChanged="EmployeesGrid_SelectionChanged">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Сотрудник" Binding="{Binding Name}" Width="*" />
-                            <DataGridTextColumn Header="Должность" Binding="{Binding Position}" Width="120" />
+                            <DataGridTextColumn Header="Должность" Binding="{Binding Position}" Width="120">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="FontSize" Value="13" />
+                                        <Setter Property="TextAlignment" Value="Center" />
+                                        <Setter Property="TextWrapping" Value="Wrap" />
+                                        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                                        <Setter Property="MaxHeight" Value="32" />
+                                        <Setter Property="VerticalAlignment" Value="Center" />
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
                         </DataGrid.Columns>
                     </DataGrid>
                 </Grid>

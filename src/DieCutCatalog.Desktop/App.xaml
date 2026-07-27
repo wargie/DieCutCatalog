@@ -85,6 +85,7 @@
                 <Setter Property="Background" Value="#FAFAFA" />
                 <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}" />
                 <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="HorizontalContentAlignment" Value="Center" />
                 <Setter Property="BorderBrush" Value="{StaticResource DividerBrush}" />
                 <Setter Property="BorderThickness" Value="0,0,1,1" />
                 <Setter Property="Padding" Value="10,0" />
@@ -92,7 +93,9 @@
             <Style TargetType="DataGridCell">
                 <Setter Property="BorderThickness" Value="0" />
                 <Setter Property="Padding" Value="10,0" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                 <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="TextBlock.TextAlignment" Value="Center" />
             </Style>
             <Style TargetType="DataGridRow">
                 <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
