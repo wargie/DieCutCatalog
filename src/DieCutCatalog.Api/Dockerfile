@@ -2,6 +2,7 @@ FROM mcr.microsoft.com/dotnet/sdk:8.0-alpine AS build
 WORKDIR /src
 
 COPY DieCutCatalog.sln ./
+COPY Directory.Build.props ./
 COPY NuGet.Config ./
 COPY src/DieCutCatalog.Api/DieCutCatalog.Api.csproj src/DieCutCatalog.Api/
 COPY src/DieCutCatalog.Application/DieCutCatalog.Application.csproj src/DieCutCatalog.Application/
