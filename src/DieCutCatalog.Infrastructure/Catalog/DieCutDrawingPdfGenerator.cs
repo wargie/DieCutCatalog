@@ -72,7 +72,7 @@ internal static class DieCutDrawingPdfGenerator
                 var y = frameY + MillimetersToPoints(yMm);
                 var width = MillimetersToPoints(dieCut.X);
                 var height = MillimetersToPoints(dieCut.Y);
-                graphics.DrawRoundedRectangle(pen, x, y, width, height, radius * 2, radius * 2);
+                DrawLabelContour(graphics, pen, dieCut.Figure, x, y, width, height, radius);
             }
         }
 
@@ -93,6 +93,28 @@ internal static class DieCutDrawingPdfGenerator
 
     private static string Format(decimal value) =>
         value.ToString("0.###", CultureInfo.InvariantCulture);
+
+    private static void DrawLabelContour(
+        XGraphics graphics,
+        XPen pen,
+        string figure,
+        double x,
+        double y,
+        double width,
+        double height,
+        double radius)
+    {
+        if (IsCircle(figure))
+        {
+            graphics.DrawEllipse(pen, x, y, width, height);
+            return;
+        }
+
+        graphics.DrawRoundedRectangle(pen, x, y, width, height, radius * 2, radius * 2);
+    }
+
+    private static bool IsCircle(string figure) =>
+        figure.Trim().ToLowerInvariant() is "круг" or "окружность" or "circle" or "round";
 
     private static double MillimetersToPoints(decimal value) => (double)value * PointsPerMillimeter;
     private static double MillimetersToPoints(double value) => value * PointsPerMillimeter;

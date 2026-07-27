@@ -96,6 +96,50 @@ public sealed class DieCutPdfServiceTests
         Assert.Equal(2, await db.DieCutDocuments.CountAsync());
     }
 
+    [Fact]
+    public async Task Generated_circle_uses_elliptic_contours_in_exact_label_dimensions()
+    {
+        using var storage = new TemporaryStorage();
+        await using var db = CreateDatabase();
+        var dieCut = CreateDieCut();
+        dieCut.Figure = "КРУГ";
+        dieCut.X = 50;
+        dieCut.Y = 50;
+        dieCut.Streams = 2;
+        dieCut.Repeats = 3;
+        db.DieCuts.Add(dieCut);
+        await db.SaveChangesAsync();
+        var service = CreateService(db, storage.Path);
+
+        var generated = await service.GenerateAsync(dieCut.Id, Guid.NewGuid());
+        var stored = await service.OpenAsync(dieCut.Id, generated!.Id);
+        using var copy = new MemoryStream();
+        await stored!.Content.CopyToAsync(copy);
+        await stored.Content.DisposeAsync();
+        copy.Position = 0;
+
+        using var pdf = UglyToad.PdfPig.PdfDocument.Open(copy);
+        var contours = pdf.GetPage(1).Paths
+            .Where(path =>
+            {
+                var rectangle = path.GetBoundingRectangle();
+                return rectangle is not null
+                    && Math.Abs(rectangle.Value.Width * 25.4 / 72 - 50) < 0.001
+                    && Math.Abs(rectangle.Value.Height * 25.4 / 72 - 50) < 0.001;
+            })
+            .ToArray();
+
+        Assert.Equal(6, contours.Length);
+        Assert.All(contours, contour =>
+        {
+            var subpath = Assert.Single(contour);
+            Assert.Equal(4, subpath.Commands.Count(
+                command => command is UglyToad.PdfPig.Core.PdfSubpath.CubicBezierCurve));
+            Assert.DoesNotContain(subpath.Commands,
+                command => command is UglyToad.PdfPig.Core.PdfSubpath.Line);
+        });
+    }
+
     private static CatalogDbContext CreateDatabase()
     {
         var options = new DbContextOptionsBuilder<CatalogDbContext>()
