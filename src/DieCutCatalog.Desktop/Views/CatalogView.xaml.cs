@@ -475,16 +475,40 @@ public partial class CatalogView : UserControl
         if (_api is null || _editingId is null) return;
         try
         {
-            var quantity = ParsePositiveLong(CirculationBox.Text, "тираж");
+            long? quantity = null;
+            decimal? runLengthMeters = null;
+            string successMessage;
+            if (QuantityModeRadio.IsChecked == true)
+            {
+                quantity = ParsePositiveLong(CirculationBox.Text, "тираж");
+                successMessage = $"Тираж {quantity.Value:N0} добавлен";
+            }
+            else
+            {
+                runLengthMeters = ParsePositiveDecimal(RunLengthInputBox.Text, "пробег");
+                successMessage = $"Пробег {runLengthMeters.Value:N2} м добавлен";
+            }
+
             await RunOperationalActionAsync(
-                () => _api.AddCirculationAsync(_editingId.Value, quantity),
-                $"Тираж {quantity:N0} добавлен");
+                () => _api.AddCirculationAsync(_editingId.Value, quantity, runLengthMeters),
+                successMessage);
             CirculationBox.Clear();
+            RunLengthInputBox.Clear();
         }
         catch (Exception exception) when (exception is CatalogApiException or FormatException)
         {
             ShowEditorError(exception.Message);
         }
+    }
+
+    private void UsageMode_Checked(object sender, RoutedEventArgs e)
+    {
+        if (CirculationBox is null || RunLengthInputBox is null || AddCirculationButton is null) return;
+        var enabled = AddCirculationButton.IsEnabled;
+        CirculationBox.IsEnabled = enabled && QuantityModeRadio.IsChecked == true;
+        RunLengthInputBox.IsEnabled = enabled && RunLengthModeRadio.IsChecked == true;
+        if (QuantityModeRadio.IsChecked == true) RunLengthInputBox.Clear();
+        else CirculationBox.Clear();
     }
 
     private async void InstallReplacement_Click(object sender, RoutedEventArgs e)
@@ -738,6 +762,9 @@ public partial class CatalogView : UserControl
         _loadedStatus = details.Status;
         UpdateStatusBadge(details.Status);
         EditorScrollViewer.ScrollToTop();
+        QuantityModeRadio.IsChecked = true;
+        CirculationBox.Clear();
+        RunLengthInputBox.Clear();
         MileageText.Text = details.Mileage.ToString("N0", CultureInfo.CurrentCulture);
         RunLengthMetersText.Text = FormatRunMetric(details.RunLengthMeters);
         RevolutionsText.Text = details.Revolutions.ToString("N0", CultureInfo.CurrentCulture);
@@ -759,7 +786,8 @@ public partial class CatalogView : UserControl
         StreamsBox.Text = "1"; RepeatsBox.Text = "1"; GrooveSpacingBox.Text = "0"; LabelCornerRadiusBox.Text = "0";
         GapXBox.Text = "0"; GapYBox.Text = "0";
         MaterialBox.Text = string.Empty; HBox.Clear(); FigureBox.SelectedIndex = 0; CommentsBox.Clear();
-        DateBox.SelectedDate = DateTime.Today; StatusBox.SelectedIndex = 0; CirculationBox.Clear();
+        DateBox.SelectedDate = DateTime.Today; StatusBox.SelectedIndex = 0;
+        QuantityModeRadio.IsChecked = true; CirculationBox.Clear(); RunLengthInputBox.Clear();
         MileageText.Text = "0"; RunLengthMetersText.Text = FormatRunMetric(0); RevolutionsText.Text = "0";
         ResourceStateText.Text = "Ресурс не начислен"; GenerationText.Text = "Нож №1"; LifetimeUsageText.Text = "Общий ресурс: 0 шт · 0,00 м · 0 об.";
         ResourceProgressBar.Maximum = 1_000_000; ResourceProgressBar.Value = 0;
@@ -822,8 +850,11 @@ public partial class CatalogView : UserControl
 
     private void SetOperationalButtonsEnabled(bool enabled, bool enableDelete = true)
     {
-        CirculationBox.IsEnabled = enabled;
+        QuantityModeRadio.IsEnabled = enabled;
+        RunLengthModeRadio.IsEnabled = enabled;
         AddCirculationButton.IsEnabled = enabled;
+        CirculationBox.IsEnabled = enabled && QuantityModeRadio.IsChecked == true;
+        RunLengthInputBox.IsEnabled = enabled && RunLengthModeRadio.IsChecked == true;
         InstallReplacementButton.IsEnabled = enabled && _loadedStatus == DieCutStatus.OrderNew;
         RetireButton.IsEnabled = enabled;
         DeleteButton.IsEnabled = enableDelete && _editingId is not null;
@@ -957,6 +988,14 @@ public partial class CatalogView : UserControl
         long.TryParse(text, NumberStyles.Integer, CultureInfo.CurrentCulture, out var value) && value > 0
             ? value
             : throw new FormatException($"Поле «{field}» должно содержать целое число больше нуля.");
+
+    private static decimal ParsePositiveDecimal(string text, string field)
+    {
+        var value = ParseDecimal(text, field);
+        return value > 0
+            ? value
+            : throw new FormatException($"Поле «{field}» должно содержать число больше нуля.");
+    }
 
     private static decimal ParseNonNegativeDecimal(string text, string field)
     {

@@ -205,6 +205,51 @@ public sealed class DieCutCatalogServiceTests
     }
 
     [Fact]
+    public void CalculateRunMetricsFromMeters_UsesMetersStreamsHeightGapAndShaft()
+    {
+        var result = DieCutCalculations.CalculateRunMetricsFromMeters(
+            runLengthMeters: 66.675m,
+            streams: 4,
+            labelLengthMm: 74,
+            interLabelSpacingMeters: 0.0022m,
+            shaft: 96);
+
+        Assert.Equal(3_500, result.Quantity);
+        Assert.Equal(219, result.Revolutions);
+    }
+
+    [Fact]
+    public async Task AddCirculation_FromMetersCalculatesQuantityAndWritesEvent()
+    {
+        await using var fixture = CreateFixture();
+        var created = await fixture.Service.CreateAsync(NewDieCut("001", "Nilpeter/Lesko"), fixture.EmployeeId);
+
+        var updated = await fixture.Service.AddCirculationAsync(
+            created.Id, quantity: null, runLengthMeters: 19.05m, fixture.EmployeeId);
+        var events = await fixture.Service.GetEventsAsync(created.Id);
+
+        Assert.NotNull(updated);
+        Assert.Equal(1_000, updated.Mileage);
+        Assert.Equal(19.05m, updated.RunLengthMeters);
+        Assert.Equal(63, updated.Revolutions);
+        var circulationEvent = Assert.Single(events!, item => item.Type == DieCutEventType.CirculationAdded);
+        Assert.Equal(1_000, circulationEvent.Quantity);
+        Assert.Equal(19.05m, circulationEvent.RunLengthMetersAfter);
+    }
+
+    [Fact]
+    public async Task AddCirculation_RequiresExactlyOneInputMode()
+    {
+        await using var fixture = CreateFixture();
+        var created = await fixture.Service.CreateAsync(NewDieCut("001", "Nilpeter/Lesko"), fixture.EmployeeId);
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            fixture.Service.AddCirculationAsync(created.Id, null, null, fixture.EmployeeId));
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            fixture.Service.AddCirculationAsync(created.Id, 1_000, 19.05m, fixture.EmployeeId));
+    }
+
+    [Fact]
     public async Task AddCirculation_SumsQuantityMetersAndRevolutionsAndWritesEvents()
     {
         await using var fixture = CreateFixture();

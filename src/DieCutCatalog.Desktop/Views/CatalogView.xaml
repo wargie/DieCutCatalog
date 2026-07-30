@@ -503,19 +503,32 @@
                                     <ProgressBar x:Name="ResourceProgressBar" Height="8" Margin="0,6,0,0" Minimum="0" />
                                     <TextBlock x:Name="LifetimeUsageText" Margin="0,6,0,0" FontSize="11"
                                                TextWrapping="Wrap" Foreground="{StaticResource SecondaryTextBrush}" />
-                                    <TextBlock Margin="0,12,0,0" Text="Добавить тираж, шт" Style="{StaticResource EditorLabel}" />
-                                    <Grid Margin="0,5,0,0">
+                                    <Grid Margin="0,12,0,0">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="10" />
-                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBox x:Name="CirculationBox" Style="{StaticResource CompactTextBox}"
-                                                 ToolTip="Введите целое количество экземпляров"
-                                                 PreviewTextInput="PositiveInteger_PreviewTextInput" />
-                                        <ui:Button x:Name="AddCirculationButton" Grid.Column="2" Appearance="Primary"
-                                                   Content="Добавить тираж" Click="AddCirculation_Click" />
+                                        <StackPanel>
+                                            <RadioButton x:Name="QuantityModeRadio" Content="Тираж, шт" IsChecked="True"
+                                                         Checked="UsageMode_Checked" />
+                                            <TextBox x:Name="CirculationBox" Margin="0,5,0,0"
+                                                     Style="{StaticResource CompactTextBox}"
+                                                     ToolTip="Введите целое количество экземпляров"
+                                                     PreviewTextInput="PositiveInteger_PreviewTextInput" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <RadioButton x:Name="RunLengthModeRadio" Content="Пробег, м"
+                                                         Checked="UsageMode_Checked" />
+                                            <TextBox x:Name="RunLengthInputBox" Margin="0,5,0,0"
+                                                     Style="{StaticResource CompactTextBox}" IsEnabled="False"
+                                                     ToolTip="Введите пробег в погонных метрах" />
+                                        </StackPanel>
                                     </Grid>
+                                    <ui:Button x:Name="AddCirculationButton" Margin="0,8,0,0"
+                                               HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                               Appearance="Primary" Content="Добавить"
+                                               Click="AddCirculation_Click" />
                                     <UniformGrid Columns="3" Margin="0,10,0,0">
                                         <ui:Button x:Name="InstallReplacementButton" Margin="0,0,4,0" Appearance="Secondary"
                                                    Content="Установить новый" Click="InstallReplacement_Click" />

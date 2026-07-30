@@ -110,38 +110,79 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
         return Map(dieCut, equipment.Name);
     }
 
-    public async Task<DieCutDetails?> AddCirculationAsync(
+    public Task<DieCutDetails?> AddCirculationAsync(
         Guid id,
         long quantity,
         Guid employeeId,
+        CancellationToken cancellationToken = default) =>
+        AddCirculationAsync(id, quantity, null, employeeId, cancellationToken);
+
+    public async Task<DieCutDetails?> AddCirculationAsync(
+        Guid id,
+        long? quantity,
+        decimal? runLengthMeters,
+        Guid employeeId,
         CancellationToken cancellationToken = default)
     {
-        if (quantity <= 0) throw new ValidationException("Тираж должен быть целым числом больше нуля.");
+        if (quantity.HasValue == runLengthMeters.HasValue)
+            throw new ValidationException("Укажите либо тираж в штуках, либо пробег в метрах.");
+        if (quantity is <= 0)
+            throw new ValidationException("Тираж должен быть целым числом больше нуля.");
+        if (runLengthMeters is <= 0)
+            throw new ValidationException("Пробег должен быть числом больше нуля.");
 
         var dieCut = await dbContext.DieCuts.Include(x => x.Equipment).SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (dieCut is null) return null;
         EnsureOperational(dieCut);
-        if (quantity > long.MaxValue - dieCut.Mileage || quantity > long.MaxValue - dieCut.LifetimeMileage)
-            throw new ValidationException("Итоговый тираж превышает допустимое значение.");
 
-        var before = UsageSnapshot.From(dieCut);
-        var (runLengthMeters, revolutions) = DieCutCalculations.CalculateRunMetrics(
-            quantity, dieCut.Streams, dieCut.Y, dieCut.GapY, dieCut.Shaft);
-        var now = DateTimeOffset.UtcNow;
-        dieCut.Mileage += quantity;
-        dieCut.RunLengthMeters += runLengthMeters;
-        dieCut.Revolutions = checked(dieCut.Revolutions + revolutions);
-        dieCut.LifetimeMileage += quantity;
-        dieCut.LifetimeRunLengthMeters += runLengthMeters;
-        dieCut.LifetimeRevolutions = checked(dieCut.LifetimeRevolutions + revolutions);
-        if (dieCut.Status == DieCutStatus.Active && dieCut.Revolutions >= dieCut.NextInspectionRevolutions)
-            dieCut.Status = DieCutStatus.NeedsInspection;
-        var after = UsageSnapshot.From(dieCut);
-        Touch(dieCut, employeeId, now);
-        dbContext.DieCutEvents.Add(NewEvent(
-            dieCut.Id, employeeId, DieCutEventType.CirculationAdded, quantity, before, after, now));
-        await dbContext.SaveChangesAsync(cancellationToken);
-        return Map(dieCut, dieCut.Equipment.Name);
+        long addedQuantity;
+        decimal addedRunLengthMeters;
+        long addedRevolutions;
+        try
+        {
+            if (quantity.HasValue)
+            {
+                addedQuantity = quantity.Value;
+                (addedRunLengthMeters, addedRevolutions) = DieCutCalculations.CalculateRunMetrics(
+                    addedQuantity, dieCut.Streams, dieCut.Y, dieCut.GapY, dieCut.Shaft);
+            }
+            else
+            {
+                addedRunLengthMeters = decimal.Round(runLengthMeters!.Value, 6, MidpointRounding.AwayFromZero);
+                (addedQuantity, addedRevolutions) = DieCutCalculations.CalculateRunMetricsFromMeters(
+                    addedRunLengthMeters, dieCut.Streams, dieCut.Y, dieCut.GapY, dieCut.Shaft);
+                if (addedQuantity <= 0)
+                    throw new ValidationException("Указанный пробег слишком мал для расчёта одной этикетки.");
+            }
+
+            if (addedQuantity > long.MaxValue - dieCut.Mileage
+                || addedQuantity > long.MaxValue - dieCut.LifetimeMileage)
+                throw new ValidationException("Итоговый тираж превышает допустимое значение.");
+            if (addedRevolutions > long.MaxValue - dieCut.Revolutions
+                || addedRevolutions > long.MaxValue - dieCut.LifetimeRevolutions)
+                throw new ValidationException("Итоговое количество оборотов превышает допустимое значение.");
+
+            var before = UsageSnapshot.From(dieCut);
+            var now = DateTimeOffset.UtcNow;
+            dieCut.Mileage += addedQuantity;
+            dieCut.RunLengthMeters += addedRunLengthMeters;
+            dieCut.Revolutions += addedRevolutions;
+            dieCut.LifetimeMileage += addedQuantity;
+            dieCut.LifetimeRunLengthMeters += addedRunLengthMeters;
+            dieCut.LifetimeRevolutions += addedRevolutions;
+            if (dieCut.Status == DieCutStatus.Active && dieCut.Revolutions >= dieCut.NextInspectionRevolutions)
+                dieCut.Status = DieCutStatus.NeedsInspection;
+            var after = UsageSnapshot.From(dieCut);
+            Touch(dieCut, employeeId, now);
+            dbContext.DieCutEvents.Add(NewEvent(
+                dieCut.Id, employeeId, DieCutEventType.CirculationAdded, addedQuantity, before, after, now));
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return Map(dieCut, dieCut.Equipment.Name);
+        }
+        catch (OverflowException)
+        {
+            throw new ValidationException("Введённое значение превышает допустимый диапазон.");
+        }
     }
 
     public async Task<DieCutDetails?> InstallReplacementAsync(

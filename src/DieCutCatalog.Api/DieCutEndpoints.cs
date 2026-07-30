@@ -69,7 +69,7 @@ internal static class DieCutEndpoints
             var employee = await AuthorizeAsync(context, accounts, cancellationToken);
             if (employee is null) return Results.Unauthorized();
             if (employee.MustChangePassword) return PasswordChangeRequired();
-            var dieCut = await catalog.AddCirculationAsync(id, request.Quantity, employee.Id, cancellationToken);
+            var dieCut = await catalog.AddCirculationAsync(id, request.Quantity, request.RunLengthMeters, employee.Id, cancellationToken);
             return dieCut is null ? Results.NotFound() : Results.Ok(dieCut);
         });
 
@@ -233,5 +233,5 @@ internal sealed record SaveDieCutRequest(
         Repeats, GrooveSpacing, LabelCornerRadius, Material, H, Figure, Comments, Date, Status);
 }
 
-internal sealed record AddCirculationRequest(long Quantity);
+internal sealed record AddCirculationRequest(long? Quantity, decimal? RunLengthMeters);
 internal sealed record PasswordConfirmationRequest(string Password);

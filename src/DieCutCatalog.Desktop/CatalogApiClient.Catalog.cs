@@ -35,8 +35,8 @@ internal sealed partial class CatalogApiClient
     public Task<DieCutDetails> UpdateDieCutAsync(Guid id, SaveDieCutCommand command) =>
         SendAsync<DieCutDetails>(HttpMethod.Put, $"api/die-cuts/{id}", command);
 
-    public Task<DieCutDetails> AddCirculationAsync(Guid id, long quantity) =>
-        SendAsync<DieCutDetails>(HttpMethod.Post, $"api/die-cuts/{id}/circulations", new { quantity });
+    public Task<DieCutDetails> AddCirculationAsync(Guid id, long? quantity, decimal? runLengthMeters) =>
+        SendAsync<DieCutDetails>(HttpMethod.Post, $"api/die-cuts/{id}/circulations", new { quantity, runLengthMeters });
 
     public Task<DieCutDetails> InstallReplacementAsync(Guid id, string password) =>
         SendAsync<DieCutDetails>(HttpMethod.Post, $"api/die-cuts/{id}/install-replacement", new { password });

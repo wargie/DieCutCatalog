@@ -195,7 +195,7 @@ public interface IDieCutCatalogService
     Task<DieCutDetails?> GetAsync(Guid id, CancellationToken cancellationToken = default);
     Task<DieCutDetails> CreateAsync(SaveDieCutCommand command, Guid employeeId, CancellationToken cancellationToken = default);
     Task<DieCutDetails?> UpdateAsync(Guid id, SaveDieCutCommand command, Guid employeeId, CancellationToken cancellationToken = default);
-    Task<DieCutDetails?> AddCirculationAsync(Guid id, long quantity, Guid employeeId, CancellationToken cancellationToken = default);
+    Task<DieCutDetails?> AddCirculationAsync(Guid id, long? quantity, decimal? runLengthMeters, Guid employeeId, CancellationToken cancellationToken = default);
     Task<DieCutDetails?> InstallReplacementAsync(Guid id, Guid employeeId, CancellationToken cancellationToken = default);
     Task<DieCutDetails?> RetireAsync(Guid id, Guid employeeId, CancellationToken cancellationToken = default);
     Task<DieCutDetails?> DeleteAsync(Guid id, Guid employeeId, CancellationToken cancellationToken = default);
