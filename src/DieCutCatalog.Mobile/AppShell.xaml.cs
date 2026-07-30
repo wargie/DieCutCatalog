@@ -7,5 +7,6 @@ public partial class AppShell : Shell
         InitializeComponent();
         Routing.RegisterRoute(nameof(Views.KnifeDetailPage), typeof(Views.KnifeDetailPage));
         Routing.RegisterRoute(nameof(Views.AddCirculationPage), typeof(Views.AddCirculationPage));
+        Routing.RegisterRoute(nameof(Views.ProfilePage), typeof(Views.ProfilePage));
     }
 }

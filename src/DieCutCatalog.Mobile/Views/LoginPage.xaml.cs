@@ -6,6 +6,8 @@ public partial class LoginPage : ContentPage
 
     private async void Login_Clicked(object sender, EventArgs e)
     {
-        await Shell.Current.GoToAsync("//main/catalog");
+        SessionProfile.Email = EmailEntry.Text?.Trim() ?? string.Empty;
+        SessionProfile.Password = PasswordEntry.Text ?? string.Empty;
+        await Shell.Current.GoToAsync("//main");
     }
 }

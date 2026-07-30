@@ -1,9 +1,70 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <ContentPage x:Class="DieCutCatalog.Mobile.Views.ProfilePage"
              xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
-    <VerticalStackLayout Padding="24" Spacing="12" VerticalOptions="Center">
-        <Label Text="Личный кабинет" FontSize="24" FontFamily="OpenSansSemibold" HorizontalTextAlignment="Center" />
-        <Label Text="Профиль сотрудника появится после подключения авторизации к серверу." TextColor="{StaticResource TextSecondary}" HorizontalTextAlignment="Center" />
-    </VerticalStackLayout>
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             Title="Личный кабинет"
+             Shell.NavBarIsVisible="True"
+             Shell.BackgroundColor="White"
+             Shell.ForegroundColor="{StaticResource TextPrimary}">
+    <Grid>
+        <ScrollView>
+            <VerticalStackLayout Padding="20,18,20,32" Spacing="18">
+                <VerticalStackLayout Spacing="8" HorizontalOptions="Center">
+                    <Border WidthRequest="92" HeightRequest="92" Padding="0" StrokeThickness="0" BackgroundColor="{StaticResource BrandBlue}" StrokeShape="RoundRectangle 46">
+                        <Label x:Name="ProfileInitials" FontSize="30" FontFamily="OpenSansSemibold" TextColor="White" HorizontalTextAlignment="Center" VerticalTextAlignment="Center" />
+                    </Border>
+                    <Button Text="Выбрать фото" BackgroundColor="Transparent" TextColor="{StaticResource BrandBlue}" MinimumHeightRequest="38" Clicked="ChoosePhoto_Clicked" />
+                </VerticalStackLayout>
+
+                <Border Stroke="{StaticResource Divider}" StrokeShape="RoundRectangle 6" Padding="16">
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="Личные данные" Style="{StaticResource SectionTitle}" />
+                        <Label Text="Имя" Style="{StaticResource FieldLabel}" />
+                        <Entry x:Name="FirstNameEntry" />
+                        <Label Text="Фамилия" Style="{StaticResource FieldLabel}" />
+                        <Entry x:Name="LastNameEntry" />
+                        <Label Text="Должность" Style="{StaticResource FieldLabel}" />
+                        <Entry x:Name="PositionEntry" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Stroke="{StaticResource Divider}" StrokeShape="RoundRectangle 6" Padding="16">
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="Контакты" Style="{StaticResource SectionTitle}" />
+                        <Label Text="Электронная почта" Style="{StaticResource FieldLabel}" />
+                        <Entry x:Name="EmailEntry" Keyboard="Email" />
+                        <Label Text="Телефон" Style="{StaticResource FieldLabel}" />
+                        <Entry x:Name="PhoneEntry" Keyboard="Telephone" />
+                        <Label Text="Дополнительные контакты" Style="{StaticResource FieldLabel}" />
+                        <Editor x:Name="AdditionalContactsEditor" AutoSize="TextChanges" MinimumHeightRequest="76" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Button Text="Сохранить изменения" Style="{StaticResource PrimaryButton}" Clicked="Save_Clicked" />
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <Grid x:Name="DangerOverlay" IsVisible="False" BackgroundColor="#99000000" Padding="20" ZIndex="10">
+            <Border BackgroundColor="White" StrokeThickness="0" StrokeShape="RoundRectangle 6" VerticalOptions="Center">
+                <Grid RowDefinitions="Auto,Auto">
+                    <Grid Padding="16,13" ColumnDefinitions="*,Auto" BackgroundColor="{StaticResource BrandRed}">
+                        <Label Text="Danger Zone" FontSize="18" FontFamily="OpenSansSemibold" TextColor="White" VerticalTextAlignment="Center" />
+                        <Button Grid.Column="1" Text="×" FontSize="22" BackgroundColor="Transparent" TextColor="White" Padding="6,0" MinimumWidthRequest="40" MinimumHeightRequest="40" Clicked="CancelConfirmation_Clicked" />
+                    </Grid>
+                    <VerticalStackLayout Grid.Row="1" Padding="18" Spacing="12">
+                        <Label Text="Подтвердите сохранение профиля своим паролем от входа." />
+                        <Label Text="Пароль" Style="{StaticResource FieldLabel}" />
+                        <Border Stroke="{StaticResource Divider}" StrokeShape="RoundRectangle 5" Padding="10,1">
+                            <Entry x:Name="ConfirmationPasswordEntry" IsPassword="True" Placeholder="Введите пароль" />
+                        </Border>
+                        <Label x:Name="ConfirmationError" Text="Неверный пароль." TextColor="{StaticResource BrandRed}" IsVisible="False" />
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                            <Button Text="Отмена" BackgroundColor="{StaticResource SurfaceMuted}" TextColor="{StaticResource TextPrimary}" Clicked="CancelConfirmation_Clicked" />
+                            <Button Grid.Column="1" Text="Подтвердить" BackgroundColor="{StaticResource BrandRed}" TextColor="White" Clicked="ConfirmSave_Clicked" />
+                        </Grid>
+                    </VerticalStackLayout>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
 </ContentPage>

@@ -17,6 +17,12 @@ public partial class CatalogPage : ContentPage
         ApplyFilter();
     }
 
+    protected override void OnAppearing()
+    {
+        base.OnAppearing();
+        AvatarInitials.Text = SessionProfile.Initials;
+    }
+
     private void ApplyFilter()
     {
         var search = SearchBox.Text?.Trim() ?? string.Empty;
@@ -59,4 +65,7 @@ public partial class CatalogPage : ContentPage
         KnivesList.SelectedItem = null;
         await Shell.Current.GoToAsync($"{nameof(KnifeDetailPage)}?number={Uri.EscapeDataString(knife.Number)}");
     }
+
+    private async void Profile_Tapped(object sender, TappedEventArgs e) =>
+        await Shell.Current.GoToAsync(nameof(ProfilePage));
 }

@@ -30,7 +30,12 @@
         <Grid Padding="16,16,16,10" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
             <Image Source="flexprint_logo.png" WidthRequest="38" HeightRequest="38" />
             <Label Grid.Column="1" Text="Каталог ножей" FontSize="21" FontFamily="OpenSansSemibold" VerticalTextAlignment="Center" />
-            <Label Grid.Column="2" Text="●" FontSize="28" TextColor="{StaticResource BrandBlue}" VerticalTextAlignment="Center" />
+            <Border Grid.Column="2" WidthRequest="42" HeightRequest="42" Padding="0" StrokeThickness="0" BackgroundColor="{StaticResource BrandBlue}" StrokeShape="RoundRectangle 21">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="Profile_Tapped" />
+                </Border.GestureRecognizers>
+                <Label x:Name="AvatarInitials" Text="AT" FontSize="14" FontFamily="OpenSansSemibold" TextColor="White" HorizontalTextAlignment="Center" VerticalTextAlignment="Center" />
+            </Border>
         </Grid>
         <Grid Grid.Row="1" Padding="16,4" ColumnDefinitions="*,48,48" ColumnSpacing="4">
             <SearchBar x:Name="SearchBox" Placeholder="Поиск по номеру" TextChanged="SearchBox_TextChanged" />

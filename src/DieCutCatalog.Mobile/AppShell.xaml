@@ -5,12 +5,7 @@
        xmlns:views="clr-namespace:DieCutCatalog.Mobile.Views"
        FlyoutBehavior="Disabled"
        Shell.NavBarIsVisible="False"
-       Shell.TabBarBackgroundColor="White"
-       Shell.TabBarTitleColor="#2F5F92"
-       Shell.TabBarUnselectedColor="#616161">
+       Shell.TabBarIsVisible="False">
     <ShellContent Route="login" ContentTemplate="{DataTemplate views:LoginPage}" />
-    <TabBar Route="main">
-        <ShellContent Title="Каталог" Route="catalog" ContentTemplate="{DataTemplate views:CatalogPage}" />
-        <ShellContent Title="Профиль" Route="profile" ContentTemplate="{DataTemplate views:ProfilePage}" />
-    </TabBar>
+    <ShellContent Route="main" ContentTemplate="{DataTemplate views:CatalogPage}" />
 </Shell>
