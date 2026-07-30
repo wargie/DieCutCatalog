@@ -435,6 +435,7 @@ public partial class CatalogView : UserControl
         EditorStatus.Text = string.Empty;
         try
         {
+            var pageBeforeSave = _page;
             var command = ReadCommand();
             var selectedEquipment = SelectedEquipment();
             var saved = _editingId is null
@@ -455,8 +456,12 @@ public partial class CatalogView : UserControl
                 && !string.Equals(selectedEquipment, saved.Equipment, StringComparison.OrdinalIgnoreCase))
             {
                 SelectEquipmentTab(saved.Equipment);
+                _page = 1;
             }
-            _page = 1;
+            else
+            {
+                _page = pageBeforeSave;
+            }
             await LoadPageAsync();
             SelectRow(saved.Id);
         }
