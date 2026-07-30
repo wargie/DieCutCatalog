@@ -1,6 +1,7 @@
 namespace DieCutCatalog.Mobile.Models;
 
 public sealed record KnifeListItem(
+    Guid Id,
     string Number,
     string Status,
     string StatusColor,

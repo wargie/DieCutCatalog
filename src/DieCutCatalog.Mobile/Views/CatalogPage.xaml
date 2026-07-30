@@ -44,12 +44,18 @@
         </Grid>
         <ScrollView Grid.Row="2" Orientation="Horizontal" HorizontalScrollBarVisibility="Never" Padding="16,7,16,10">
             <HorizontalStackLayout Spacing="8">
-                <Button Text="Все" CommandParameter="" Clicked="Equipment_Clicked" Style="{StaticResource PrimaryButton}" Padding="14,6" MinimumHeightRequest="38" />
-                <Button Text="Nilpeter/Lesko" CommandParameter="Nilpeter/Lesko" Clicked="Equipment_Clicked" BackgroundColor="{StaticResource SurfaceMuted}" TextColor="{StaticResource TextPrimary}" Padding="12,6" MinimumHeightRequest="38" />
-                <Button Text="MarkAndy" CommandParameter="MarkAndy" Clicked="Equipment_Clicked" BackgroundColor="{StaticResource SurfaceMuted}" TextColor="{StaticResource TextPrimary}" Padding="12,6" MinimumHeightRequest="38" />
-                <Button Text="Big Lesko" CommandParameter="Big Lesko" Clicked="Equipment_Clicked" BackgroundColor="{StaticResource SurfaceMuted}" TextColor="{StaticResource TextPrimary}" Padding="12,6" MinimumHeightRequest="38" />
+                <Button x:Name="AllEquipmentButton" Text="Все ножи" CommandParameter="" Clicked="Equipment_Clicked" Style="{StaticResource PrimaryButton}" Padding="14,6" MinimumHeightRequest="38" />
+                <Button x:Name="BigLeskoButton" Text="Big Lesko" CommandParameter="Big Lesko" Clicked="Equipment_Clicked" BackgroundColor="{StaticResource SurfaceMuted}" TextColor="{StaticResource TextPrimary}" Padding="12,6" MinimumHeightRequest="38" />
+                <Button x:Name="LabelSourceButton" Text="Label Source" CommandParameter="Label Source" Clicked="Equipment_Clicked" BackgroundColor="{StaticResource SurfaceMuted}" TextColor="{StaticResource TextPrimary}" Padding="12,6" MinimumHeightRequest="38" />
+                <Button x:Name="MarkAndyButton" Text="MarkAndy" CommandParameter="MarkAndy" Clicked="Equipment_Clicked" BackgroundColor="{StaticResource SurfaceMuted}" TextColor="{StaticResource TextPrimary}" Padding="12,6" MinimumHeightRequest="38" />
+                <Button x:Name="NilpeterButton" Text="Nilpeter/Lesko" CommandParameter="Nilpeter/Lesko" Clicked="Equipment_Clicked" BackgroundColor="{StaticResource SurfaceMuted}" TextColor="{StaticResource TextPrimary}" Padding="12,6" MinimumHeightRequest="38" />
+                <Button x:Name="FiguredButton" Text="Фигурные (в работе)" CommandParameter="Фигурные (в работе)" Clicked="Equipment_Clicked" BackgroundColor="{StaticResource SurfaceMuted}" TextColor="{StaticResource TextPrimary}" Padding="12,6" MinimumHeightRequest="38" />
             </HorizontalStackLayout>
         </ScrollView>
-        <CollectionView x:Name="KnivesList" Grid.Row="3" SelectionMode="Single" SelectionChanged="KnivesList_SelectionChanged" />
+        <Grid Grid.Row="3">
+            <CollectionView x:Name="KnivesList" SelectionMode="Single" SelectionChanged="KnivesList_SelectionChanged" />
+            <ActivityIndicator x:Name="LoadingIndicator" IsVisible="False" Color="{StaticResource BrandBlue}" VerticalOptions="Center" HorizontalOptions="Center" />
+            <Label x:Name="CatalogError" IsVisible="False" TextColor="{StaticResource BrandRed}" HorizontalTextAlignment="Center" VerticalTextAlignment="Center" Margin="24" />
+        </Grid>
     </Grid>
 </ContentPage>

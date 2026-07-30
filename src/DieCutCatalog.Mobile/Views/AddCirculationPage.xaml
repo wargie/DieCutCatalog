@@ -5,25 +5,46 @@
              Shell.NavBarIsVisible="True"
              Shell.BackgroundColor="White"
              Shell.ForegroundColor="#1F1F1F"
-             Title="Добавить тираж">
+             Title="Добавить пробег">
     <Grid Padding="18,16" RowDefinitions="*,Auto">
         <VerticalStackLayout Spacing="14">
             <Label x:Name="KnifeTitle" FontSize="19" FontFamily="OpenSansSemibold" />
-            <Label Text="Тираж, шт." Style="{StaticResource FieldLabel}" Margin="0,14,0,0" />
+
+            <Grid Margin="0,14,0,4" ColumnDefinitions="*,*" ColumnSpacing="6">
+                <Button x:Name="QuantityModeButton"
+                        Text="Тираж, шт."
+                        Style="{StaticResource PrimaryButton}"
+                        MinimumHeightRequest="42"
+                        Clicked="QuantityMode_Clicked" />
+                <Button x:Name="RunLengthModeButton"
+                        Grid.Column="1"
+                        Text="Пробег, м"
+                        BackgroundColor="{StaticResource SurfaceMuted}"
+                        TextColor="{StaticResource TextPrimary}"
+                        MinimumHeightRequest="42"
+                        Clicked="RunLengthMode_Clicked" />
+            </Grid>
+
+            <Label x:Name="InputLabel" Text="Тираж, шт." Style="{StaticResource FieldLabel}" />
             <Border Stroke="{StaticResource Divider}" StrokeShape="RoundRectangle 5" Padding="12,2">
-                <Entry x:Name="QuantityEntry" Text="50000" Keyboard="Numeric" TextChanged="Quantity_TextChanged" />
+                <Entry x:Name="UsageEntry" Text="50000" Keyboard="Numeric" TextChanged="Usage_TextChanged" />
             </Border>
+
             <BoxView HeightRequest="1" Color="{StaticResource Divider}" Margin="0,24,0,12" />
             <Label Text="Будет добавлено" Style="{StaticResource SectionTitle}" />
-            <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="18" Margin="0,8,0,0">
-                <Label Text="Пробег" /><Label x:Name="RunLengthText" Grid.Column="1" FontFamily="OpenSansSemibold" />
-                <Label Grid.Row="1" Text="Обороты" /><Label x:Name="RevolutionsText" Grid.Row="1" Grid.Column="1" FontFamily="OpenSansSemibold" />
+            <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="18" Margin="0,8,0,0">
+                <Label Text="Тираж" />
+                <Label x:Name="QuantityText" Grid.Column="1" FontFamily="OpenSansSemibold" />
+                <Label Grid.Row="1" Text="Пробег" />
+                <Label x:Name="RunLengthText" Grid.Row="1" Grid.Column="1" FontFamily="OpenSansSemibold" />
+                <Label Grid.Row="2" Text="Обороты" />
+                <Label x:Name="RevolutionsText" Grid.Row="2" Grid.Column="1" FontFamily="OpenSansSemibold" />
             </Grid>
-            <Label Text="Расчёт будет подтверждён сервером" FontSize="12" TextColor="{StaticResource TextSecondary}" Margin="0,18,0,0" />
+            <Label Text="Окончательный расчёт выполняется сервером" FontSize="12" TextColor="{StaticResource TextSecondary}" Margin="0,18,0,0" />
         </VerticalStackLayout>
         <Grid Grid.Row="1" ColumnDefinitions="*,1.5*" ColumnSpacing="10">
             <Button Text="Отмена" BackgroundColor="White" TextColor="{StaticResource BrandBlue}" Clicked="Cancel_Clicked" />
-            <Button Grid.Column="1" Text="✓  Подтвердить" Style="{StaticResource PrimaryButton}" Clicked="Confirm_Clicked" />
+            <Button x:Name="ConfirmButton" Grid.Column="1" Text="✓  Подтвердить" Style="{StaticResource PrimaryButton}" Clicked="Confirm_Clicked" />
         </Grid>
     </Grid>
 </ContentPage>

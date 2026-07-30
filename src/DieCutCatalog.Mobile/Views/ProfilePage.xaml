@@ -60,7 +60,7 @@
                         <Label x:Name="ConfirmationError" Text="Неверный пароль." TextColor="{StaticResource BrandRed}" IsVisible="False" />
                         <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
                             <Button Text="Отмена" BackgroundColor="{StaticResource SurfaceMuted}" TextColor="{StaticResource TextPrimary}" Clicked="CancelConfirmation_Clicked" />
-                            <Button Grid.Column="1" Text="Подтвердить" BackgroundColor="{StaticResource BrandRed}" TextColor="White" Clicked="ConfirmSave_Clicked" />
+                            <Button x:Name="ConfirmSaveButton" Grid.Column="1" Text="Подтвердить" BackgroundColor="{StaticResource BrandRed}" TextColor="White" Clicked="ConfirmSave_Clicked" />
                         </Grid>
                     </VerticalStackLayout>
                 </Grid>

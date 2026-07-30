@@ -1,14 +1,25 @@
+using DieCutCatalog.Mobile.Models;
+
 namespace DieCutCatalog.Mobile;
 
 public static class SessionProfile
 {
-    public static string FirstName { get; set; } = "Adrian";
-    public static string LastName { get; set; } = "Test";
-    public static string Position { get; set; } = "Администратор";
-    public static string Email { get; set; } = "adrian";
-    public static string Phone { get; set; } = string.Empty;
-    public static string AdditionalContacts { get; set; } = string.Empty;
-    public static string Password { get; set; } = string.Empty;
+    public static string FirstName { get; private set; } = string.Empty;
+    public static string LastName { get; private set; } = string.Empty;
+    public static string Position { get; private set; } = string.Empty;
+    public static string Email { get; private set; } = string.Empty;
+    public static string Phone { get; private set; } = string.Empty;
+    public static string AdditionalContacts { get; private set; } = string.Empty;
+
+    public static void Apply(EmployeeProfileDto profile)
+    {
+        FirstName = profile.FirstName;
+        LastName = profile.LastName;
+        Position = profile.Position ?? string.Empty;
+        Email = profile.Email;
+        Phone = profile.Phone ?? string.Empty;
+        AdditionalContacts = profile.AdditionalContacts ?? string.Empty;
+    }
 
     public static string Initials
     {

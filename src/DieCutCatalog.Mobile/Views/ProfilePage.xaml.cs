@@ -1,3 +1,5 @@
+using DieCutCatalog.Mobile.Services;
+
 namespace DieCutCatalog.Mobile.Views;
 
 public partial class ProfilePage : ContentPage
@@ -19,8 +21,24 @@ public partial class ProfilePage : ContentPage
         AdditionalContactsEditor.Text = SessionProfile.AdditionalContacts;
     }
 
-    private async void ChoosePhoto_Clicked(object sender, EventArgs e) =>
-        await DisplayAlert("Фото профиля", "Загрузка фотографии будет подключена вместе с серверным профилем.", "OK");
+    private async void ChoosePhoto_Clicked(object sender, EventArgs e)
+    {
+        try
+        {
+            var photo = await FilePicker.Default.PickAsync(new PickOptions
+            {
+                PickerTitle = "Выберите фото профиля",
+                FileTypes = FilePickerFileType.Images
+            });
+            if (photo is null) return;
+            await CatalogApiClient.Current.UploadPhotoAsync(photo);
+            await DisplayAlert("Фото профиля", "Фотография сохранена на сервере.", "OK");
+        }
+        catch (Exception exception) when (exception is ApiException or PermissionException)
+        {
+            await DisplayAlert("Ошибка", exception.Message, "OK");
+        }
+    }
 
     private void Save_Clicked(object sender, EventArgs e)
     {
@@ -39,21 +57,31 @@ public partial class ProfilePage : ContentPage
 
     private async void ConfirmSave_Clicked(object sender, EventArgs e)
     {
-        if (ConfirmationPasswordEntry.Text != SessionProfile.Password)
+        ConfirmationError.IsVisible = false;
+        ConfirmSaveButton.IsEnabled = false;
+        try
         {
-            ConfirmationError.IsVisible = true;
-            return;
+            await CatalogApiClient.Current.SaveProfileAsync(
+                ConfirmationPasswordEntry.Text ?? string.Empty,
+                FirstNameEntry.Text?.Trim() ?? string.Empty,
+                LastNameEntry.Text?.Trim() ?? string.Empty,
+                PositionEntry.Text?.Trim(),
+                EmailEntry.Text?.Trim() ?? string.Empty,
+                PhoneEntry.Text?.Trim(),
+                AdditionalContactsEditor.Text?.Trim());
+
+            DangerOverlay.IsVisible = false;
+            ProfileInitials.Text = SessionProfile.Initials;
+            await DisplayAlert("Профиль", "Изменения сохранены в базе данных.", "OK");
         }
-
-        SessionProfile.FirstName = FirstNameEntry.Text?.Trim() ?? string.Empty;
-        SessionProfile.LastName = LastNameEntry.Text?.Trim() ?? string.Empty;
-        SessionProfile.Position = PositionEntry.Text?.Trim() ?? string.Empty;
-        SessionProfile.Email = EmailEntry.Text?.Trim() ?? string.Empty;
-        SessionProfile.Phone = PhoneEntry.Text?.Trim() ?? string.Empty;
-        SessionProfile.AdditionalContacts = AdditionalContactsEditor.Text?.Trim() ?? string.Empty;
-
-        DangerOverlay.IsVisible = false;
-        ProfileInitials.Text = SessionProfile.Initials;
-        await DisplayAlert("Профиль", "Изменения сохранены.", "OK");
+        catch (ApiException exception)
+        {
+            ConfirmationError.Text = exception.Message;
+            ConfirmationError.IsVisible = true;
+        }
+        finally
+        {
+            ConfirmSaveButton.IsEnabled = true;
+        }
     }
 }
