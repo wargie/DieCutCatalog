@@ -141,9 +141,11 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     {
         CatalogView.Visibility = Visibility.Collapsed;
         ReferenceDataView.Visibility = Visibility.Visible;
+        EmployeesView.Visibility = Visibility.Collapsed;
         EmployeeView.Visibility = Visibility.Collapsed;
         CatalogNavButton.Appearance = Wpf.Ui.Controls.ControlAppearance.Transparent;
         ReferenceDataNavButton.Appearance = Wpf.Ui.Controls.ControlAppearance.Primary;
+        EmployeesNavButton.Appearance = Wpf.Ui.Controls.ControlAppearance.Transparent;
         EmployeeNavButton.Appearance = Wpf.Ui.Controls.ControlAppearance.Transparent;
         await ReferenceDataView.ReloadAsync();
     }
