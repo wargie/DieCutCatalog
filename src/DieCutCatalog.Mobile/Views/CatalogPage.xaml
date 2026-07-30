@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentPage x:Class="DieCutCatalog.Mobile.Views.CatalogPage"
+             xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:models="clr-namespace:DieCutCatalog.Mobile.Models">
+    <ContentPage.Resources>
+        <DataTemplate x:Key="CompactKnifeTemplate" x:DataType="models:KnifeListItem">
+            <Grid Padding="10,13" ColumnDefinitions="58,82,*,Auto,18" ColumnSpacing="6">
+                <Label Text="{Binding Number}" FontFamily="OpenSansSemibold" VerticalTextAlignment="Center" />
+                <Label Grid.Column="1" Text="{Binding Dimensions}" FontSize="12" VerticalTextAlignment="Center" />
+                <Label Grid.Column="2" Text="{Binding Equipment}" FontSize="12" LineBreakMode="TailTruncation" VerticalTextAlignment="Center" />
+                <Label Grid.Column="3" Text="{Binding Status}" TextColor="{Binding StatusColor}" FontSize="11" HorizontalTextAlignment="End" VerticalTextAlignment="Center" />
+                <Label Grid.Column="4" Text="›" FontSize="22" VerticalTextAlignment="Center" />
+                <BoxView Grid.ColumnSpan="5" HeightRequest="1" Color="{StaticResource Divider}" VerticalOptions="End" Margin="0,0,0,-13" />
+            </Grid>
+        </DataTemplate>
+        <DataTemplate x:Key="DetailedKnifeTemplate" x:DataType="models:KnifeListItem">
+            <Grid Padding="12,16" RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,Auto">
+                <Label Text="{Binding Number}" FontSize="24" FontFamily="OpenSansSemibold" />
+                <Border Grid.Column="1" Stroke="{Binding StatusColor}" StrokeShape="RoundRectangle 4" Padding="9,3" VerticalOptions="Start">
+                    <Label Text="{Binding Status}" TextColor="{Binding StatusColor}" FontSize="11" />
+                </Border>
+                <Label Grid.Row="1" Text="{Binding Dimensions, StringFormat='Размер: {0} мм'}" FontSize="13" Margin="0,7,0,0" />
+                <Label Grid.Row="2" Text="{Binding Equipment}" FontSize="13" TextColor="{StaticResource TextSecondary}" Margin="0,5,0,0" />
+                <BoxView Grid.Row="2" Grid.ColumnSpan="2" HeightRequest="1" Color="{StaticResource Divider}" VerticalOptions="End" Margin="0,0,0,-16" />
+            </Grid>
+        </DataTemplate>
+    </ContentPage.Resources>
+    <Grid RowDefinitions="Auto,Auto,Auto,*">
+        <Grid Padding="16,16,16,10" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+            <Image Source="flexprint_logo.png" WidthRequest="38" HeightRequest="38" />
+            <Label Grid.Column="1" Text="Каталог ножей" FontSize="21" FontFamily="OpenSansSemibold" VerticalTextAlignment="Center" />
+            <Label Grid.Column="2" Text="●" FontSize="28" TextColor="{StaticResource BrandBlue}" VerticalTextAlignment="Center" />
+        </Grid>
+        <Grid Grid.Row="1" Padding="16,4" ColumnDefinitions="*,48,48" ColumnSpacing="4">
+            <SearchBar x:Name="SearchBox" Placeholder="Поиск по номеру" TextChanged="SearchBox_TextChanged" />
+            <Button Grid.Column="1" x:Name="CompactButton" Text="☷" FontSize="20" BackgroundColor="{StaticResource BrandBlue}" TextColor="White" Padding="0" Clicked="Compact_Clicked" />
+            <Button Grid.Column="2" x:Name="DetailedButton" Text="≡" FontSize="22" BackgroundColor="{StaticResource SurfaceMuted}" TextColor="{StaticResource TextPrimary}" Padding="0" Clicked="Detailed_Clicked" />
+        </Grid>
+        <ScrollView Grid.Row="2" Orientation="Horizontal" HorizontalScrollBarVisibility="Never" Padding="16,7,16,10">
+            <HorizontalStackLayout Spacing="8">
+                <Button Text="Все" CommandParameter="" Clicked="Equipment_Clicked" Style="{StaticResource PrimaryButton}" Padding="14,6" MinimumHeightRequest="38" />
+                <Button Text="Nilpeter/Lesko" CommandParameter="Nilpeter/Lesko" Clicked="Equipment_Clicked" BackgroundColor="{StaticResource SurfaceMuted}" TextColor="{StaticResource TextPrimary}" Padding="12,6" MinimumHeightRequest="38" />
+                <Button Text="MarkAndy" CommandParameter="MarkAndy" Clicked="Equipment_Clicked" BackgroundColor="{StaticResource SurfaceMuted}" TextColor="{StaticResource TextPrimary}" Padding="12,6" MinimumHeightRequest="38" />
+                <Button Text="Big Lesko" CommandParameter="Big Lesko" Clicked="Equipment_Clicked" BackgroundColor="{StaticResource SurfaceMuted}" TextColor="{StaticResource TextPrimary}" Padding="12,6" MinimumHeightRequest="38" />
+            </HorizontalStackLayout>
+        </ScrollView>
+        <CollectionView x:Name="KnivesList" Grid.Row="3" SelectionMode="Single" SelectionChanged="KnivesList_SelectionChanged" />
+    </Grid>
+</ContentPage>

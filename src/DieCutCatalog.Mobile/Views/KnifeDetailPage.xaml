@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentPage x:Class="DieCutCatalog.Mobile.Views.KnifeDetailPage"
+             xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:models="clr-namespace:DieCutCatalog.Mobile.Models"
+             x:DataType="models:KnifeListItem"
+             Shell.NavBarIsVisible="True"
+             Shell.BackgroundColor="White"
+             Shell.ForegroundColor="#1F1F1F"
+             Title="Карточка ножа">
+    <Grid RowDefinitions="*,Auto">
+        <ScrollView>
+            <VerticalStackLayout Padding="18,16" Spacing="0">
+                <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,22">
+                    <Label Text="{Binding Number, StringFormat='Нож {0}'}" FontSize="22" FontFamily="OpenSansSemibold" />
+                    <Border Grid.Column="1" Stroke="{Binding StatusColor}" StrokeShape="RoundRectangle 4" Padding="10,3">
+                        <Label Text="{Binding Status}" TextColor="{Binding StatusColor}" />
+                    </Border>
+                </Grid>
+                <Label Text="Основные данные" Style="{StaticResource SectionTitle}" />
+                <Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="12" Margin="0,12,0,22">
+                    <Label Text="Оборудование" /><Label Grid.Column="1" Text="{Binding Equipment}" />
+                    <Label Grid.Row="1" Text="Материал" /><Label Grid.Row="1" Grid.Column="1" Text="{Binding Material}" />
+                    <Label Grid.Row="2" Text="Номер ножа" /><Label Grid.Row="2" Grid.Column="1" Text="{Binding Number}" />
+                    <Label Grid.Row="3" Text="Статус" /><Label Grid.Row="3" Grid.Column="1" Text="{Binding Status}" TextColor="{Binding StatusColor}" />
+                </Grid>
+                <Label Text="Геометрия" Style="{StaticResource SectionTitle}" />
+                <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="12" Margin="0,12,0,22">
+                    <Label Text="Длина" /><Label Grid.Column="1" Text="{Binding Width, StringFormat='{0:0.##} мм'}" />
+                    <Label Grid.Row="1" Text="Ширина" /><Label Grid.Row="1" Grid.Column="1" Text="{Binding Length, StringFormat='{0:0.##} мм'}" />
+                    <Label Grid.Row="2" Text="Фигура" /><Label Grid.Row="2" Grid.Column="1" Text="{Binding Figure}" />
+                    <Label Grid.Row="3" Text="Вал" /><Label Grid.Row="3" Grid.Column="1" Text="{Binding Shaft}" />
+                    <Label Grid.Row="4" Text="Ручьи" /><Label Grid.Row="4" Grid.Column="1" Text="{Binding Streams}" />
+                    <Label Grid.Row="5" Text="Этикеток в ручье" /><Label Grid.Row="5" Grid.Column="1" Text="{Binding Repeats}" />
+                </Grid>
+                <Label Text="Ресурс" Style="{StaticResource SectionTitle}" />
+                <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="12" Margin="0,12,0,20">
+                    <Label Text="Текущий тираж" /><Label Grid.Column="1" Text="{Binding Quantity, StringFormat='{0:N0} шт.'}" />
+                    <Label Grid.Row="1" Text="Пробег" /><Label Grid.Row="1" Grid.Column="1" Text="{Binding RunLengthMeters, StringFormat='{0:N0} м'}" />
+                    <Label Grid.Row="2" Text="Обороты" /><Label Grid.Row="2" Grid.Column="1" Text="{Binding Revolutions, StringFormat='{0:N0}'}" />
+                </Grid>
+            </VerticalStackLayout>
+        </ScrollView>
+        <Button Grid.Row="1" Text="＋  Добавить тираж" Style="{StaticResource PrimaryButton}" Margin="16,10,16,16" Clicked="AddCirculation_Clicked" />
+    </Grid>
+</ContentPage>

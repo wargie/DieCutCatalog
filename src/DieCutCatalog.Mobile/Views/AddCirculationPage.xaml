@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentPage x:Class="DieCutCatalog.Mobile.Views.AddCirculationPage"
+             xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             Shell.NavBarIsVisible="True"
+             Shell.BackgroundColor="White"
+             Shell.ForegroundColor="#1F1F1F"
+             Title="Добавить тираж">
+    <Grid Padding="18,16" RowDefinitions="*,Auto">
+        <VerticalStackLayout Spacing="14">
+            <Label x:Name="KnifeTitle" FontSize="19" FontFamily="OpenSansSemibold" />
+            <Label Text="Тираж, шт." Style="{StaticResource FieldLabel}" Margin="0,14,0,0" />
+            <Border Stroke="{StaticResource Divider}" StrokeShape="RoundRectangle 5" Padding="12,2">
+                <Entry x:Name="QuantityEntry" Text="50000" Keyboard="Numeric" TextChanged="Quantity_TextChanged" />
+            </Border>
+            <BoxView HeightRequest="1" Color="{StaticResource Divider}" Margin="0,24,0,12" />
+            <Label Text="Будет добавлено" Style="{StaticResource SectionTitle}" />
+            <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="18" Margin="0,8,0,0">
+                <Label Text="Пробег" /><Label x:Name="RunLengthText" Grid.Column="1" FontFamily="OpenSansSemibold" />
+                <Label Grid.Row="1" Text="Обороты" /><Label x:Name="RevolutionsText" Grid.Row="1" Grid.Column="1" FontFamily="OpenSansSemibold" />
+            </Grid>
+            <Label Text="Расчёт будет подтверждён сервером" FontSize="12" TextColor="{StaticResource TextSecondary}" Margin="0,18,0,0" />
+        </VerticalStackLayout>
+        <Grid Grid.Row="1" ColumnDefinitions="*,1.5*" ColumnSpacing="10">
+            <Button Text="Отмена" BackgroundColor="White" TextColor="{StaticResource BrandBlue}" Clicked="Cancel_Clicked" />
+            <Button Grid.Column="1" Text="✓  Подтвердить" Style="{StaticResource PrimaryButton}" Clicked="Confirm_Clicked" />
+        </Grid>
+    </Grid>
+</ContentPage>
