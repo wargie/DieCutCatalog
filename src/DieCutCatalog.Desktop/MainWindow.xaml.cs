@@ -29,6 +29,19 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         ReferenceDataView.BackRequested += (_, _) => ShowCatalog();
 
         Closing += MainWindow_Closing;
+        Loaded += MainWindow_Loaded;
+    }
+
+    private void MainWindow_Loaded(object sender, RoutedEventArgs e)
+    {
+        var updatedVersion = UpdateCompletionNotice.TryTake();
+        if (updatedVersion is null) return;
+
+        MessageBox.Show(
+            $"DieCut Catalog успешно обновлён до версии {updatedVersion}.",
+            "Обновление завершено",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
     }
 
     private void MainWindow_Closing(object? sender, CancelEventArgs e)
@@ -298,7 +311,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
             var notes = string.IsNullOrWhiteSpace(manifest.Notes) ? string.Empty : $"\n\n{manifest.Notes.Trim()}";
             var shouldDownload = MessageBox.Show(
-                $"Доступно обновление {manifest.ReleaseName} (версия {manifest.Version}).{notes}\n\nСкачать и установить обновление? Приложение будет перезапущено.",
+                $"Доступно обновление {manifest.ReleaseName} (версия {manifest.Version}).{notes}\n\nСкачать обновление?",
                 "Доступно обновление",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Information);
@@ -307,9 +320,15 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
             var packagePath = ClientUpdateLauncher.PreparePackagePath(manifest);
 
-            CheckUpdatesButton.IsEnabled = false;
-            try { await _api.DownloadUpdateAsync(manifest, packagePath); }
-            finally { CheckUpdatesButton.IsEnabled = true; }
+            var downloadWindow = new UpdateDownloadWindow(_api, manifest, packagePath) { Owner = this };
+            if (downloadWindow.ShowDialog() != true) return;
+
+            var shouldInstall = MessageBox.Show(
+                $"Обновление {manifest.Version} загружено и проверено.\n\nУстановить его сейчас? Приложение будет закрыто и запущено снова.",
+                "Установка обновления",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+            if (shouldInstall != MessageBoxResult.Yes) return;
 
             ClientUpdateLauncher.Start(manifest, packagePath);
             Close();

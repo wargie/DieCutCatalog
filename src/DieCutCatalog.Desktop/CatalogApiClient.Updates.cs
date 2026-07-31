@@ -23,7 +23,11 @@ internal sealed partial class CatalogApiClient
             ?? throw new CatalogApiException("Сервер вернул пустой манифест обновления.");
     }
 
-    public async Task DownloadUpdateAsync(ClientUpdateManifest manifest, string destinationPath, CancellationToken cancellationToken = default)
+    public async Task DownloadUpdateAsync(
+        ClientUpdateManifest manifest,
+        string destinationPath,
+        IProgress<ClientUpdateDownloadProgress>? progress = null,
+        CancellationToken cancellationToken = default)
     {
         if (!IsValidSha256(manifest.Sha256)
             || !string.Equals(manifest.FileName, Path.GetFileName(manifest.FileName), StringComparison.Ordinal)
@@ -43,7 +47,19 @@ internal sealed partial class CatalogApiClient
             await using (var source = await response.Content.ReadAsStreamAsync(cancellationToken))
             await using (var destination = new FileStream(temporaryPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true))
             {
-                await source.CopyToAsync(destination, cancellationToken);
+                var buffer = new byte[81920];
+                long received = 0;
+                progress?.Report(new ClientUpdateDownloadProgress(received, manifest.Size));
+                while (true)
+                {
+                    var read = await source.ReadAsync(buffer, cancellationToken);
+                    if (read == 0) break;
+                    await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                    received += read;
+                    if (received > manifest.Size)
+                        throw new CatalogApiException("Размер загружаемого обновления превышает опубликованный.");
+                    progress?.Report(new ClientUpdateDownloadProgress(received, manifest.Size));
+                }
             }
 
             if (new FileInfo(temporaryPath).Length != manifest.Size)

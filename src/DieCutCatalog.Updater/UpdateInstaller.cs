@@ -10,14 +10,14 @@ internal static class UpdateInstaller
     private const int MaxArchiveEntries = 10_000;
     private const long MaxExtractedSize = 1024L * 1024 * 1024;
 
-    public static async Task ApplyAsync(UpdateArguments arguments, IProgress<string> progress)
+    public static async Task ApplyAsync(UpdateArguments arguments, IProgress<UpdateProgress> progress)
     {
         var packagePath = Path.GetFullPath(arguments.PackagePath);
         var targetDirectory = Path.GetFullPath(arguments.TargetDirectory);
         var restartExecutable = Path.GetFullPath(arguments.RestartExecutable);
         ValidateInputs(packagePath, targetDirectory, restartExecutable);
 
-        progress.Report("Ожидание завершения DieCut Catalog...");
+        progress.Report(new UpdateProgress(5, "Ожидание завершения DieCut Catalog..."));
         await WaitForParentAsync(arguments.ParentProcessId);
 
         var updateRoot = Path.GetDirectoryName(packagePath)
@@ -27,11 +27,11 @@ internal static class UpdateInstaller
         RecreateDirectory(stagingDirectory);
         RecreateDirectory(backupDirectory);
 
-        progress.Report("Распаковка и проверка пакета...");
+        progress.Report(new UpdateProgress(15, "Распаковка и проверка пакета..."));
         ExtractPackage(packagePath, stagingDirectory);
         var payloadDirectory = FindPayloadDirectory(stagingDirectory);
 
-        progress.Report("Создание резервной копии...");
+        progress.Report(new UpdateProgress(35, "Создание резервной копии установленной версии..."));
         var installedFiles = new List<InstalledFile>();
         try
         {
@@ -51,9 +51,10 @@ internal static class UpdateInstaller
                 installedFiles.Add(new InstalledFile(targetPath, backupPath, existed));
             }
 
-            progress.Report("Установка новой версии...");
-            foreach (var file in installedFiles)
+            progress.Report(new UpdateProgress(55, "Установка новой версии..."));
+            for (var index = 0; index < installedFiles.Count; index++)
             {
+                var file = installedFiles[index];
                 var relativePath = Path.GetRelativePath(targetDirectory, file.TargetPath);
                 var sourcePath = GetSafeChildPath(payloadDirectory, relativePath);
                 Directory.CreateDirectory(Path.GetDirectoryName(file.TargetPath)!);
@@ -61,11 +62,13 @@ internal static class UpdateInstaller
                 var temporaryTarget = file.TargetPath + ".update-new";
                 File.Copy(sourcePath, temporaryTarget, overwrite: true);
                 File.Move(temporaryTarget, file.TargetPath, overwrite: true);
+                var percentage = 55 + (int)Math.Round((index + 1d) / installedFiles.Count * 40d);
+                progress.Report(new UpdateProgress(percentage, $"Установка файлов: {index + 1} из {installedFiles.Count}"));
             }
         }
         catch
         {
-            progress.Report("Восстановление предыдущей версии...");
+            progress.Report(new UpdateProgress(55, "Ошибка установки. Восстановление предыдущей версии..."));
             RollBack(installedFiles);
             throw;
         }
@@ -74,7 +77,7 @@ internal static class UpdateInstaller
             TryDeleteDirectory(stagingDirectory);
         }
 
-        progress.Report("Обновление установлено.");
+        progress.Report(new UpdateProgress(100, "Обновление установлено."));
     }
 
     public static string WriteErrorLog(Exception exception)

@@ -19,11 +19,14 @@ public sealed class UpdateInstallerTests : IDisposable
         var package = CreatePackage(("DieCutCatalog.Desktop.exe", "new-exe"), ("settings.dll", "new-settings"));
         var arguments = new UpdateArguments(package, target, executable, int.MaxValue, "9.9.9");
 
-        await UpdateInstaller.ApplyAsync(arguments, new Progress<string>());
+        var progress = new CollectingProgress();
+        await UpdateInstaller.ApplyAsync(arguments, progress);
 
         Assert.Equal("new-exe", await File.ReadAllTextAsync(executable));
         Assert.Equal("new-settings", await File.ReadAllTextAsync(Path.Combine(target, "settings.dll")));
         Assert.Equal("old-exe", await File.ReadAllTextAsync(Path.Combine(Path.GetDirectoryName(package)!, "backup", "DieCutCatalog.Desktop.exe")));
+        Assert.Equal(100, progress.States[^1].Percentage);
+        Assert.Contains(progress.States, state => state.Message.Contains("Установка файлов", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -46,7 +49,7 @@ public sealed class UpdateInstallerTests : IDisposable
         }
 
         var arguments = new UpdateArguments(package, target, executable, int.MaxValue, "9.9.9");
-        await Assert.ThrowsAsync<InvalidOperationException>(() => UpdateInstaller.ApplyAsync(arguments, new Progress<string>()));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => UpdateInstaller.ApplyAsync(arguments, new Progress<UpdateProgress>()));
         Assert.False(File.Exists(Path.Combine(packageDirectory, "outside.txt")));
         Assert.Equal("old-exe", await File.ReadAllTextAsync(executable));
     }
@@ -70,5 +73,11 @@ public sealed class UpdateInstallerTests : IDisposable
             writer.Write(file.Content);
         }
         return package;
+    }
+    private sealed class CollectingProgress : IProgress<UpdateProgress>
+    {
+        public List<UpdateProgress> States { get; } = [];
+
+        public void Report(UpdateProgress value) => States.Add(value);
     }
 }

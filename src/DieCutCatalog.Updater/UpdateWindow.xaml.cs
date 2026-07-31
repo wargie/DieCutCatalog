@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO;
 using System.Windows;
 
 namespace DieCutCatalog.Updater;
@@ -19,13 +20,19 @@ public partial class UpdateWindow : Window
     {
         try
         {
-            var progress = new Progress<string>(message => StatusText.Text = message);
+            var progress = new Progress<UpdateProgress>(state =>
+            {
+                Progress.Value = state.Percentage;
+                PercentageText.Text = $"{state.Percentage} %";
+                StatusText.Text = state.Message;
+            });
             await UpdateInstaller.ApplyAsync(_arguments, progress);
 
-            Progress.IsIndeterminate = false;
             Progress.Value = 100;
+            PercentageText.Text = "100 %";
             StatusText.Text = "Обновление установлено. Приложение запускается снова...";
-            await Task.Delay(700);
+            WriteCompletionMarker(_arguments.Version);
+            await Task.Delay(900);
 
             Process.Start(new ProcessStartInfo(_arguments.RestartExecutable)
             {
@@ -37,12 +44,21 @@ public partial class UpdateWindow : Window
         catch (Exception exception)
         {
             var logPath = UpdateInstaller.WriteErrorLog(exception);
-            Progress.IsIndeterminate = false;
             Progress.Value = 0;
+            PercentageText.Text = "Ошибка";
             StatusText.Text = $"Не удалось установить обновление. Предыдущая версия восстановлена.\nЖурнал: {logPath}";
             CloseButton.Visibility = Visibility.Visible;
         }
     }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
+    private static void WriteCompletionMarker(string version)
+    {
+        var updatesDirectory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "DieCutCatalog",
+            "Updates");
+        Directory.CreateDirectory(updatesDirectory);
+        File.WriteAllText(Path.Combine(updatesDirectory, "update-completed.txt"), version.Trim());
+    }
 }
