@@ -131,6 +131,28 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
         if (runLengthMeters is <= 0)
             throw new ValidationException("Пробег должен быть числом больше нуля.");
 
+        if (dbContext.Database.ProviderName == "Npgsql.EntityFrameworkCore.PostgreSQL")
+        {
+            await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+            await dbContext.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT 1 FROM die_cuts WHERE \"Id\" = {id} FOR UPDATE",
+                cancellationToken);
+
+            var result = await AddCirculationCoreAsync(id, quantity, runLengthMeters, employeeId, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return result;
+        }
+
+        return await AddCirculationCoreAsync(id, quantity, runLengthMeters, employeeId, cancellationToken);
+    }
+
+    private async Task<DieCutDetails?> AddCirculationCoreAsync(
+        Guid id,
+        long? quantity,
+        decimal? runLengthMeters,
+        Guid employeeId,
+        CancellationToken cancellationToken)
+    {
         var dieCut = await dbContext.DieCuts.Include(x => x.Equipment).SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (dieCut is null) return null;
         EnsureOperational(dieCut);
@@ -331,12 +353,10 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
         if (string.IsNullOrWhiteSpace(command.Material) || command.Material.Length > 200) throw new ValidationException("Укажите материал.");
         if (string.IsNullOrWhiteSpace(command.Figure) || command.Figure.Trim().Length > 100)
             throw new ValidationException("Выберите фигуру из справочника.");
-        if (command.Shaft <= 0 || command.X <= 0 || command.Y <= 0) throw new ValidationException("Раппорт вала, L и B должны быть больше нуля.");
-        if (command.Streams <= 0 || command.Repeats <= 0) throw new ValidationException("Количество ручьёв и этикеток в ручье должно быть больше нуля.");
-        if (command.GrooveSpacing < 0) throw new ValidationException("Расстояние между ручьями не может быть отрицательным.");
-        if (command.LabelCornerRadius < 0) throw new ValidationException("Радиус скругления этикетки не может быть отрицательным.");
-        if (command.LabelCornerRadius > Math.Min(command.X, command.Y) / 2) throw new ValidationException("Радиус скругления не может превышать половину меньшей стороны этикетки.");
-        if (command.H <= 0) throw new ValidationException("Ширина материала должна быть больше нуля.");
+        var parameterViolation = DieCutParameterLimits.FindViolation(
+            command.Shaft, command.X, command.Y, command.Streams, command.Repeats,
+            command.H, command.GrooveSpacing, command.LabelCornerRadius);
+        if (parameterViolation is not null) throw new ValidationException(parameterViolation);
         var (gapX, gapY) = DieCutCalculations.Calculate(command.Shaft, command.X, command.Y, command.Streams, command.Repeats, command.H, command.GrooveSpacing);
         if (gapX < 0) throw new ValidationException("Ширина материала не вмещает L × ручьи и расстояния между ручьями.");
         if (gapY < 0) throw new ValidationException("Длина окружности вала не вмещает B × количество этикеток в ручье.");

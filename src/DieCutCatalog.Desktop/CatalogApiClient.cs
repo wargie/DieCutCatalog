@@ -5,6 +5,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using DieCutCatalog.Application.Employees;
+using DieCutCatalog.Application.Security;
 
 namespace DieCutCatalog.Desktop;
 
@@ -18,14 +19,14 @@ internal sealed partial class CatalogApiClient : IDisposable
 
     public void Configure(string serverAddress)
     {
-        var address = serverAddress.Trim();
-        if (!Uri.TryCreate(address, UriKind.Absolute, out var uri)
-            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
-        {
-            throw new CatalogApiException("Укажите корректный адрес сервера, например https://catalog.company.ru.");
-        }
+        var developmentMode = string.Equals(
+            Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT"),
+            "Development",
+            StringComparison.OrdinalIgnoreCase);
+        if (!ServerAddressPolicy.TryCreateBaseUri(serverAddress, developmentMode, out var uri, out var error))
+            throw new CatalogApiException(error!);
 
-        _baseAddress = new Uri(uri.ToString().TrimEnd('/') + "/");
+        _baseAddress = uri;
         AccessToken = null;
     }
 

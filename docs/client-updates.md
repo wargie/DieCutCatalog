@@ -16,9 +16,9 @@
 
 ```powershell
 ./scripts/Publish-ClientUpdate.ps1 `
-  -Version 1.2.0 `
-  -PackagePath ./artifacts/release/DieCutCatalog-1.2.0-win-x64.zip `
-  -ReleaseName "DieCut Catalog 1.2.0" `
+  -Version 1.3.0 `
+  -PackagePath ./artifacts/release/DieCutCatalog-1.3.0-win-x64.zip `
+  -ReleaseName "DieCut Catalog 1.3.0" `
   -Notes "Краткое описание изменений"
 ```
 

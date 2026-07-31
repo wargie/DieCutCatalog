@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  unit-and-build:
+    name: Unit tests and Windows build
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Restore
+        run: dotnet restore DieCutCatalog.sln
+      - name: Build
+        run: dotnet build DieCutCatalog.sln --configuration Release --no-restore
+      - name: Unit tests
+        run: dotnet test tests/DieCutCatalog.Infrastructure.Tests/DieCutCatalog.Infrastructure.Tests.csproj --configuration Release --no-build --logger "trx;LogFileName=unit.trx" --results-directory TestResults
+      - name: Upload unit test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results
+          path: TestResults
+
+  postgresql-integration:
+    name: PostgreSQL integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Restore
+        run: dotnet restore tests/DieCutCatalog.PostgreSql.Tests/DieCutCatalog.PostgreSql.Tests.csproj
+      - name: PostgreSQL integration tests
+        run: dotnet test tests/DieCutCatalog.PostgreSql.Tests/DieCutCatalog.PostgreSql.Tests.csproj --configuration Release --no-restore --logger "trx;LogFileName=postgresql.trx" --results-directory TestResults
+      - name: Upload PostgreSQL test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: postgresql-test-results
+          path: TestResults

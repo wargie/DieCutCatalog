@@ -1,6 +1,7 @@
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
+using DieCutCatalog.Domain.Catalog;
 using DieCutCatalog.Application.Catalog;
 using DieCutCatalog.Infrastructure.Catalog;
 using DieCutCatalog.Infrastructure.Persistence;
@@ -63,6 +64,19 @@ public sealed class ExcelCatalogImportServiceTests
     }
 
     [Fact]
+    public async Task Preview_RejectsProductionParametersAboveUpperLimits()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = new ExcelCatalogImportService(dbContext);
+        using var workbook = CreateWorkbook(includeInvalidRow: false, streams: DieCutParameterLimits.MaximumStreams + 1);
+
+        var preview = await service.PreviewAsync(workbook);
+
+        Assert.Equal(0, preview.ValidRows);
+        Assert.Equal(1, preview.ErrorRows);
+        Assert.Contains(DieCutParameterLimits.MaximumStreams.ToString(), Assert.Single(preview.Issues).Message, StringComparison.Ordinal);
+    }
+    [Fact]
     public async Task Preview_WarnsWhenSavedFormulaValuesAreStale()
     {
         await using var dbContext = CreateDbContext();
@@ -89,7 +103,8 @@ public sealed class ExcelCatalogImportServiceTests
         bool includeInvalidRow,
         decimal savedGapX = 0.028m,
         decimal savedGapY = 0.0048m,
-        decimal shaft = 96)
+        decimal shaft = 96,
+        int streams = 2)
     {
         var stream = new MemoryStream();
         using (var document = SpreadsheetDocument.Create(stream, SpreadsheetDocumentType.Workbook, true))
@@ -108,7 +123,7 @@ public sealed class ExcelCatalogImportServiceTests
             });
 
             sheetData.Append(Row(1, "№", "shaft", "X", "Y", "streams", "repeats", "x", "y", "material", "H", "figure", "comments", "Дата"));
-            sheetData.Append(Row(2, "001", shaft, 86, 300, 2, 1, savedGapX, savedGapY, "paper", 200, "прямоугольник", "старый", 46140));
+            sheetData.Append(Row(2, "001", shaft, 86, 300, streams, 1, savedGapX, savedGapY, "paper", 200, "прямоугольник", "старый", 46140));
             if (includeInvalidRow)
                 sheetData.Append(Row(3, "002", 96, 58, 90, 7, 4, 0.029m, 0.0028m, null, 430, "прямоугольник", null, null));
             workbookPart.Workbook.Save();

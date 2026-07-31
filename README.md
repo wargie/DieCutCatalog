@@ -2,7 +2,7 @@
 
 **DieCut Catalog** — сетевая система FLEXPRINT для хранения, поиска и производственного учёта вырубных ножей. Windows-клиенты работают с единым API на Ubuntu-сервере; PostgreSQL хранит карточки, сотрудников и историю событий, а PDF-чертежи находятся в управляемом серверном хранилище.
 
-Текущая стабильная версия: **1.2.1**.
+Текущая стабильная версия: **1.3.0**.
 
 ![Каталог DieCut Catalog](docs/images/catalog.png)
 
@@ -114,7 +114,8 @@ PostgreSQL   PDF-хранилище
 - `DieCutCatalog.Application` — контракты и сценарии приложения;
 - `DieCutCatalog.Infrastructure` — PostgreSQL, Excel, PDF, SMTP и файлы;
 - `DieCutCatalog.Desktop` — Windows-клиент;
-- `tests/DieCutCatalog.Infrastructure.Tests` — интеграционные тесты бизнес-логики.
+- 	ests/DieCutCatalog.Infrastructure.Tests — быстрые тесты бизнес-логики на EF Core InMemory;
+- 	ests/DieCutCatalog.PostgreSql.Tests — PostgreSQL integration-тесты на Testcontainers.
 
 ## Быстрый запуск для разработки
 
@@ -133,6 +134,21 @@ API: `http://localhost:5080`. Проверка состояния: `GET /health`
 ```powershell
 dotnet run --project src/DieCutCatalog.Desktop
 ```
+
+Быстрые тесты:
+
+```powershell
+dotnet test tests/DieCutCatalog.Infrastructure.Tests
+```
+
+PostgreSQL integration-тесты требуют запущенный Docker Engine. Они поднимают временный
+`postgres:16-alpine`, применяют реальные миграции и удаляют контейнер после завершения:
+
+```powershell
+dotnet test tests/DieCutCatalog.PostgreSql.Tests
+```
+
+GitHub Actions выполняет сборку и оба набора тестов при каждом push и pull request.
 
 Автономная Windows-сборка:
 
@@ -162,6 +178,9 @@ API должен слушать только loopback-интерфейс и пу
 
 ## История версий
 
+### 1.3.0 — 31 июля 2026
+
+Усилена надёжность и безопасность: конкурентные начисления ресурса сериализуются транзакцией PostgreSQL, удалённые подключения клиента требуют HTTPS, производственные параметры ограничены безопасными максимумами, а каждый push и pull request проверяется быстрыми и PostgreSQL/Testcontainers-тестами.
 ### 1.1.1 — 30 июля 2026
 
 **HOTFIX-004:** после сохранения карточки каталог сохраняет текущую страницу. Переход на страницу 1 выполняется только при переносе ножа на другую вкладку оборудования.

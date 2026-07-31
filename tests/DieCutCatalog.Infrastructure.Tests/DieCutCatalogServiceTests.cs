@@ -124,6 +124,52 @@ public sealed class DieCutCatalogServiceTests
     }
 
     [Fact]
+    public async Task Create_RejectsProductionParametersAboveUpperLimits()
+    {
+        await using var fixture = CreateFixture();
+        var valid = NewDieCut("LIMIT", "Big Lesko");
+        var cases = new[]
+        {
+            (valid with { Shaft = DieCutParameterLimits.MaximumShaft + 1 }, "200"),
+            (valid with { X = DieCutParameterLimits.MaximumLabelDimensionMm + 1 }, "1000"),
+            (valid with { Y = DieCutParameterLimits.MaximumLabelDimensionMm + 1 }, "1000"),
+            (valid with { Streams = DieCutParameterLimits.MaximumStreams + 1 }, "50"),
+            (valid with { Repeats = DieCutParameterLimits.MaximumRepeats + 1 }, "100"),
+            (valid with { H = DieCutParameterLimits.MaximumMaterialWidthMm + 1 }, "520"),
+            (valid with { GrooveSpacing = DieCutParameterLimits.MaximumGrooveSpacingMm + 1 }, "520")
+        };
+
+        foreach (var (command, expectedMaximum) in cases)
+        {
+            var exception = await Assert.ThrowsAsync<ValidationException>(() =>
+                fixture.Service.CreateAsync(command, fixture.EmployeeId));
+            Assert.Contains(expectedMaximum, exception.Message, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public async Task Create_AcceptsProductionParameterUpperBoundaries()
+    {
+        await using var fixture = CreateFixture();
+        var command = NewDieCut("LIMIT", "Big Lesko") with
+        {
+            Shaft = DieCutParameterLimits.MaximumShaft,
+            X = 10,
+            Y = 6,
+            Streams = DieCutParameterLimits.MaximumStreams,
+            Repeats = DieCutParameterLimits.MaximumRepeats,
+            H = DieCutParameterLimits.MaximumMaterialWidthMm,
+            GrooveSpacing = 0,
+            LabelCornerRadius = 1
+        };
+
+        var created = await fixture.Service.CreateAsync(command, fixture.EmployeeId);
+
+        Assert.Equal(DieCutParameterLimits.MaximumStreams, created.Streams);
+        Assert.Equal(DieCutParameterLimits.MaximumRepeats, created.Repeats);
+        Assert.Equal(DieCutParameterLimits.MaximumMaterialWidthMm, created.H);
+    }
+    [Fact]
     public async Task Search_AppliesFiltersPaginationAndJcOrderSearch()
     {
         await using var fixture = CreateFixture();
