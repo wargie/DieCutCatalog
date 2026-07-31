@@ -9,6 +9,7 @@ namespace DieCutCatalog.Desktop;
 
 internal sealed partial class CatalogApiClient
 {
+    private const long MaxUpdatePackageSize = 512L * 1024 * 1024;
     public async Task<ClientUpdateManifest?> GetLatestUpdateAsync()
     {
         using var request = CreateRequest(HttpMethod.Get, "api/updates/latest", authorize: false);
@@ -25,7 +26,9 @@ internal sealed partial class CatalogApiClient
     public async Task DownloadUpdateAsync(ClientUpdateManifest manifest, string destinationPath, CancellationToken cancellationToken = default)
     {
         if (!IsValidSha256(manifest.Sha256)
-            || !string.Equals(manifest.FileName, Path.GetFileName(manifest.FileName), StringComparison.Ordinal))
+            || !string.Equals(manifest.FileName, Path.GetFileName(manifest.FileName), StringComparison.Ordinal)
+            || manifest.Size <= 0
+            || manifest.Size > MaxUpdatePackageSize)
         {
             throw new CatalogApiException("Сервер вернул некорректный манифест обновления.");
         }

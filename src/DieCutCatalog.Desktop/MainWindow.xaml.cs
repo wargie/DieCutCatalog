@@ -282,6 +282,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
     private async Task CheckForUpdatesAsync(bool notifyWhenCurrent)
     {
+        var updateAccepted = false;
         try
         {
             var manifest = await _api.GetLatestUpdateAsync();
@@ -297,37 +298,29 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
             var notes = string.IsNullOrWhiteSpace(manifest.Notes) ? string.Empty : $"\n\n{manifest.Notes.Trim()}";
             var shouldDownload = MessageBox.Show(
-                $"Доступно обновление {manifest.ReleaseName} (версия {manifest.Version}).{notes}\n\nСкачать обновление?",
+                $"Доступно обновление {manifest.ReleaseName} (версия {manifest.Version}).{notes}\n\nСкачать и установить обновление? Приложение будет перезапущено.",
                 "Доступно обновление",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Information);
             if (shouldDownload != MessageBoxResult.Yes) return;
+            updateAccepted = true;
 
-            var dialog = new SaveFileDialog
-            {
-                Title = "Сохранить обновление DieCut Catalog",
-                FileName = manifest.FileName,
-                DefaultExt = ".zip",
-                Filter = "Архив ZIP|*.zip",
-                AddExtension = true,
-                OverwritePrompt = true
-            };
-            if (dialog.ShowDialog(this) != true) return;
+            var packagePath = ClientUpdateLauncher.PreparePackagePath(manifest);
 
             CheckUpdatesButton.IsEnabled = false;
-            try { await _api.DownloadUpdateAsync(manifest, dialog.FileName); }
+            try { await _api.DownloadUpdateAsync(manifest, packagePath); }
             finally { CheckUpdatesButton.IsEnabled = true; }
 
-            MessageBox.Show(
-                "Обновление загружено и проверено. Закройте приложение, распакуйте архив и замените файлы клиента.",
-                "Обновление загружено",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
-            Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{dialog.FileName}\"") { UseShellExecute = true });
+            ClientUpdateLauncher.Start(manifest, packagePath);
+            Close();
+        }
+        catch (Exception exception) when (!notifyWhenCurrent && !updateAccepted)
+        {
+            Debug.WriteLine($"Automatic update check failed: {exception.Message}");
         }
         catch (Exception exception) when (!notifyWhenCurrent)
         {
-            Debug.WriteLine($"Automatic update check failed: {exception.Message}");
+            MessageBox.Show(exception.Message, "Обновление DieCut Catalog", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 

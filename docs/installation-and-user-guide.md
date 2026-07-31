@@ -145,7 +145,7 @@ curl -X POST https://catalog.example.com/api/setup/administrator \
 git clone https://github.com/wargie/DieCutCatalog.git
 cd DieCutCatalog
 dotnet restore
-dotnet publish src\DieCutCatalog.Desktop -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o artifacts\client
+./scripts/Build-ClientRelease.ps1 -Version 1.4.0
 ~~~
 
 Папку **artifacts\client** упакуйте в ZIP. На рабочих ПК распакуйте, например, в **C:\Program Files\FLEXPRINT\DieCut Catalog** и запускайте **DieCutCatalog.Desktop.exe**.
