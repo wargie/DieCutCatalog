@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using DieCutCatalog.Application.Employees;
 using DieCutCatalog.Application.Updates;
 using DieCutCatalog.Domain.Employees;
@@ -30,18 +31,23 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         Closing += MainWindow_Closing;
     }
 
-    private async void MainWindow_Closing(object? sender, CancelEventArgs e)
+    private void MainWindow_Closing(object? sender, CancelEventArgs e)
     {
         if (_isClosing) return;
 
         e.Cancel = true;
         _isClosing = true;
+        _ = LogoutAndCloseAsync();
+    }
+
+    private async Task LogoutAndCloseAsync()
+    {
         try { await _api.LogoutAsync(); }
         catch { }
         finally
         {
             _api.Dispose();
-            Close();
+            _ = Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(Close));
         }
     }
     private async void Login_Click(object sender, RoutedEventArgs e)
