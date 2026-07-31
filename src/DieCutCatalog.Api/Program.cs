@@ -335,6 +335,7 @@ app.MapGet("/api/employees/{employeeId:guid}/photo", async (
 app.MapDieCutEndpoints();
 app.MapCatalogAdministrationEndpoints();
 app.MapExcelImportEndpoints();
+app.MapUpdateEndpoints();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {

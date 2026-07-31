@@ -1,10 +1,13 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using DieCutCatalog.Application.Employees;
+using DieCutCatalog.Application.Updates;
 using DieCutCatalog.Domain.Employees;
 using DieCutCatalog.Desktop.Views;
 using Microsoft.Win32;
@@ -20,6 +23,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     public MainWindow()
     {
         InitializeComponent();
+        ApplicationVersionText.Text = $"Версия {GetCurrentVersion()}";
         ReferenceDataView.ReferencesChanged += async (_, _) => await CatalogView.ReloadReferenceDataAsync();
         ReferenceDataView.BackRequested += (_, _) => ShowCatalog();
 
@@ -94,6 +98,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         LoginView.Visibility = Visibility.Collapsed;
         ShellView.Visibility = Visibility.Visible;
         ShowCatalog();
+        _ = CheckForUpdatesAsync(notifyWhenCurrent: false);
     }
 
     private void PopulateProfile()
@@ -264,6 +269,69 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         });
     }
 
+    private async void CheckUpdates_Click(object sender, RoutedEventArgs e)
+    {
+        await RunBusyAsync((Button)sender, () => CheckForUpdatesAsync(notifyWhenCurrent: true));
+    }
+
+    private async Task CheckForUpdatesAsync(bool notifyWhenCurrent)
+    {
+        try
+        {
+            var manifest = await _api.GetLatestUpdateAsync();
+            var currentVersion = GetCurrentVersion();
+            if (manifest is null || !ClientUpdateVersion.IsNewer(manifest.Version, currentVersion))
+            {
+                if (notifyWhenCurrent)
+                {
+                    MessageBox.Show($"Установлена актуальная версия {currentVersion}.", "Обновления DieCut Catalog", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                return;
+            }
+
+            var notes = string.IsNullOrWhiteSpace(manifest.Notes) ? string.Empty : $"\n\n{manifest.Notes.Trim()}";
+            var shouldDownload = MessageBox.Show(
+                $"Доступно обновление {manifest.ReleaseName} (версия {manifest.Version}).{notes}\n\nСкачать обновление?",
+                "Доступно обновление",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Information);
+            if (shouldDownload != MessageBoxResult.Yes) return;
+
+            var dialog = new SaveFileDialog
+            {
+                Title = "Сохранить обновление DieCut Catalog",
+                FileName = manifest.FileName,
+                DefaultExt = ".zip",
+                Filter = "Архив ZIP|*.zip",
+                AddExtension = true,
+                OverwritePrompt = true
+            };
+            if (dialog.ShowDialog(this) != true) return;
+
+            CheckUpdatesButton.IsEnabled = false;
+            try { await _api.DownloadUpdateAsync(manifest, dialog.FileName); }
+            finally { CheckUpdatesButton.IsEnabled = true; }
+
+            MessageBox.Show(
+                "Обновление загружено и проверено. Закройте приложение, распакуйте архив и замените файлы клиента.",
+                "Обновление загружено",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{dialog.FileName}\"") { UseShellExecute = true });
+        }
+        catch (Exception exception) when (!notifyWhenCurrent)
+        {
+            Debug.WriteLine($"Automatic update check failed: {exception.Message}");
+        }
+    }
+
+    private static string GetCurrentVersion()
+    {
+        var assembly = Assembly.GetEntryAssembly() ?? typeof(MainWindow).Assembly;
+        return assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+            ?? assembly.GetName().Version?.ToString(3)
+            ?? "0.0.0";
+    }
     private async Task RunBusyAsync(Button button, Func<Task> action, TextBlock? inlineError = null)
     {
         button.IsEnabled = false;
