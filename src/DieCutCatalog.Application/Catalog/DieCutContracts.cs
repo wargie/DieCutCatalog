@@ -15,7 +15,9 @@ public sealed record DieCutQuery(
     decimal? MaxY,
     int? Shaft,
     int Page = 1,
-    int PageSize = 50);
+    int PageSize = 50,
+    DieCutSortField SortBy = DieCutSortField.Default,
+    bool SortDescending = false);
 
 public sealed record SaveDieCutCommand(
     string Number,
@@ -113,7 +115,16 @@ public sealed record PagedResult<T>(IReadOnlyList<T> Items, int Total, int Page,
 public sealed record CatalogFacets(
     IReadOnlyList<string> Equipment,
     IReadOnlyList<string> Materials,
-    IReadOnlyList<string> Figures);
+    IReadOnlyList<string> Figures,
+    IReadOnlyList<decimal> LabelWidths,
+    IReadOnlyList<decimal> LabelLengths);
+
+public enum DieCutSortField
+{
+    Default,
+    LabelWidth,
+    LabelLength
+}
 
 public enum CatalogReferenceType
 {

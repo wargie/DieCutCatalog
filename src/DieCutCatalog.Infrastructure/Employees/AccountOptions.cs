@@ -3,7 +3,7 @@ namespace DieCutCatalog.Infrastructure.Employees;
 public sealed class AccountOptions
 {
     public const string SectionName = "Account";
-    public int SessionHours { get; set; } = 12;
+    public int SessionHours { get; set; } = 8760;
     public string SetupToken { get; set; } = string.Empty;
 }
 

@@ -198,6 +198,26 @@ public sealed class DieCutCatalogServiceTests
     }
 
     [Fact]
+    public async Task Search_FiltersAndSortsByLabelDimensionsBeforePagination()
+    {
+        await using var fixture = CreateFixture();
+        await fixture.Service.CreateAsync(NewDieCut("W80", "Nilpeter/Lesko", x: 80) with { Y = 60 }, fixture.EmployeeId);
+        await fixture.Service.CreateAsync(NewDieCut("W40", "Nilpeter/Lesko", x: 40) with { Y = 40 }, fixture.EmployeeId);
+        await fixture.Service.CreateAsync(NewDieCut("W60", "Nilpeter/Lesko", x: 60) with { Y = 40 }, fixture.EmployeeId);
+
+        var sorted = await fixture.Service.SearchAsync(new DieCutQuery(
+            null, null, null, null, null, null, null, null, null, null,
+            Page: 1, PageSize: 2, SortBy: DieCutSortField.LabelWidth, SortDescending: true));
+        var filtered = await fixture.Service.SearchAsync(new DieCutQuery(
+            null, null, null, null, null, null, null, 40, 40, null,
+            Page: 1, PageSize: 10, SortBy: DieCutSortField.LabelWidth));
+
+        Assert.Equal(3, sorted.Total);
+        Assert.Equal(new[] { "W80", "W60" }, sorted.Items.Select(item => item.Number));
+        Assert.Equal(2, filtered.Total);
+        Assert.Equal(new[] { "W40", "W60" }, filtered.Items.Select(item => item.Number));
+    }
+    [Fact]
     public async Task Update_ChangesCardAndCreatesEquipmentFacet()
     {
         await using var fixture = CreateFixture();
@@ -218,6 +238,8 @@ public sealed class DieCutCatalogServiceTests
         Assert.Equal(DieCutStatus.NeedsInspection, updated.Status);
         Assert.Contains("MarkAndy", facets.Equipment);
         Assert.Contains("PP60 TOP WHITE", facets.Materials);
+        Assert.Contains(85m, facets.LabelWidths);
+        Assert.Contains(74m, facets.LabelLengths);
     }
 
     [Fact]

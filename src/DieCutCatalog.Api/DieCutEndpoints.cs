@@ -14,11 +14,13 @@ internal static class DieCutEndpoints
         group.MapGet("/", async (HttpContext context, IDieCutCatalogService catalog, IAccountService accounts,
             string? search, string? equipment, string? material, string? figure, DieCutStatus? status,
             decimal? minX, decimal? maxX, decimal? minY, decimal? maxY,
-            int? shaft, int page = 1, int pageSize = 50, CancellationToken cancellationToken = default) =>
+            int? shaft, int page = 1, int pageSize = 50,
+            DieCutSortField sortBy = DieCutSortField.Default, bool sortDescending = false,
+            CancellationToken cancellationToken = default) =>
         {
             if (await AuthorizeAsync(context, accounts, cancellationToken) is null) return Results.Unauthorized();
             return Results.Ok(await catalog.SearchAsync(new DieCutQuery(search, equipment, material, figure, status,
-                minX, maxX, minY, maxY, shaft, page, pageSize), cancellationToken));
+                minX, maxX, minY, maxY, shaft, page, pageSize, sortBy, sortDescending), cancellationToken));
         });
 
         group.MapGet("/facets", async (HttpContext context, IDieCutCatalogService catalog, IAccountService accounts, CancellationToken cancellationToken) =>

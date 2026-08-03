@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO;
 using System.Net.Http;
 using System.Text;
@@ -12,6 +13,10 @@ internal sealed partial class CatalogApiClient
         string? equipment,
         string? material,
         string? figure,
+        decimal? labelWidth,
+        decimal? labelLength,
+        DieCutSortField sortBy,
+        bool sortDescending,
         int page,
         int pageSize = 100)
     {
@@ -20,6 +25,12 @@ internal sealed partial class CatalogApiClient
         Append(query, "equipment", equipment);
         Append(query, "material", material);
         Append(query, "figure", figure);
+        Append(query, "minX", labelWidth);
+        Append(query, "maxX", labelWidth);
+        Append(query, "minY", labelLength);
+        Append(query, "maxY", labelLength);
+        Append(query, "sortBy", sortBy.ToString());
+        Append(query, "sortDescending", sortDescending.ToString().ToLowerInvariant());
         return SendAsync<PagedResult<DieCutSummary>>(HttpMethod.Get, query.ToString());
     }
 
@@ -101,5 +112,11 @@ internal sealed partial class CatalogApiClient
         {
             query.Append('&').Append(name).Append('=').Append(Uri.EscapeDataString(value.Trim()));
         }
+    }
+
+    private static void Append(StringBuilder query, string name, decimal? value)
+    {
+        if (value is not null)
+            Append(query, name, value.Value.ToString(CultureInfo.InvariantCulture));
     }
 }

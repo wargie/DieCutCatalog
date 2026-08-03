@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -41,6 +42,8 @@ public partial class CatalogView : UserControl
     private Guid? _editingId;
     private int _page = 1;
     private int _total;
+    private DieCutSortField _sortBy = DieCutSortField.Default;
+    private bool _sortDescending;
     private bool _loadingCard;
     private bool _loadingEquipmentTabs;
     private DieCutStatus _loadedStatus = DieCutStatus.Active;
@@ -94,6 +97,8 @@ public partial class CatalogView : UserControl
         SetEditorItems(EquipmentBox, equipment);
         SetFilterItems(MaterialFilter, facets.Materials);
         SetFilterItems(FigureFilter, facets.Figures);
+        SetDimensionFilterItems(LabelWidthFilter, facets.LabelWidths);
+        SetDimensionFilterItems(LabelLengthFilter, facets.LabelLengths);
         SetEditorItems(MaterialBox, facets.Materials);
     }
 
@@ -110,6 +115,10 @@ public partial class CatalogView : UserControl
                 SelectedEquipment(),
                 SelectedFilter(MaterialFilter),
                 SelectedFilter(FigureFilter),
+                SelectedDimensionFilter(LabelWidthFilter, "L"),
+                SelectedDimensionFilter(LabelLengthFilter, "B"),
+                _sortBy,
+                _sortDescending,
                 _page,
                 PageSize);
             _total = result.Total;
@@ -178,6 +187,29 @@ public partial class CatalogView : UserControl
         await LoadPageAsync();
     }
 
+    private async void DieCutsGrid_Sorting(object sender, DataGridSortingEventArgs e)
+    {
+        e.Handled = true;
+        var sortBy = e.Column.SortMemberPath switch
+        {
+            "LabelWidth" => DieCutSortField.LabelWidth,
+            "LabelLength" => DieCutSortField.LabelLength,
+            _ => DieCutSortField.Default
+        };
+        if (sortBy == DieCutSortField.Default) return;
+
+        var direction = _sortBy == sortBy && !_sortDescending
+            ? ListSortDirection.Descending
+            : ListSortDirection.Ascending;
+        foreach (var column in DieCutsGrid.Columns)
+            column.SortDirection = null;
+
+        _sortBy = sortBy;
+        _sortDescending = direction == ListSortDirection.Descending;
+        e.Column.SortDirection = direction;
+        _page = 1;
+        await LoadPageAsync();
+    }
     private async void DieCutsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_loadingCard || DieCutsGrid.SelectedItem is not DieCutRow row || _api is null) return;
@@ -940,6 +972,29 @@ public partial class CatalogView : UserControl
         comboBox.SelectedItem = selected is not null && comboBox.Items.Contains(selected) ? selected : "Все";
     }
 
+    private static void SetDimensionFilterItems(ComboBox comboBox, IReadOnlyList<decimal> values)
+    {
+        var selected = SelectedDimensionFilter(comboBox, string.Empty);
+        var items = new[] { new DimensionFilterOption(null, "Все") }
+            .Concat(values.Select(value => new DimensionFilterOption(value, Format(value))))
+            .ToArray();
+        comboBox.ItemsSource = items;
+        comboBox.SelectedItem = items.FirstOrDefault(item => item.Value == selected) ?? items[0];
+    }
+
+    private static decimal? SelectedDimensionFilter(ComboBox comboBox, string field)
+    {
+        if (comboBox.SelectedItem is DimensionFilterOption option)
+            return option.Value;
+
+        var text = comboBox.Text.Trim();
+        if (string.IsNullOrEmpty(text) || string.Equals(text, "Все", StringComparison.OrdinalIgnoreCase))
+            return null;
+        if (TryParseDecimal(text, out var value) && value > 0)
+            return value;
+
+        throw new CatalogApiException($"Введите корректное положительное значение {field}.");
+    }
     private void SetEquipmentTabs(IReadOnlyList<string> values)
     {
         const string allEquipment = "Все ножи";
@@ -1025,6 +1080,11 @@ public partial class CatalogView : UserControl
     };
 
     private sealed record StatusOption(DieCutStatus Value, string Name);
+
+    private sealed record DimensionFilterOption(decimal? Value, string Display)
+    {
+        public override string ToString() => Display;
+    }
 
     private sealed record DieCutRow(DieCutSummary Source)
     {

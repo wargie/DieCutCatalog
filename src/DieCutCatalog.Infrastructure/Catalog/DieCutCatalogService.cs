@@ -40,9 +40,19 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
         if (query.Shaft is not null) dieCuts = dieCuts.Where(x => x.Shaft == query.Shaft);
 
         var total = await dieCuts.CountAsync(cancellationToken);
-        var items = await dieCuts
-            .OrderBy(x => x.Equipment.Name)
-            .ThenBy(x => x.NormalizedNumber)
+        var ordered = query.SortBy switch
+        {
+            DieCutSortField.LabelWidth when query.SortDescending => dieCuts
+                .OrderByDescending(x => x.X).ThenBy(x => x.Equipment.Name).ThenBy(x => x.NormalizedNumber),
+            DieCutSortField.LabelWidth => dieCuts
+                .OrderBy(x => x.X).ThenBy(x => x.Equipment.Name).ThenBy(x => x.NormalizedNumber),
+            DieCutSortField.LabelLength when query.SortDescending => dieCuts
+                .OrderByDescending(x => x.Y).ThenBy(x => x.Equipment.Name).ThenBy(x => x.NormalizedNumber),
+            DieCutSortField.LabelLength => dieCuts
+                .OrderBy(x => x.Y).ThenBy(x => x.Equipment.Name).ThenBy(x => x.NormalizedNumber),
+            _ => dieCuts.OrderBy(x => x.Equipment.Name).ThenBy(x => x.NormalizedNumber)
+        };
+        var items = await ordered
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(x => new DieCutSummary(
@@ -301,7 +311,11 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
         await dbContext.DieCuts.AsNoTracking().Where(x => x.Status != DieCutStatus.Deleted)
             .Select(x => x.Material).Distinct().OrderBy(x => x).ToListAsync(cancellationToken),
         await dbContext.DieCuts.AsNoTracking().Where(x => x.Status != DieCutStatus.Deleted)
-            .Select(x => x.Figure).Distinct().OrderBy(x => x).ToListAsync(cancellationToken));
+            .Select(x => x.Figure).Distinct().OrderBy(x => x).ToListAsync(cancellationToken),
+        await dbContext.DieCuts.AsNoTracking().Where(x => x.Status != DieCutStatus.Deleted)
+            .Select(x => x.X).Distinct().OrderBy(x => x).ToListAsync(cancellationToken),
+        await dbContext.DieCuts.AsNoTracking().Where(x => x.Status != DieCutStatus.Deleted)
+            .Select(x => x.Y).Distinct().OrderBy(x => x).ToListAsync(cancellationToken));
 
     private async Task<(Equipment Equipment, string Material, string Figure)> ResolveReferencesAsync(
         SaveDieCutCommand command, CancellationToken cancellationToken)

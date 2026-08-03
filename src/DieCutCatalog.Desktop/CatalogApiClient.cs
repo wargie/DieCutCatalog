@@ -16,6 +16,8 @@ internal sealed partial class CatalogApiClient : IDisposable
     private Uri? _baseAddress;
 
     public string? AccessToken { get; private set; }
+    public DateTimeOffset? SessionExpiresAt { get; private set; }
+    public string? ServerAddress => _baseAddress?.ToString().TrimEnd('/');
 
     public void Configure(string serverAddress)
     {
@@ -28,20 +30,50 @@ internal sealed partial class CatalogApiClient : IDisposable
 
         _baseAddress = uri;
         AccessToken = null;
+        SessionExpiresAt = null;
     }
 
     public async Task<LoginResult> LoginAsync(string email, string password)
     {
         var result = await SendAsync<LoginResult>(HttpMethod.Post, "api/auth/login", new { email, password }, false);
         AccessToken = result.AccessToken;
+        SessionExpiresAt = result.ExpiresAt;
         return result;
     }
 
+    public async Task<EmployeeProfile> RestoreSessionAsync(StoredClientSession session)
+    {
+        Configure(session.ServerAddress);
+        AccessToken = session.AccessToken;
+        SessionExpiresAt = session.ExpiresAt;
+        try
+        {
+            return await SendAsync<EmployeeProfile>(HttpMethod.Post, "api/auth/resume");
+        }
+        catch
+        {
+            AccessToken = null;
+            SessionExpiresAt = null;
+            throw;
+        }
+    }
+
+    public Task DisconnectAsync() =>
+        AccessToken is null ? Task.CompletedTask : SendAsync(HttpMethod.Post, "api/auth/disconnect");
+
+    public StoredClientSession? GetStoredSession(string clientVersion) =>
+        ServerAddress is not null && AccessToken is not null && SessionExpiresAt is not null
+            ? new StoredClientSession(clientVersion, ServerAddress, AccessToken, SessionExpiresAt.Value)
+            : null;
     public async Task LogoutAsync()
     {
         if (AccessToken is null) return;
         try { await SendAsync(HttpMethod.Post, "api/auth/logout"); }
-        finally { AccessToken = null; }
+        finally
+        {
+            AccessToken = null;
+            SessionExpiresAt = null;
+        }
     }
 
     public Task<EmployeeProfile> UpdateProfileAsync(string firstName, string lastName, string? position, string? phone, string? additionalContacts) =>

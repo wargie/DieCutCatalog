@@ -121,6 +121,30 @@ app.MapPost("/api/auth/logout", async (
     await accounts.LogoutAsync(token, cancellationToken);
     return Results.NoContent();
 });
+app.MapPost("/api/auth/resume", async (
+    HttpContext context,
+    IAccountService accounts,
+    CancellationToken cancellationToken) =>
+{
+    var token = GetBearerToken(context);
+    if (token is null) return Results.Unauthorized();
+
+    var profile = await accounts.ResumeSessionAsync(token, cancellationToken);
+    return profile is null ? Results.Unauthorized() : Results.Ok(profile);
+});
+
+app.MapPost("/api/auth/disconnect", async (
+    HttpContext context,
+    IAccountService accounts,
+    CancellationToken cancellationToken) =>
+{
+    var token = GetBearerToken(context);
+    if (token is null) return Results.Unauthorized();
+
+    return await accounts.DisconnectSessionAsync(token, cancellationToken)
+        ? Results.NoContent()
+        : Results.Unauthorized();
+});
 app.MapGet("/api/employees/me", async (
     HttpContext context,
     IAccountService accounts,

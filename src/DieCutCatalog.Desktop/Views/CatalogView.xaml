@@ -112,22 +112,32 @@
                     BorderBrush="{StaticResource DividerBrush}" BorderThickness="1" CornerRadius="5">
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="2*" MinWidth="160" />
-                        <ColumnDefinition Width="10" />
-                        <ColumnDefinition Width="*" MinWidth="80" />
-                        <ColumnDefinition Width="10" />
-                        <ColumnDefinition Width="*" MinWidth="80" />
-                        <ColumnDefinition Width="10" />
+                        <ColumnDefinition Width="2*" MinWidth="150" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="*" MinWidth="70" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="*" MinWidth="70" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="*" MinWidth="90" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="*" MinWidth="90" />
+                        <ColumnDefinition Width="8" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <TextBox x:Name="SearchBox" Style="{StaticResource CompactTextBox}"
                              ToolTip="Поиск по номеру ножа, заказу JC, материалу и комментарию"
                              KeyDown="SearchBox_KeyDown" />
-                    <ComboBox x:Name="MaterialFilter" Grid.Column="2" Style="{StaticResource CompactComboBox}"
+                    <ComboBox x:Name="LabelWidthFilter" Grid.Column="2" Style="{StaticResource CompactComboBox}"
+                              IsEditable="True" IsTextSearchEnabled="True" StaysOpenOnEdit="True"
+                              ToolTip="Ширина этикетки L" />
+                    <ComboBox x:Name="LabelLengthFilter" Grid.Column="4" Style="{StaticResource CompactComboBox}"
+                              IsEditable="True" IsTextSearchEnabled="True" StaysOpenOnEdit="True"
+                              ToolTip="Длина этикетки B" />
+                    <ComboBox x:Name="MaterialFilter" Grid.Column="6" Style="{StaticResource CompactComboBox}"
                               ToolTip="Материал" />
-                    <ComboBox x:Name="FigureFilter" Grid.Column="4" Style="{StaticResource CompactComboBox}"
+                    <ComboBox x:Name="FigureFilter" Grid.Column="8" Style="{StaticResource CompactComboBox}"
                               ToolTip="Фигура" />
-                    <ui:Button Grid.Column="6" Width="38" Height="34" Padding="0" Appearance="Primary"
+                    <ui:Button Grid.Column="10" Width="38" Height="34" Padding="0" Appearance="Primary"
                                ToolTip="Применить поиск и фильтры" Click="ApplyFilters_Click">
                         <ui:Button.Icon><ui:SymbolIcon Symbol="Search20" /></ui:Button.Icon>
                     </ui:Button>
@@ -141,11 +151,11 @@
                         <RowDefinition Height="48" />
                     </Grid.RowDefinitions>
                     <DataGrid x:Name="DieCutsGrid"
-                              AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single"
+                              AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single" CanUserSortColumns="False"
                               HeadersVisibility="Column" GridLinesVisibility="Horizontal"
                               RowHeaderWidth="0" EnableRowVirtualization="True"
                               HorizontalScrollBarVisibility="Auto"
-                              SelectionChanged="DieCutsGrid_SelectionChanged">
+                              SelectionChanged="DieCutsGrid_SelectionChanged" Sorting="DieCutsGrid_Sorting">
                         <DataGrid.RowStyle>
                             <Style TargetType="DataGridRow">
                                 <Setter Property="Background" Value="{Binding RowBackground}" />
@@ -155,8 +165,8 @@
                             <DataGridTextColumn Header="№" Binding="{Binding Number}" Width="72" />
                             <DataGridTextColumn Header="Статус" Binding="{Binding StatusText}" Width="120" />
                             <DataGridTextColumn Header="Вал" Binding="{Binding Shaft}" Width="62" />
-                            <DataGridTextColumn Header="L" Binding="{Binding XText}" Width="62" />
-                            <DataGridTextColumn Header="B" Binding="{Binding YText}" Width="62" />
+                            <DataGridTextColumn Header="L" Binding="{Binding XText}" SortMemberPath="LabelWidth" CanUserSort="True" Width="62" />
+                            <DataGridTextColumn Header="B" Binding="{Binding YText}" SortMemberPath="LabelLength" CanUserSort="True" Width="62" />
                             <DataGridTextColumn Header="Ручьи" Binding="{Binding Streams}" Width="68" />
                             <DataGridTextColumn Header="Эт. в ручье" Binding="{Binding Repeats}" Width="92" />
                             <DataGridTextColumn Header="A1" Binding="{Binding GapXText}" Width="72">

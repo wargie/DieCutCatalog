@@ -161,7 +161,7 @@ public sealed class AccountService(
 
         var rawToken = GenerateToken();
         var expiresAt = DateTimeOffset.UtcNow.AddHours(
-            Math.Clamp(_accountOptions.SessionHours, 1, 168));
+            Math.Clamp(_accountOptions.SessionHours, 1, 8760));
 
         dbContext.UserSessions.Add(new UserSession
         {
@@ -184,6 +184,44 @@ public sealed class AccountService(
             ToProfile(employee));
     }
 
+    public async Task<EmployeeProfile?> ResumeSessionAsync(
+        string accessToken,
+        CancellationToken cancellationToken = default)
+    {
+        var employee = await FindEmployeeByTokenAsync(accessToken, cancellationToken);
+        if (employee is null) return null;
+
+        dbContext.EmployeeAccessEvents.Add(new EmployeeAccessEvent
+        {
+            EmployeeId = employee.Id,
+            Type = EmployeeAccessEventType.LoggedIn
+        });
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return ToProfile(employee);
+    }
+
+    public async Task<bool> DisconnectSessionAsync(
+        string accessToken,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(accessToken)) return false;
+
+        var tokenHash = HashToken(accessToken);
+        var now = DateTimeOffset.UtcNow;
+        var session = await dbContext.UserSessions.AsNoTracking().SingleOrDefaultAsync(
+            x => x.TokenHash == tokenHash && x.RevokedAt == null && x.ExpiresAt > now,
+            cancellationToken);
+        if (session is null) return false;
+
+        dbContext.EmployeeAccessEvents.Add(new EmployeeAccessEvent
+        {
+            EmployeeId = session.EmployeeId,
+            Type = EmployeeAccessEventType.LoggedOut,
+            OccurredAt = now
+        });
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
     public async Task<bool> LogoutAsync(
         string accessToken,
         CancellationToken cancellationToken = default)

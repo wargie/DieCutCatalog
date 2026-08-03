@@ -33,16 +33,34 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         Loaded += MainWindow_Loaded;
     }
 
-    private void MainWindow_Loaded(object sender, RoutedEventArgs e)
+    private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
         var updatedVersion = UpdateCompletionNotice.TryTake();
-        if (updatedVersion is null) return;
+        if (updatedVersion is not null)
+        {
+            MessageBox.Show(
+                $"DieCut Catalog успешно обновлён до версии {updatedVersion}.",
+                "Обновление завершено",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
 
-        MessageBox.Show(
-            $"DieCut Catalog успешно обновлён до версии {updatedVersion}.",
-            "Обновление завершено",
-            MessageBoxButton.OK,
-            MessageBoxImage.Information);
+        var session = ProtectedSessionStore.Load(GetCurrentVersion());
+        if (session is null) return;
+
+        ServerAddressBox.Text = session.ServerAddress;
+        try
+        {
+            _profile = await _api.RestoreSessionAsync(session);
+            await OpenShellAsync();
+        }
+        catch (CatalogApiException exception)
+        {
+            if (!exception.Message.StartsWith("Не удалось подключиться", StringComparison.Ordinal))
+                ProtectedSessionStore.Clear();
+            LoginError.Text = $"Не удалось восстановить сохранённый вход. {exception.Message}";
+            LoginError.Visibility = Visibility.Visible;
+        }
     }
 
     private void MainWindow_Closing(object? sender, CancelEventArgs e)
@@ -51,12 +69,12 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
         e.Cancel = true;
         _isClosing = true;
-        _ = LogoutAndCloseAsync();
+        _ = DisconnectAndCloseAsync();
     }
 
-    private async Task LogoutAndCloseAsync()
+    private async Task DisconnectAndCloseAsync()
     {
-        try { await _api.LogoutAsync(); }
+        try { await _api.DisconnectAsync(); }
         catch { }
         finally
         {
@@ -79,6 +97,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                 RequiredNewPasswordBox.Focus();
                 return;
             }
+            SaveSession();
             await OpenShellAsync();
 
         }, LoginError);
@@ -102,10 +121,16 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             RequiredNewPasswordBox.Clear();
             RequiredPasswordConfirmationBox.Clear();
             PasswordChangeOverlay.Visibility = Visibility.Collapsed;
+            SaveSession();
             await OpenShellAsync();
         }, RequiredPasswordError);
     }
 
+    private void SaveSession()
+    {
+        var session = _api.GetStoredSession(GetCurrentVersion());
+        if (session is not null) ProtectedSessionStore.Save(session);
+    }
     private async Task OpenShellAsync()
     {
         PasswordBox.Clear();
@@ -284,6 +309,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         await RunBusyAsync((Button)sender, async () =>
         {
             await _api.LogoutAsync();
+            ProtectedSessionStore.Clear();
             _profile = null; ProfilePhoto.Source = null; CatalogView.Clear(); ReferenceDataView.Clear(); EmployeesView.Clear();
             ShellView.Visibility = Visibility.Collapsed; LoginView.Visibility = Visibility.Visible; EmailBox.Focus();
         });
