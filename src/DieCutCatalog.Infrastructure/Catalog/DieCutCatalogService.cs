@@ -315,7 +315,9 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
         await dbContext.DieCuts.AsNoTracking().Where(x => x.Status != DieCutStatus.Deleted)
             .Select(x => x.X).Distinct().OrderBy(x => x).ToListAsync(cancellationToken),
         await dbContext.DieCuts.AsNoTracking().Where(x => x.Status != DieCutStatus.Deleted)
-            .Select(x => x.Y).Distinct().OrderBy(x => x).ToListAsync(cancellationToken));
+            .Select(x => x.Y).Distinct().OrderBy(x => x).ToListAsync(cancellationToken),
+        await dbContext.DieCuts.AsNoTracking().Where(x => x.Status != DieCutStatus.Deleted)
+            .Select(x => x.Shaft).Distinct().OrderBy(x => x).ToListAsync(cancellationToken));
 
     private async Task<(Equipment Equipment, string Material, string Figure)> ResolveReferencesAsync(
         SaveDieCutCommand command, CancellationToken cancellationToken)

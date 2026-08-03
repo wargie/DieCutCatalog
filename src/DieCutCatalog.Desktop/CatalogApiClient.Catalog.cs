@@ -9,19 +9,18 @@ namespace DieCutCatalog.Desktop;
 internal sealed partial class CatalogApiClient
 {
     public Task<PagedResult<DieCutSummary>> SearchDieCutsAsync(
-        string? search,
         string? equipment,
         string? material,
         string? figure,
         decimal? labelWidth,
         decimal? labelLength,
+        int? shaft,
         DieCutSortField sortBy,
         bool sortDescending,
         int page,
         int pageSize = 100)
     {
         var query = new StringBuilder($"api/die-cuts/?page={page}&pageSize={pageSize}");
-        Append(query, "search", search);
         Append(query, "equipment", equipment);
         Append(query, "material", material);
         Append(query, "figure", figure);
@@ -29,6 +28,7 @@ internal sealed partial class CatalogApiClient
         Append(query, "maxX", labelWidth);
         Append(query, "minY", labelLength);
         Append(query, "maxY", labelLength);
+        Append(query, "shaft", shaft?.ToString(CultureInfo.InvariantCulture));
         Append(query, "sortBy", sortBy.ToString());
         Append(query, "sortDescending", sortDescending.ToString().ToLowerInvariant());
         return SendAsync<PagedResult<DieCutSummary>>(HttpMethod.Get, query.ToString());

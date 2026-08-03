@@ -97,6 +97,7 @@ public partial class CatalogView : UserControl
         SetEditorItems(EquipmentBox, equipment);
         SetFilterItems(MaterialFilter, facets.Materials);
         SetFilterItems(FigureFilter, facets.Figures);
+        SetShaftFilterItems(ShaftFilter, facets.Shafts ?? []);
         SetDimensionFilterItems(LabelWidthFilter, facets.LabelWidths);
         SetDimensionFilterItems(LabelLengthFilter, facets.LabelLengths);
         SetEditorItems(MaterialBox, facets.Materials);
@@ -111,12 +112,12 @@ public partial class CatalogView : UserControl
         try
         {
             var result = await _api.SearchDieCutsAsync(
-                SearchBox.Text,
                 SelectedEquipment(),
                 SelectedFilter(MaterialFilter),
                 SelectedFilter(FigureFilter),
                 SelectedDimensionFilter(LabelWidthFilter, "L"),
                 SelectedDimensionFilter(LabelLengthFilter, "B"),
+                SelectedShaftFilter(ShaftFilter),
                 _sortBy,
                 _sortDescending,
                 _page,
@@ -166,12 +167,6 @@ public partial class CatalogView : UserControl
         await LoadPageAsync();
     }
 
-    private async void SearchBox_KeyDown(object sender, KeyEventArgs e)
-    {
-        if (e.Key != Key.Enter) return;
-        _page = 1;
-        await LoadPageAsync();
-    }
 
     private async void PreviousPage_Click(object sender, RoutedEventArgs e)
     {
@@ -972,6 +967,29 @@ public partial class CatalogView : UserControl
         comboBox.SelectedItem = selected is not null && comboBox.Items.Contains(selected) ? selected : "Все";
     }
 
+    private static void SetShaftFilterItems(ComboBox comboBox, IReadOnlyList<int> values)
+    {
+        var selected = SelectedShaftFilter(comboBox);
+        var items = new[] { new ShaftFilterOption(null, "Все") }
+            .Concat(values.Select(value => new ShaftFilterOption(value, value.ToString(CultureInfo.CurrentCulture))))
+            .ToArray();
+        comboBox.ItemsSource = items;
+        comboBox.SelectedItem = items.FirstOrDefault(item => item.Value == selected) ?? items[0];
+    }
+
+    private static int? SelectedShaftFilter(ComboBox comboBox)
+    {
+        if (comboBox.SelectedItem is ShaftFilterOption option)
+            return option.Value;
+
+        var text = comboBox.Text.Trim();
+        if (string.IsNullOrEmpty(text) || string.Equals(text, "Все", StringComparison.OrdinalIgnoreCase))
+            return null;
+        if (int.TryParse(text, NumberStyles.Integer, CultureInfo.CurrentCulture, out var value) && value > 0)
+            return value;
+
+        throw new CatalogApiException("Введите корректное положительное целое значение вала.");
+    }
     private static void SetDimensionFilterItems(ComboBox comboBox, IReadOnlyList<decimal> values)
     {
         var selected = SelectedDimensionFilter(comboBox, string.Empty);
@@ -1081,6 +1099,10 @@ public partial class CatalogView : UserControl
 
     private sealed record StatusOption(DieCutStatus Value, string Name);
 
+    private sealed record ShaftFilterOption(int? Value, string Display)
+    {
+        public override string ToString() => Display;
+    }
     private sealed record DimensionFilterOption(decimal? Value, string Display)
     {
         public override string ToString() => Display;

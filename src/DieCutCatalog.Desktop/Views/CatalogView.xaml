@@ -112,21 +112,22 @@
                     BorderBrush="{StaticResource DividerBrush}" BorderThickness="1" CornerRadius="5">
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="2*" MinWidth="150" />
+                        <ColumnDefinition Width="130" />
                         <ColumnDefinition Width="8" />
-                        <ColumnDefinition Width="*" MinWidth="70" />
+                        <ColumnDefinition Width="130" />
                         <ColumnDefinition Width="8" />
-                        <ColumnDefinition Width="*" MinWidth="70" />
+                        <ColumnDefinition Width="130" />
                         <ColumnDefinition Width="8" />
-                        <ColumnDefinition Width="*" MinWidth="90" />
+                        <ColumnDefinition Width="220" />
                         <ColumnDefinition Width="8" />
-                        <ColumnDefinition Width="*" MinWidth="90" />
+                        <ColumnDefinition Width="220" />
                         <ColumnDefinition Width="8" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <TextBox x:Name="SearchBox" Style="{StaticResource CompactTextBox}"
-                             ToolTip="Поиск по номеру ножа, заказу JC, материалу и комментарию"
-                             KeyDown="SearchBox_KeyDown" />
+                    <ComboBox x:Name="ShaftFilter" Style="{StaticResource CompactComboBox}"
+                              IsEditable="True" IsTextSearchEnabled="True" StaysOpenOnEdit="True"
+                              ToolTip="Вал" />
                     <ComboBox x:Name="LabelWidthFilter" Grid.Column="2" Style="{StaticResource CompactComboBox}"
                               IsEditable="True" IsTextSearchEnabled="True" StaysOpenOnEdit="True"
                               ToolTip="Ширина этикетки L" />
@@ -138,7 +139,7 @@
                     <ComboBox x:Name="FigureFilter" Grid.Column="8" Style="{StaticResource CompactComboBox}"
                               ToolTip="Фигура" />
                     <ui:Button Grid.Column="10" Width="38" Height="34" Padding="0" Appearance="Primary"
-                               ToolTip="Применить поиск и фильтры" Click="ApplyFilters_Click">
+                               ToolTip="Применить фильтры" Click="ApplyFilters_Click">
                         <ui:Button.Icon><ui:SymbolIcon Symbol="Search20" /></ui:Button.Icon>
                     </ui:Button>
                 </Grid>

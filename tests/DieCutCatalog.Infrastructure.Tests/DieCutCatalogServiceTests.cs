@@ -201,7 +201,7 @@ public sealed class DieCutCatalogServiceTests
     public async Task Search_FiltersAndSortsByLabelDimensionsBeforePagination()
     {
         await using var fixture = CreateFixture();
-        await fixture.Service.CreateAsync(NewDieCut("W80", "Nilpeter/Lesko", x: 80) with { Y = 60 }, fixture.EmployeeId);
+        await fixture.Service.CreateAsync(NewDieCut("W80", "Nilpeter/Lesko", x: 80) with { Y = 60, Shaft = 80 }, fixture.EmployeeId);
         await fixture.Service.CreateAsync(NewDieCut("W40", "Nilpeter/Lesko", x: 40) with { Y = 40 }, fixture.EmployeeId);
         await fixture.Service.CreateAsync(NewDieCut("W60", "Nilpeter/Lesko", x: 60) with { Y = 40 }, fixture.EmployeeId);
 
@@ -211,11 +211,15 @@ public sealed class DieCutCatalogServiceTests
         var filtered = await fixture.Service.SearchAsync(new DieCutQuery(
             null, null, null, null, null, null, null, 40, 40, null,
             Page: 1, PageSize: 10, SortBy: DieCutSortField.LabelWidth));
+        var byShaft = await fixture.Service.SearchAsync(new DieCutQuery(
+            null, null, null, null, null, null, null, null, null, 80,
+            Page: 1, PageSize: 10));
 
         Assert.Equal(3, sorted.Total);
         Assert.Equal(new[] { "W80", "W60" }, sorted.Items.Select(item => item.Number));
         Assert.Equal(2, filtered.Total);
         Assert.Equal(new[] { "W40", "W60" }, filtered.Items.Select(item => item.Number));
+        Assert.Equal("W80", Assert.Single(byShaft.Items).Number);
     }
     [Fact]
     public async Task Update_ChangesCardAndCreatesEquipmentFacet()
@@ -240,6 +244,7 @@ public sealed class DieCutCatalogServiceTests
         Assert.Contains("PP60 TOP WHITE", facets.Materials);
         Assert.Contains(85m, facets.LabelWidths);
         Assert.Contains(74m, facets.LabelLengths);
+        Assert.Contains(96, facets.Shafts);
     }
 
     [Fact]

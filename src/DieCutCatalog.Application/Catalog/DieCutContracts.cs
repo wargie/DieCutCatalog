@@ -117,7 +117,8 @@ public sealed record CatalogFacets(
     IReadOnlyList<string> Materials,
     IReadOnlyList<string> Figures,
     IReadOnlyList<decimal> LabelWidths,
-    IReadOnlyList<decimal> LabelLengths);
+    IReadOnlyList<decimal> LabelLengths,
+    IReadOnlyList<int> Shafts);
 
 public enum DieCutSortField
 {
