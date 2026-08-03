@@ -17,12 +17,12 @@
 3. Опубликуйте архив на сервере:
 
 ```powershell
-./scripts/Build-ClientRelease.ps1 -Version 1.5.0
+./scripts/Build-ClientRelease.ps1 -Version 1.5.1
 
 ./scripts/Publish-ClientUpdate.ps1 `
-  -Version 1.5.0 `
-  -PackagePath ./artifacts/release/DieCutCatalog-1.5.0-win-x64.zip `
-  -ReleaseName "DieCut Catalog 1.5.0" `
+  -Version 1.5.1 `
+  -PackagePath ./artifacts/release/DieCutCatalog-1.5.1-win-x64.zip `
+  -ReleaseName "DieCut Catalog 1.5.1" `
   -Notes "Краткое описание изменений"
 ```
 

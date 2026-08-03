@@ -37,7 +37,13 @@ internal sealed partial class CatalogApiClient
             throw new CatalogApiException("Сервер вернул некорректный манифест обновления.");
         }
 
-        var temporaryPath = destinationPath + ".download";
+        if (await IsPackageValidAsync(destinationPath, manifest, cancellationToken))
+        {
+            progress?.Report(new ClientUpdateDownloadProgress(manifest.Size, manifest.Size));
+            return;
+        }
+
+        var temporaryPath = destinationPath + $".{Guid.NewGuid():N}.download";
         try
         {
             using var request = CreateRequest(HttpMethod.Get, $"api/updates/files/{Uri.EscapeDataString(manifest.FileName)}", authorize: false);
@@ -84,11 +90,35 @@ internal sealed partial class CatalogApiClient
         {
             throw new CatalogApiException("Сервер не ответил вовремя.", exception);
         }
+        catch (IOException exception)
+        {
+            throw new CatalogApiException(
+                "Не удалось сохранить пакет обновления. Закройте другие окна DieCut Catalog и повторите попытку.",
+                exception);
+        }
         finally
         {
             if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
         }
     }
 
+    private static async Task<bool> IsPackageValidAsync(
+        string path,
+        ClientUpdateManifest manifest,
+        CancellationToken cancellationToken)
+    {
+        if (!File.Exists(path) || new FileInfo(path).Length != manifest.Size) return false;
+
+        try
+        {
+            await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            var hash = Convert.ToHexString(await SHA256.HashDataAsync(stream, cancellationToken));
+            return string.Equals(hash, manifest.Sha256, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+    }
     private static bool IsValidSha256(string value) => value.Length == 64 && value.All(Uri.IsHexDigit);
 }

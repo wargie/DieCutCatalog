@@ -20,6 +20,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     private readonly CatalogApiClient _api = new();
     private EmployeeProfile? _profile;
     private bool _isClosing;
+    private bool _isUpdateWorkflowRunning;
 
     public MainWindow()
     {
@@ -295,6 +296,21 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
     private async Task CheckForUpdatesAsync(bool notifyWhenCurrent)
     {
+        if (_isUpdateWorkflowRunning)
+        {
+            if (notifyWhenCurrent)
+            {
+                MessageBox.Show(
+                    "Проверка или загрузка обновления уже выполняется.",
+                    "Обновления DieCut Catalog",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            return;
+        }
+
+        _isUpdateWorkflowRunning = true;
+        CheckUpdatesButton.IsEnabled = false;
         var updateAccepted = false;
         try
         {
@@ -340,6 +356,11 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         catch (Exception exception) when (!notifyWhenCurrent)
         {
             MessageBox.Show(exception.Message, "Обновление DieCut Catalog", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            _isUpdateWorkflowRunning = false;
+            if (!_isClosing) CheckUpdatesButton.IsEnabled = true;
         }
     }
 
