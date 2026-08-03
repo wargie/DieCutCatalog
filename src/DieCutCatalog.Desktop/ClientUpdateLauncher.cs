@@ -16,11 +16,37 @@ internal static class ClientUpdateLauncher
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "DieCutCatalog",
             "Updates",
-            version);
+            version,
+            Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(updateDirectory);
         return Path.Combine(updateDirectory, manifest.FileName);
     }
 
+    public static void DiscardPackage(string packagePath)
+    {
+        try
+        {
+            var updateRoot = Path.GetFullPath(Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "DieCutCatalog",
+                "Updates"));
+            var packageDirectory = Path.GetFullPath(Path.GetDirectoryName(packagePath)!);
+            var rootPrefix = updateRoot.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            if (packageDirectory.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase)
+                && Directory.Exists(packageDirectory))
+            {
+                Directory.Delete(packageDirectory, recursive: true);
+            }
+        }
+        catch (IOException)
+        {
+            // A failed attempt is isolated and can be removed by a later maintenance pass.
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Cleanup must not replace the update error shown to the user.
+        }
+    }
     public static void Start(ClientUpdateManifest manifest, string packagePath)
     {
         var applicationDirectory = Path.GetFullPath(AppContext.BaseDirectory);

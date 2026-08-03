@@ -73,14 +73,24 @@ internal sealed partial class CatalogApiClient
                 throw new CatalogApiException("Размер загруженного обновления не совпадает с опубликованным.");
             }
 
-            await using var verificationStream = File.OpenRead(temporaryPath);
-            var actualHash = Convert.ToHexString(await SHA256.HashDataAsync(verificationStream, cancellationToken));
+            string actualHash;
+            await using (var verificationStream = new FileStream(
+                temporaryPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                81920,
+                useAsync: true))
+            {
+                actualHash = Convert.ToHexString(await SHA256.HashDataAsync(verificationStream, cancellationToken));
+            }
+
             if (!string.Equals(actualHash, manifest.Sha256, StringComparison.OrdinalIgnoreCase))
             {
                 throw new CatalogApiException("Контрольная сумма обновления не совпадает. Файл удалён.");
             }
 
-            File.Move(temporaryPath, destinationPath, overwrite: true);
+            await MoveDownloadedPackageAsync(temporaryPath, destinationPath, cancellationToken);
         }
         catch (HttpRequestException exception)
         {
@@ -98,10 +108,44 @@ internal sealed partial class CatalogApiClient
         }
         finally
         {
-            if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
+            TryDeleteFile(temporaryPath);
         }
     }
 
+    private static void TryDeleteFile(string path)
+    {
+        try
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+        catch (IOException)
+        {
+            // A locked temporary file will be isolated in its attempt directory and can be removed later.
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Preserve the original update error.
+        }
+    }
+    private static async Task MoveDownloadedPackageAsync(
+        string temporaryPath,
+        string destinationPath,
+        CancellationToken cancellationToken)
+    {
+        const int retryCount = 20;
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                File.Move(temporaryPath, destinationPath, overwrite: true);
+                return;
+            }
+            catch (IOException) when (attempt < retryCount)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken);
+            }
+        }
+    }
     private static async Task<bool> IsPackageValidAsync(
         string path,
         ClientUpdateManifest manifest,

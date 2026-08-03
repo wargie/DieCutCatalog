@@ -12,6 +12,8 @@
 
 Переход с версии 1.3.0 или более ранней на 1.4.0 необходимо выполнить вручную один раз, поскольку в старом клиенте updater ещё отсутствует. Все последующие обновления устанавливаются автоматически.
 
+Из-за ошибки блокировки ZIP в клиентах 1.6.0–1.6.1 переход на 1.6.2 также выполняется вручную один раз. Начиная с 1.6.2 пакет сохраняется после закрытия потока проверки, каждая попытка изолирована в отдельном каталоге, а временные блокировки файлов автоматически повторяются.
+
 ## Публикация обновления
 
 1. Увеличьте версию в `Directory.Build.props`.
@@ -19,12 +21,12 @@
 3. Опубликуйте архив на сервере:
 
 ```powershell
-./scripts/Build-ClientRelease.ps1 -Version 1.6.1
+./scripts/Build-ClientRelease.ps1 -Version 1.6.2
 
 ./scripts/Publish-ClientUpdate.ps1 `
-  -Version 1.6.1 `
-  -PackagePath ./artifacts/release/DieCutCatalog-1.6.1-win-x64.zip `
-  -ReleaseName "DieCut Catalog 1.6.1" `
+  -Version 1.6.2 `
+  -PackagePath ./artifacts/release/DieCutCatalog-1.6.2-win-x64.zip `
+  -ReleaseName "DieCut Catalog 1.6.2" `
   -Notes "Краткое описание изменений"
 ```
 

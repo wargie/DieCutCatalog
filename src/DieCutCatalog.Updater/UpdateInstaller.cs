@@ -9,6 +9,8 @@ internal static class UpdateInstaller
     private const string ClientExecutableName = "DieCutCatalog.Desktop.exe";
     private const int MaxArchiveEntries = 10_000;
     private const long MaxExtractedSize = 1024L * 1024 * 1024;
+    private const int FileOperationRetryCount = 20;
+    private static readonly TimeSpan FileOperationRetryDelay = TimeSpan.FromMilliseconds(250);
 
     public static async Task ApplyAsync(UpdateArguments arguments, IProgress<UpdateProgress> progress)
     {
@@ -45,7 +47,7 @@ internal static class UpdateInstaller
                 if (existed)
                 {
                     Directory.CreateDirectory(Path.GetDirectoryName(backupPath)!);
-                    File.Copy(targetPath, backupPath, overwrite: true);
+                    await ExecuteFileOperationAsync(() => File.Copy(targetPath, backupPath, overwrite: true));
                 }
 
                 installedFiles.Add(new InstalledFile(targetPath, backupPath, existed));
@@ -60,8 +62,8 @@ internal static class UpdateInstaller
                 Directory.CreateDirectory(Path.GetDirectoryName(file.TargetPath)!);
 
                 var temporaryTarget = file.TargetPath + ".update-new";
-                File.Copy(sourcePath, temporaryTarget, overwrite: true);
-                File.Move(temporaryTarget, file.TargetPath, overwrite: true);
+                await ExecuteFileOperationAsync(() => File.Copy(sourcePath, temporaryTarget, overwrite: true));
+                await ExecuteFileOperationAsync(() => File.Move(temporaryTarget, file.TargetPath, overwrite: true));
                 var percentage = 55 + (int)Math.Round((index + 1d) / installedFiles.Count * 40d);
                 progress.Report(new UpdateProgress(percentage, $"Установка файлов: {index + 1} из {installedFiles.Count}"));
             }
@@ -69,7 +71,7 @@ internal static class UpdateInstaller
         catch
         {
             progress.Report(new UpdateProgress(55, "Ошибка установки. Восстановление предыдущей версии..."));
-            RollBack(installedFiles);
+            await RollBackAsync(installedFiles);
             throw;
         }
         finally
@@ -153,7 +155,7 @@ internal static class UpdateInstaller
             : throw new InvalidOperationException($"Пакет не содержит {ClientExecutableName} в ожидаемом расположении.");
     }
 
-    private static void RollBack(IEnumerable<InstalledFile> installedFiles)
+    private static async Task RollBackAsync(IEnumerable<InstalledFile> installedFiles)
     {
         foreach (var file in installedFiles.Reverse())
         {
@@ -162,15 +164,16 @@ internal static class UpdateInstaller
                 if (file.Existed)
                 {
                     Directory.CreateDirectory(Path.GetDirectoryName(file.TargetPath)!);
-                    File.Copy(file.BackupPath, file.TargetPath, overwrite: true);
+                    await ExecuteFileOperationAsync(() => File.Copy(file.BackupPath, file.TargetPath, overwrite: true));
                 }
                 else if (File.Exists(file.TargetPath))
                 {
-                    File.Delete(file.TargetPath);
+                    await ExecuteFileOperationAsync(() => File.Delete(file.TargetPath));
                 }
 
                 var temporaryTarget = file.TargetPath + ".update-new";
-                if (File.Exists(temporaryTarget)) File.Delete(temporaryTarget);
+                if (File.Exists(temporaryTarget))
+                    await ExecuteFileOperationAsync(() => File.Delete(temporaryTarget));
             }
             catch
             {
@@ -179,6 +182,21 @@ internal static class UpdateInstaller
         }
     }
 
+    private static async Task ExecuteFileOperationAsync(Action operation)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                operation();
+                return;
+            }
+            catch (IOException) when (attempt < FileOperationRetryCount)
+            {
+                await Task.Delay(FileOperationRetryDelay);
+            }
+        }
+    }
     private static string GetSafeChildPath(string root, string relativePath)
     {
         var fullRoot = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;

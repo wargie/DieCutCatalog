@@ -11,8 +11,17 @@ namespace DieCutCatalog.Desktop;
 
 internal sealed partial class CatalogApiClient : IDisposable
 {
-    private readonly HttpClient _httpClient = new();
+    private readonly HttpClient _httpClient;
     private readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web);
+
+    public CatalogApiClient() : this(new HttpClient())
+    {
+    }
+
+    internal CatalogApiClient(HttpClient httpClient)
+    {
+        _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+    }
     private Uri? _baseAddress;
 
     public string? AccessToken { get; private set; }

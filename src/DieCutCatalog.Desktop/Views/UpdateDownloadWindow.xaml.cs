@@ -32,7 +32,7 @@ public partial class UpdateDownloadWindow : Window
             DownloadProgress.Value = 100;
             PercentageText.Text = "100 %";
             SizeText.Text = $"Загружено {FormatSize(_manifest.Size)}";
-            StatusText.Text = "Пакет загружен и проверен.";
+            StatusText.Text = "Пакет загружен, проверен и готов к установке.";
             _isRunning = false;
             DialogResult = true;
         }
@@ -55,6 +55,7 @@ public partial class UpdateDownloadWindow : Window
         DownloadProgress.Value = progress.Percentage;
         PercentageText.Text = $"{progress.Percentage} %";
         SizeText.Text = $"Загружено {FormatSize(progress.BytesReceived)} из {FormatSize(progress.TotalBytes)}";
+        if (progress.Percentage >= 100) StatusText.Text = "Проверка целостности пакета...";
     }
 
     private void CancelButton_Click(object sender, RoutedEventArgs e)

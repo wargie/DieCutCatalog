@@ -363,14 +363,22 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             var packagePath = ClientUpdateLauncher.PreparePackagePath(manifest);
 
             var downloadWindow = new UpdateDownloadWindow(_api, manifest, packagePath) { Owner = this };
-            if (downloadWindow.ShowDialog() != true) return;
+            if (downloadWindow.ShowDialog() != true)
+            {
+                ClientUpdateLauncher.DiscardPackage(packagePath);
+                return;
+            }
 
             var shouldInstall = MessageBox.Show(
                 $"Обновление {manifest.Version} загружено и проверено.\n\nУстановить его сейчас? Приложение будет закрыто и запущено снова.",
                 "Установка обновления",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question);
-            if (shouldInstall != MessageBoxResult.Yes) return;
+            if (shouldInstall != MessageBoxResult.Yes)
+            {
+                ClientUpdateLauncher.DiscardPackage(packagePath);
+                return;
+            }
 
             ClientUpdateLauncher.Start(manifest, packagePath);
             Close();

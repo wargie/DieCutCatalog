@@ -30,6 +30,27 @@ public sealed class UpdateInstallerTests : IDisposable
     }
 
     [Fact]
+    public async Task Apply_RetriesTemporarilyLockedInstalledFile()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        var target = Path.Combine(_root, "client");
+        Directory.CreateDirectory(target);
+        var executable = Path.Combine(target, "DieCutCatalog.Desktop.exe");
+        await File.WriteAllTextAsync(executable, "old-exe");
+
+        var package = CreatePackage(("DieCutCatalog.Desktop.exe", "new-exe"));
+        var arguments = new UpdateArguments(package, target, executable, int.MaxValue, "9.9.9");
+        using var fileLock = new FileStream(executable, FileMode.Open, FileAccess.Read, FileShare.None);
+
+        var updateTask = UpdateInstaller.ApplyAsync(arguments, new CollectingProgress());
+        await Task.Delay(350);
+        fileLock.Dispose();
+        await updateTask;
+
+        Assert.Equal("new-exe", await File.ReadAllTextAsync(executable));
+    }
+    [Fact]
     public async Task Apply_RejectsPathTraversal()
     {
         var target = Path.Combine(_root, "client");

@@ -25,6 +25,8 @@ jobs:
         run: dotnet test tests/DieCutCatalog.Infrastructure.Tests/DieCutCatalog.Infrastructure.Tests.csproj --configuration Release --no-build --logger "trx;LogFileName=unit.trx" --results-directory TestResults
       - name: Updater tests
         run: dotnet test tests/DieCutCatalog.Updater.Tests/DieCutCatalog.Updater.Tests.csproj --configuration Release --no-build --logger "trx;LogFileName=updater.trx" --results-directory TestResults
+      - name: Desktop update tests
+        run: dotnet test tests/DieCutCatalog.Desktop.Tests/DieCutCatalog.Desktop.Tests.csproj --configuration Release --no-build --logger "trx;LogFileName=desktop.trx" --results-directory TestResults
       - name: Upload unit test results
         if: always()
         uses: actions/upload-artifact@v4
