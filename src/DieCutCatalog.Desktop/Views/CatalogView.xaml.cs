@@ -49,6 +49,7 @@ public partial class CatalogView : UserControl
     private DieCutStatus _loadedStatus = DieCutStatus.Active;
     private string? _pendingPdfPath;
     private DieCutDocumentDetails? _currentDocument;
+    private DieCutDetails? _currentDetails;
 
     public CatalogView()
     {
@@ -318,6 +319,34 @@ public partial class CatalogView : UserControl
         }
     }
 
+    private async void CalculateJustCutPrice_Click(object sender, RoutedEventArgs e)
+    {
+        if (_api is null || _editingId is null || _currentDetails is null) return;
+        var dialog = new JustCutPriceWindow(_currentDetails) { Owner = Window.GetWindow(this) };
+        if (dialog.ShowDialog() != true || dialog.Parameters is null) return;
+
+        CalculateJustCutButton.IsEnabled = false;
+        JustCutPriceText.Text = "Выполняется расчёт…";
+        JustCutPriceDetailsText.Text = "Ожидаем ответ тестовой системы JustCut";
+        try
+        {
+            var result = await _api.CalculateJustCutPriceAsync(_editingId.Value, dialog.Parameters);
+            JustCutPriceText.Text = $"{result.Amount:N0} ₽";
+            JustCutPriceDetailsText.Text =
+                $"Окончательная цена с НДС · {result.Environment} · " +
+                result.CalculatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm", CultureInfo.CurrentCulture);
+        }
+        catch (CatalogApiException exception)
+        {
+            JustCutPriceText.Text = "Расчёт не выполнен";
+            JustCutPriceDetailsText.Text = exception.Message;
+        }
+        finally
+        {
+            CalculateJustCutButton.IsEnabled = true;
+        }
+    }
+
     private async void UploadPdf_Click(object sender, RoutedEventArgs e)
     {
         if (_api is null || _editingId is null) return;
@@ -437,12 +466,14 @@ public partial class CatalogView : UserControl
         _editingId = null;
         _pendingPdfPath = null;
         _currentDocument = null;
+        _currentDetails = null;
         DieCutsGrid.SelectedItem = null;
         _events.Clear();
         ClearEditorFields();
         OperationsPanel.Visibility = Visibility.Collapsed;
         EventsSection.Visibility = Visibility.Collapsed;
         DrawingSection.Visibility = Visibility.Collapsed;
+        JustCutSection.Visibility = Visibility.Collapsed;
         EditorStatusBadge.Visibility = Visibility.Collapsed;
         EditorTitle.Text = "Новый нож";
         EditorStatus.Text = string.Empty;
@@ -769,6 +800,7 @@ public partial class CatalogView : UserControl
     private void FillEditor(DieCutDetails details)
     {
         _editingId = details.Id;
+        _currentDetails = details;
         EditorTitle.Text = $"Нож {details.Number}";
         NumberBox.Text = details.Number;
         JcOrderNumberBox.Text = details.JcOrderNumber;
@@ -804,6 +836,10 @@ public partial class CatalogView : UserControl
         OperationsPanel.Visibility = Visibility.Visible;
         EventsSection.Visibility = Visibility.Visible;
         DrawingSection.Visibility = Visibility.Visible;
+        JustCutSection.Visibility = Visibility.Visible;
+        JustCutPriceText.Text = "Расчёт не выполнялся";
+        JustCutPriceDetailsText.Text = "Окончательная цена с НДС, заказ не создаётся";
+        CalculateJustCutButton.IsEnabled = true;
         SetDrawingButtonsEnabled(true);
         var operational = details.Status is not DieCutStatus.Retired and not DieCutStatus.Deleted;
         SaveButton.IsEnabled = operational;
@@ -822,13 +858,13 @@ public partial class CatalogView : UserControl
         QuantityModeRadio.IsChecked = true; CirculationBox.Clear(); RunLengthInputBox.Clear();
         MileageText.Text = "0"; RunLengthMetersText.Text = FormatRunMetric(0); RevolutionsText.Text = "0";
         ResourceStateText.Text = "Ресурс не начислен"; GenerationText.Text = "Нож №1"; LifetimeUsageText.Text = "Общий ресурс: 0 шт · 0,00 м · 0 об.";
-        ResourceProgressBar.Maximum = 1_000_000; ResourceProgressBar.Value = 0;
+        ResourceProgressBar.Maximum = 500_000; ResourceProgressBar.Value = 0;
         StatusBox.IsEnabled = true;
     }
 
     private void UpdateResourceIndicators(DieCutDetails details)
     {
-        var threshold = Math.Max(details.NextInspectionRevolutions, 1_000_000);
+        var threshold = Math.Max(details.NextInspectionRevolutions, 500_000);
         var warningAt = Math.Max(0, threshold - 100_000);
         var requiresInspection = details.Status == DieCutStatus.NeedsInspection || details.Revolutions >= threshold;
         var warning = !requiresInspection && details.Revolutions >= warningAt;
@@ -920,7 +956,7 @@ public partial class CatalogView : UserControl
 
     private void OpenEditor()
     {
-        EditorColumn.Width = new GridLength(510);
+        EditorColumn.Width = new GridLength(0_0);
         EditorPanel.Visibility = Visibility.Visible;
     }
 
@@ -932,11 +968,13 @@ public partial class CatalogView : UserControl
         OperationsPanel.Visibility = Visibility.Collapsed;
         EventsSection.Visibility = Visibility.Collapsed;
         DrawingSection.Visibility = Visibility.Collapsed;
+        JustCutSection.Visibility = Visibility.Collapsed;
         EditorStatusBadge.Visibility = Visibility.Collapsed;
         EditorColumn.Width = new GridLength(0);
         _editingId = null;
         _pendingPdfPath = null;
         _currentDocument = null;
+        _currentDetails = null;
         _events.Clear();
         DocumentNameText.Text = "PDF не прикреплён";
         OpenPdfButton.IsEnabled = false;
@@ -1117,7 +1155,7 @@ public partial class CatalogView : UserControl
         {
             get
             {
-                var threshold = Math.Max(Source.NextInspectionRevolutions, 1_000_000);
+                var threshold = Math.Max(Source.NextInspectionRevolutions, 500_000);
                 var color = Source.Status switch
                 {
                     DieCutStatus.Retired => System.Windows.Media.Color.FromRgb(245, 245, 245),
@@ -1184,3 +1222,7 @@ public partial class CatalogView : UserControl
         }
     }
 }
+
+
+
+

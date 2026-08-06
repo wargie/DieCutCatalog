@@ -8,8 +8,8 @@ namespace DieCutCatalog.Infrastructure.Catalog;
 
 public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCatalogService
 {
-    public const long InspectionIntervalRevolutions = 1_000_000;
-    public const long WarningRevolutions = 900_000;
+    public const long InspectionIntervalRevolutions = 500_000;
+    public const long WarningRevolutions = 400_000;
     public async Task<PagedResult<DieCutSummary>> SearchAsync(DieCutQuery query, CancellationToken cancellationToken = default)
     {
         var page = Math.Max(query.Page, 1);
@@ -434,3 +434,4 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
         x.RunLengthMeters, x.Revolutions, x.LifetimeMileage, x.LifetimeRunLengthMeters, x.LifetimeRevolutions,
         x.Generation, x.NextInspectionRevolutions, x.Status, x.CreatedAt, x.UpdatedAt);
 }
+

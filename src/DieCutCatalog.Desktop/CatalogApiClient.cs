@@ -120,7 +120,12 @@ internal sealed partial class CatalogApiClient : IDisposable
         return response.StatusCode == HttpStatusCode.NotFound ? null : await response.Content.ReadAsByteArrayAsync();
     }
 
-    private async Task<T> SendAsync<T>(HttpMethod method, string path, object? body = null, bool authorize = true)
+    private async Task<T> SendAsync<T>(
+        HttpMethod method,
+        string path,
+        object? body = null,
+        bool authorize = true,
+        string? notFoundMessage = null)
     {
         using var request = CreateRequest(method, path, authorize);
         request.Content = body switch
@@ -129,7 +134,7 @@ internal sealed partial class CatalogApiClient : IDisposable
             HttpContent content => content,
             _ => JsonContent.Create(body, options: _jsonOptions)
         };
-        using var response = await SendCoreAsync(request);
+        using var response = await SendCoreAsync(request, notFoundMessage: notFoundMessage);
         return await response.Content.ReadFromJsonAsync<T>(_jsonOptions)
             ?? throw new CatalogApiException("Сервер вернул пустой ответ.");
     }
@@ -150,7 +155,10 @@ internal sealed partial class CatalogApiClient : IDisposable
         return request;
     }
 
-    private async Task<HttpResponseMessage> SendCoreAsync(HttpRequestMessage request, bool allowNotFound = false)
+    private async Task<HttpResponseMessage> SendCoreAsync(
+        HttpRequestMessage request,
+        bool allowNotFound = false,
+        string? notFoundMessage = null)
     {
         try
         {
@@ -158,7 +166,7 @@ internal sealed partial class CatalogApiClient : IDisposable
             try
             {
                 if (!allowNotFound || response.StatusCode != HttpStatusCode.NotFound)
-                    await EnsureSuccessAsync(response);
+                    await EnsureSuccessAsync(response, notFoundMessage);
                 return response;
             }
             catch
@@ -177,7 +185,9 @@ internal sealed partial class CatalogApiClient : IDisposable
         }
     }
 
-    private static async Task EnsureSuccessAsync(HttpResponseMessage response)
+    private static async Task EnsureSuccessAsync(
+        HttpResponseMessage response,
+        string? notFoundMessage = null)
     {
         if (response.IsSuccessStatusCode) return;
         string? message = null;
@@ -188,6 +198,7 @@ internal sealed partial class CatalogApiClient : IDisposable
             HttpStatusCode.Unauthorized => "Неверная почта или пароль.",
             HttpStatusCode.Forbidden => "Недостаточно прав для выполнения операции.",
             HttpStatusCode.TooManyRequests => "Слишком много попыток. Повторите позже.",
+            HttpStatusCode.NotFound when !string.IsNullOrWhiteSpace(notFoundMessage) => notFoundMessage,
             _ => $"Сервер отклонил запрос ({(int)response.StatusCode})."
         };
         throw new CatalogApiException(message);

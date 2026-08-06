@@ -3,6 +3,7 @@ using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
 using System.ComponentModel.DataAnnotations;
+using DieCutCatalog.Application.Catalog;
 using DieCutCatalog.Application.Employees;
 using DieCutCatalog.Domain.Employees;
 using DieCutCatalog.Infrastructure;
@@ -62,6 +63,10 @@ app.Use(async (context, next) =>
             context,
             StatusCodes.Status503ServiceUnavailable,
             "Не удалось отправить письмо. Учётная запись не создана.");
+    }
+    catch (JustCutIntegrationException exception)
+    {
+        await WriteErrorAsync(context, StatusCodes.Status502BadGateway, exception.Message);
     }
 });
 

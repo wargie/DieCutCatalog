@@ -84,6 +84,10 @@ SMTP_PASSWORD=ПАРОЛЬ_SMTP
 SMTP_FROM_ADDRESS=mailer@example.com
 SMTP_FROM_NAME="DieCut Catalog"
 SMTP_ENABLE_SSL=true
+JUSTCUT_BASE_URL=http://api1c.justcut.ru:8081/jctest/hs/jcexch/
+JUSTCUT_UID_CONTRAGENT=ИДЕНТИФИКАТОР_КОНТРАГЕНТА
+JUSTCUT_ENVIRONMENT=Test
+JUSTCUT_TIMEOUT_SECONDS=60
 ~~~
 
 Генерация секрета: **openssl rand -base64 36**.

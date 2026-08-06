@@ -30,7 +30,7 @@ public sealed class DieCut
     public decimal LifetimeRunLengthMeters { get; set; }
     public long LifetimeRevolutions { get; set; }
     public int Generation { get; set; } = 1;
-    public long NextInspectionRevolutions { get; set; } = 1_000_000;
+    public long NextInspectionRevolutions { get; set; } = 500_000;
     public DieCutStatus Status { get; set; } = DieCutStatus.Active;
 
     public Guid CreatedByEmployeeId { get; set; }
@@ -41,3 +41,4 @@ public sealed class DieCut
     public ICollection<DieCutEvent> Events { get; set; } = new List<DieCutEvent>();
     public ICollection<DieCutDocument> Documents { get; set; } = new List<DieCutDocument>();
 }
+

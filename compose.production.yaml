@@ -18,6 +18,10 @@ services:
       Smtp__FromAddress: ${SMTP_FROM_ADDRESS}
       Smtp__FromName: ${SMTP_FROM_NAME:-DieCut Catalog}
       Smtp__EnableSsl: ${SMTP_ENABLE_SSL:-true}
+      JustCut__BaseUrl: ${JUSTCUT_BASE_URL:-http://api1c.justcut.ru:8081/jctest/hs/jcexch/}
+      JustCut__UidContragent: ${JUSTCUT_UID_CONTRAGENT}
+      JustCut__Environment: ${JUSTCUT_ENVIRONMENT:-Test}
+      JustCut__TimeoutSeconds: ${JUSTCUT_TIMEOUT_SECONDS:-60}
     ports:
       - "127.0.0.1:5080:8080"
     volumes:
