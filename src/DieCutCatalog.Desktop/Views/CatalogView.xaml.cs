@@ -762,13 +762,13 @@ public partial class CatalogView : UserControl
         DateBox.SelectedDate = DateTime.Today; StatusBox.SelectedIndex = 0; CirculationBox.Clear();
         MileageText.Text = "0"; RunLengthMetersText.Text = FormatRunMetric(0); RevolutionsText.Text = "0";
         ResourceStateText.Text = "Ресурс не начислен"; GenerationText.Text = "Нож №1"; LifetimeUsageText.Text = "Общий ресурс: 0 шт · 0,00 м · 0 об.";
-        ResourceProgressBar.Maximum = 1_000_000; ResourceProgressBar.Value = 0;
+        ResourceProgressBar.Maximum = 500_000; ResourceProgressBar.Value = 0;
         StatusBox.IsEnabled = true;
     }
 
     private void UpdateResourceIndicators(DieCutDetails details)
     {
-        var threshold = Math.Max(details.NextInspectionRevolutions, 1_000_000);
+        var threshold = Math.Max(details.NextInspectionRevolutions, 500_000);
         var warningAt = Math.Max(0, threshold - 100_000);
         var requiresInspection = details.Status == DieCutStatus.NeedsInspection || details.Revolutions >= threshold;
         var warning = !requiresInspection && details.Revolutions >= warningAt;
@@ -991,7 +991,7 @@ public partial class CatalogView : UserControl
         {
             get
             {
-                var threshold = Math.Max(Source.NextInspectionRevolutions, 1_000_000);
+                var threshold = Math.Max(Source.NextInspectionRevolutions, 500_000);
                 var color = Source.Status switch
                 {
                     DieCutStatus.Retired => System.Windows.Media.Color.FromRgb(245, 245, 245),
@@ -1058,3 +1058,4 @@ public partial class CatalogView : UserControl
         }
     }
 }
+

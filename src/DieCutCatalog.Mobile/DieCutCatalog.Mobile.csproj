@@ -9,8 +9,8 @@
     <Nullable>enable</Nullable>
     <ApplicationTitle>DieCut Catalog</ApplicationTitle>
     <ApplicationId>com.flexprint.diecutcatalog</ApplicationId>
-    <ApplicationDisplayVersion>0.2.0</ApplicationDisplayVersion>
-    <ApplicationVersion>2</ApplicationVersion>
+    <ApplicationDisplayVersion>0.2.1</ApplicationDisplayVersion>
+    <ApplicationVersion>3</ApplicationVersion>
     <SupportedOSPlatformVersion>29.0</SupportedOSPlatformVersion>
     <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
   </PropertyGroup>
@@ -26,3 +26,4 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="9.0.9" />
   </ItemGroup>
 </Project>
+

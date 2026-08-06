@@ -266,15 +266,15 @@ public sealed class DieCutCatalogServiceTests
         await using var fixture = CreateFixture();
         var created = await fixture.Service.CreateAsync(NewDieCut("001", "Nilpeter/Lesko"), fixture.EmployeeId);
         var entity = await fixture.DbContext.DieCuts.SingleAsync(x => x.Id == created.Id);
-        entity.Revolutions = 999_999;
-        entity.LifetimeRevolutions = 999_999;
+        entity.Revolutions = 499_999;
+        entity.LifetimeRevolutions = 499_999;
         await fixture.DbContext.SaveChangesAsync();
 
         var updated = await fixture.Service.AddCirculationAsync(created.Id, 100, fixture.EmployeeId);
 
         Assert.NotNull(updated);
         Assert.Equal(DieCutStatus.NeedsInspection, updated.Status);
-        Assert.True(updated.Revolutions >= 1_000_000);
+        Assert.True(updated.Revolutions >= 500_000);
         Assert.Equal(updated.Revolutions, updated.LifetimeRevolutions);
     }
     [Fact]
@@ -405,3 +405,4 @@ public sealed class DieCutCatalogServiceTests
         public ValueTask DisposeAsync() => DbContext.DisposeAsync();
     }
 }
+
