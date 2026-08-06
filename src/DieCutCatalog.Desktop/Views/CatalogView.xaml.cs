@@ -956,7 +956,7 @@ public partial class CatalogView : UserControl
 
     private void OpenEditor()
     {
-        EditorColumn.Width = new GridLength(0_0);
+        EditorColumn.Width = new GridLength(510);
         EditorPanel.Visibility = Visibility.Visible;
     }
 
@@ -1222,6 +1222,7 @@ public partial class CatalogView : UserControl
         }
     }
 }
+
 
 
 
