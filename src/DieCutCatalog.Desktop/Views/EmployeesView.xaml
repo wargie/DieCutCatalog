@@ -38,22 +38,26 @@
                              ToolTip="Поиск по имени, почте, должности или телефону"
                              TextChanged="SearchBox_TextChanged" />
                     <DataGrid x:Name="EmployeesGrid" Grid.Row="2" AutoGenerateColumns="False" IsReadOnly="True"
-                              HeadersVisibility="Column" SelectionMode="Single"
+                              HeadersVisibility="Column" SelectionMode="Single" RowHeight="46"
                               SelectionChanged="EmployeesGrid_SelectionChanged">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="Сотрудник" Binding="{Binding Name}" Width="*" />
-                            <DataGridTextColumn Header="Должность" Binding="{Binding Position}" Width="120">
-                                <DataGridTextColumn.ElementStyle>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="FontSize" Value="13" />
-                                        <Setter Property="TextAlignment" Value="Center" />
-                                        <Setter Property="TextWrapping" Value="Wrap" />
-                                        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
-                                        <Setter Property="MaxHeight" Value="32" />
-                                        <Setter Property="VerticalAlignment" Value="Center" />
-                                    </Style>
-                                </DataGridTextColumn.ElementStyle>
-                            </DataGridTextColumn>
+                            <DataGridTemplateColumn Header="Сотрудник" Width="*">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Name}" TextAlignment="Center"
+                                                   VerticalAlignment="Center" TextWrapping="Wrap" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Должность" Width="120">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Position}" FontSize="13" TextAlignment="Center"
+                                                   VerticalAlignment="Center" TextWrapping="Wrap"
+                                                   LineStackingStrategy="BlockLineHeight" LineHeight="15" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                         </DataGrid.Columns>
                     </DataGrid>
                 </Grid>

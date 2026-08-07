@@ -124,6 +124,52 @@ public sealed class DieCutCatalogServiceTests
     }
 
     [Fact]
+    public async Task Create_RejectsProductionParametersAboveUpperLimits()
+    {
+        await using var fixture = CreateFixture();
+        var valid = NewDieCut("LIMIT", "Big Lesko");
+        var cases = new[]
+        {
+            (valid with { Shaft = DieCutParameterLimits.MaximumShaft + 1 }, "200"),
+            (valid with { X = DieCutParameterLimits.MaximumLabelDimensionMm + 1 }, "1000"),
+            (valid with { Y = DieCutParameterLimits.MaximumLabelDimensionMm + 1 }, "1000"),
+            (valid with { Streams = DieCutParameterLimits.MaximumStreams + 1 }, "50"),
+            (valid with { Repeats = DieCutParameterLimits.MaximumRepeats + 1 }, "100"),
+            (valid with { H = DieCutParameterLimits.MaximumMaterialWidthMm + 1 }, "520"),
+            (valid with { GrooveSpacing = DieCutParameterLimits.MaximumGrooveSpacingMm + 1 }, "520")
+        };
+
+        foreach (var (command, expectedMaximum) in cases)
+        {
+            var exception = await Assert.ThrowsAsync<ValidationException>(() =>
+                fixture.Service.CreateAsync(command, fixture.EmployeeId));
+            Assert.Contains(expectedMaximum, exception.Message, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public async Task Create_AcceptsProductionParameterUpperBoundaries()
+    {
+        await using var fixture = CreateFixture();
+        var command = NewDieCut("LIMIT", "Big Lesko") with
+        {
+            Shaft = DieCutParameterLimits.MaximumShaft,
+            X = 10,
+            Y = 6,
+            Streams = DieCutParameterLimits.MaximumStreams,
+            Repeats = DieCutParameterLimits.MaximumRepeats,
+            H = DieCutParameterLimits.MaximumMaterialWidthMm,
+            GrooveSpacing = 0,
+            LabelCornerRadius = 1
+        };
+
+        var created = await fixture.Service.CreateAsync(command, fixture.EmployeeId);
+
+        Assert.Equal(DieCutParameterLimits.MaximumStreams, created.Streams);
+        Assert.Equal(DieCutParameterLimits.MaximumRepeats, created.Repeats);
+        Assert.Equal(DieCutParameterLimits.MaximumMaterialWidthMm, created.H);
+    }
+    [Fact]
     public async Task Search_AppliesFiltersPaginationAndJcOrderSearch()
     {
         await using var fixture = CreateFixture();
@@ -152,6 +198,30 @@ public sealed class DieCutCatalogServiceTests
     }
 
     [Fact]
+    public async Task Search_FiltersAndSortsByLabelDimensionsBeforePagination()
+    {
+        await using var fixture = CreateFixture();
+        await fixture.Service.CreateAsync(NewDieCut("W80", "Nilpeter/Lesko", x: 80) with { Y = 60, Shaft = 80 }, fixture.EmployeeId);
+        await fixture.Service.CreateAsync(NewDieCut("W40", "Nilpeter/Lesko", x: 40) with { Y = 40 }, fixture.EmployeeId);
+        await fixture.Service.CreateAsync(NewDieCut("W60", "Nilpeter/Lesko", x: 60) with { Y = 40 }, fixture.EmployeeId);
+
+        var sorted = await fixture.Service.SearchAsync(new DieCutQuery(
+            null, null, null, null, null, null, null, null, null, null,
+            Page: 1, PageSize: 2, SortBy: DieCutSortField.LabelWidth, SortDescending: true));
+        var filtered = await fixture.Service.SearchAsync(new DieCutQuery(
+            null, null, null, null, null, null, null, 40, 40, null,
+            Page: 1, PageSize: 10, SortBy: DieCutSortField.LabelWidth));
+        var byShaft = await fixture.Service.SearchAsync(new DieCutQuery(
+            null, null, null, null, null, null, null, null, null, 80,
+            Page: 1, PageSize: 10));
+
+        Assert.Equal(3, sorted.Total);
+        Assert.Equal(new[] { "W80", "W60" }, sorted.Items.Select(item => item.Number));
+        Assert.Equal(2, filtered.Total);
+        Assert.Equal(new[] { "W40", "W60" }, filtered.Items.Select(item => item.Number));
+        Assert.Equal("W80", Assert.Single(byShaft.Items).Number);
+    }
+    [Fact]
     public async Task Update_ChangesCardAndCreatesEquipmentFacet()
     {
         await using var fixture = CreateFixture();
@@ -172,6 +242,9 @@ public sealed class DieCutCatalogServiceTests
         Assert.Equal(DieCutStatus.NeedsInspection, updated.Status);
         Assert.Contains("MarkAndy", facets.Equipment);
         Assert.Contains("PP60 TOP WHITE", facets.Materials);
+        Assert.Contains(85m, facets.LabelWidths);
+        Assert.Contains(74m, facets.LabelLengths);
+        Assert.Contains(96, facets.Shafts);
     }
 
     [Fact]
@@ -202,6 +275,51 @@ public sealed class DieCutCatalogServiceTests
 
         Assert.Equal(66.675m, result.RunLengthMeters);
         Assert.Equal(219, result.Revolutions);
+    }
+
+    [Fact]
+    public void CalculateRunMetricsFromMeters_UsesMetersStreamsHeightGapAndShaft()
+    {
+        var result = DieCutCalculations.CalculateRunMetricsFromMeters(
+            runLengthMeters: 66.675m,
+            streams: 4,
+            labelLengthMm: 74,
+            interLabelSpacingMeters: 0.0022m,
+            shaft: 96);
+
+        Assert.Equal(3_500, result.Quantity);
+        Assert.Equal(219, result.Revolutions);
+    }
+
+    [Fact]
+    public async Task AddCirculation_FromMetersCalculatesQuantityAndWritesEvent()
+    {
+        await using var fixture = CreateFixture();
+        var created = await fixture.Service.CreateAsync(NewDieCut("001", "Nilpeter/Lesko"), fixture.EmployeeId);
+
+        var updated = await fixture.Service.AddCirculationAsync(
+            created.Id, quantity: null, runLengthMeters: 19.05m, fixture.EmployeeId);
+        var events = await fixture.Service.GetEventsAsync(created.Id);
+
+        Assert.NotNull(updated);
+        Assert.Equal(1_000, updated.Mileage);
+        Assert.Equal(19.05m, updated.RunLengthMeters);
+        Assert.Equal(63, updated.Revolutions);
+        var circulationEvent = Assert.Single(events!, item => item.Type == DieCutEventType.CirculationAdded);
+        Assert.Equal(1_000, circulationEvent.Quantity);
+        Assert.Equal(19.05m, circulationEvent.RunLengthMetersAfter);
+    }
+
+    [Fact]
+    public async Task AddCirculation_RequiresExactlyOneInputMode()
+    {
+        await using var fixture = CreateFixture();
+        var created = await fixture.Service.CreateAsync(NewDieCut("001", "Nilpeter/Lesko"), fixture.EmployeeId);
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            fixture.Service.AddCirculationAsync(created.Id, null, null, fixture.EmployeeId));
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            fixture.Service.AddCirculationAsync(created.Id, 1_000, 19.05m, fixture.EmployeeId));
     }
 
     [Fact]

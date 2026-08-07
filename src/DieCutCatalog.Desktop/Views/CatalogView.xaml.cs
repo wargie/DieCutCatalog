@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -41,6 +42,8 @@ public partial class CatalogView : UserControl
     private Guid? _editingId;
     private int _page = 1;
     private int _total;
+    private DieCutSortField _sortBy = DieCutSortField.Default;
+    private bool _sortDescending;
     private bool _loadingCard;
     private bool _loadingEquipmentTabs;
     private DieCutStatus _loadedStatus = DieCutStatus.Active;
@@ -94,6 +97,9 @@ public partial class CatalogView : UserControl
         SetEditorItems(EquipmentBox, equipment);
         SetFilterItems(MaterialFilter, facets.Materials);
         SetFilterItems(FigureFilter, facets.Figures);
+        SetShaftFilterItems(ShaftFilter, facets.Shafts ?? []);
+        SetDimensionFilterItems(LabelWidthFilter, facets.LabelWidths);
+        SetDimensionFilterItems(LabelLengthFilter, facets.LabelLengths);
         SetEditorItems(MaterialBox, facets.Materials);
     }
 
@@ -106,10 +112,14 @@ public partial class CatalogView : UserControl
         try
         {
             var result = await _api.SearchDieCutsAsync(
-                SearchBox.Text,
                 SelectedEquipment(),
                 SelectedFilter(MaterialFilter),
                 SelectedFilter(FigureFilter),
+                SelectedDimensionFilter(LabelWidthFilter, "L"),
+                SelectedDimensionFilter(LabelLengthFilter, "B"),
+                SelectedShaftFilter(ShaftFilter),
+                _sortBy,
+                _sortDescending,
                 _page,
                 PageSize);
             _total = result.Total;
@@ -157,12 +167,6 @@ public partial class CatalogView : UserControl
         await LoadPageAsync();
     }
 
-    private async void SearchBox_KeyDown(object sender, KeyEventArgs e)
-    {
-        if (e.Key != Key.Enter) return;
-        _page = 1;
-        await LoadPageAsync();
-    }
 
     private async void PreviousPage_Click(object sender, RoutedEventArgs e)
     {
@@ -178,6 +182,29 @@ public partial class CatalogView : UserControl
         await LoadPageAsync();
     }
 
+    private async void DieCutsGrid_Sorting(object sender, DataGridSortingEventArgs e)
+    {
+        e.Handled = true;
+        var sortBy = e.Column.SortMemberPath switch
+        {
+            "LabelWidth" => DieCutSortField.LabelWidth,
+            "LabelLength" => DieCutSortField.LabelLength,
+            _ => DieCutSortField.Default
+        };
+        if (sortBy == DieCutSortField.Default) return;
+
+        var direction = _sortBy == sortBy && !_sortDescending
+            ? ListSortDirection.Descending
+            : ListSortDirection.Ascending;
+        foreach (var column in DieCutsGrid.Columns)
+            column.SortDirection = null;
+
+        _sortBy = sortBy;
+        _sortDescending = direction == ListSortDirection.Descending;
+        e.Column.SortDirection = direction;
+        _page = 1;
+        await LoadPageAsync();
+    }
     private async void DieCutsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_loadingCard || DieCutsGrid.SelectedItem is not DieCutRow row || _api is null) return;
@@ -435,6 +462,7 @@ public partial class CatalogView : UserControl
         EditorStatus.Text = string.Empty;
         try
         {
+            var pageBeforeSave = _page;
             var command = ReadCommand();
             var selectedEquipment = SelectedEquipment();
             var saved = _editingId is null
@@ -455,8 +483,12 @@ public partial class CatalogView : UserControl
                 && !string.Equals(selectedEquipment, saved.Equipment, StringComparison.OrdinalIgnoreCase))
             {
                 SelectEquipmentTab(saved.Equipment);
+                _page = 1;
             }
-            _page = 1;
+            else
+            {
+                _page = pageBeforeSave;
+            }
             await LoadPageAsync();
             SelectRow(saved.Id);
         }
@@ -475,16 +507,40 @@ public partial class CatalogView : UserControl
         if (_api is null || _editingId is null) return;
         try
         {
-            var quantity = ParsePositiveLong(CirculationBox.Text, "тираж");
+            long? quantity = null;
+            decimal? runLengthMeters = null;
+            string successMessage;
+            if (QuantityModeRadio.IsChecked == true)
+            {
+                quantity = ParsePositiveLong(CirculationBox.Text, "тираж");
+                successMessage = $"Тираж {quantity.Value:N0} добавлен";
+            }
+            else
+            {
+                runLengthMeters = ParsePositiveDecimal(RunLengthInputBox.Text, "пробег");
+                successMessage = $"Пробег {runLengthMeters.Value:N2} м добавлен";
+            }
+
             await RunOperationalActionAsync(
-                () => _api.AddCirculationAsync(_editingId.Value, quantity),
-                $"Тираж {quantity:N0} добавлен");
+                () => _api.AddCirculationAsync(_editingId.Value, quantity, runLengthMeters),
+                successMessage);
             CirculationBox.Clear();
+            RunLengthInputBox.Clear();
         }
         catch (Exception exception) when (exception is CatalogApiException or FormatException)
         {
             ShowEditorError(exception.Message);
         }
+    }
+
+    private void UsageMode_Checked(object sender, RoutedEventArgs e)
+    {
+        if (CirculationBox is null || RunLengthInputBox is null || AddCirculationButton is null) return;
+        var enabled = AddCirculationButton.IsEnabled;
+        CirculationBox.IsEnabled = enabled && QuantityModeRadio.IsChecked == true;
+        RunLengthInputBox.IsEnabled = enabled && RunLengthModeRadio.IsChecked == true;
+        if (QuantityModeRadio.IsChecked == true) RunLengthInputBox.Clear();
+        else CirculationBox.Clear();
     }
 
     private async void InstallReplacement_Click(object sender, RoutedEventArgs e)
@@ -738,6 +794,9 @@ public partial class CatalogView : UserControl
         _loadedStatus = details.Status;
         UpdateStatusBadge(details.Status);
         EditorScrollViewer.ScrollToTop();
+        QuantityModeRadio.IsChecked = true;
+        CirculationBox.Clear();
+        RunLengthInputBox.Clear();
         MileageText.Text = details.Mileage.ToString("N0", CultureInfo.CurrentCulture);
         RunLengthMetersText.Text = FormatRunMetric(details.RunLengthMeters);
         RevolutionsText.Text = details.Revolutions.ToString("N0", CultureInfo.CurrentCulture);
@@ -759,7 +818,8 @@ public partial class CatalogView : UserControl
         StreamsBox.Text = "1"; RepeatsBox.Text = "1"; GrooveSpacingBox.Text = "0"; LabelCornerRadiusBox.Text = "0";
         GapXBox.Text = "0"; GapYBox.Text = "0";
         MaterialBox.Text = string.Empty; HBox.Clear(); FigureBox.SelectedIndex = 0; CommentsBox.Clear();
-        DateBox.SelectedDate = DateTime.Today; StatusBox.SelectedIndex = 0; CirculationBox.Clear();
+        DateBox.SelectedDate = DateTime.Today; StatusBox.SelectedIndex = 0;
+        QuantityModeRadio.IsChecked = true; CirculationBox.Clear(); RunLengthInputBox.Clear();
         MileageText.Text = "0"; RunLengthMetersText.Text = FormatRunMetric(0); RevolutionsText.Text = "0";
         ResourceStateText.Text = "Ресурс не начислен"; GenerationText.Text = "Нож №1"; LifetimeUsageText.Text = "Общий ресурс: 0 шт · 0,00 м · 0 об.";
         ResourceProgressBar.Maximum = 500_000; ResourceProgressBar.Value = 0;
@@ -822,8 +882,11 @@ public partial class CatalogView : UserControl
 
     private void SetOperationalButtonsEnabled(bool enabled, bool enableDelete = true)
     {
-        CirculationBox.IsEnabled = enabled;
+        QuantityModeRadio.IsEnabled = enabled;
+        RunLengthModeRadio.IsEnabled = enabled;
         AddCirculationButton.IsEnabled = enabled;
+        CirculationBox.IsEnabled = enabled && QuantityModeRadio.IsChecked == true;
+        RunLengthInputBox.IsEnabled = enabled && RunLengthModeRadio.IsChecked == true;
         InstallReplacementButton.IsEnabled = enabled && _loadedStatus == DieCutStatus.OrderNew;
         RetireButton.IsEnabled = enabled;
         DeleteButton.IsEnabled = enableDelete && _editingId is not null;
@@ -904,6 +967,52 @@ public partial class CatalogView : UserControl
         comboBox.SelectedItem = selected is not null && comboBox.Items.Contains(selected) ? selected : "Все";
     }
 
+    private static void SetShaftFilterItems(ComboBox comboBox, IReadOnlyList<int> values)
+    {
+        var selected = SelectedShaftFilter(comboBox);
+        var items = new[] { new ShaftFilterOption(null, "Все") }
+            .Concat(values.Select(value => new ShaftFilterOption(value, value.ToString(CultureInfo.CurrentCulture))))
+            .ToArray();
+        comboBox.ItemsSource = items;
+        comboBox.SelectedItem = items.FirstOrDefault(item => item.Value == selected) ?? items[0];
+    }
+
+    private static int? SelectedShaftFilter(ComboBox comboBox)
+    {
+        if (comboBox.SelectedItem is ShaftFilterOption option)
+            return option.Value;
+
+        var text = comboBox.Text.Trim();
+        if (string.IsNullOrEmpty(text) || string.Equals(text, "Все", StringComparison.OrdinalIgnoreCase))
+            return null;
+        if (int.TryParse(text, NumberStyles.Integer, CultureInfo.CurrentCulture, out var value) && value > 0)
+            return value;
+
+        throw new CatalogApiException("Введите корректное положительное целое значение вала.");
+    }
+    private static void SetDimensionFilterItems(ComboBox comboBox, IReadOnlyList<decimal> values)
+    {
+        var selected = SelectedDimensionFilter(comboBox, string.Empty);
+        var items = new[] { new DimensionFilterOption(null, "Все") }
+            .Concat(values.Select(value => new DimensionFilterOption(value, Format(value))))
+            .ToArray();
+        comboBox.ItemsSource = items;
+        comboBox.SelectedItem = items.FirstOrDefault(item => item.Value == selected) ?? items[0];
+    }
+
+    private static decimal? SelectedDimensionFilter(ComboBox comboBox, string field)
+    {
+        if (comboBox.SelectedItem is DimensionFilterOption option)
+            return option.Value;
+
+        var text = comboBox.Text.Trim();
+        if (string.IsNullOrEmpty(text) || string.Equals(text, "Все", StringComparison.OrdinalIgnoreCase))
+            return null;
+        if (TryParseDecimal(text, out var value) && value > 0)
+            return value;
+
+        throw new CatalogApiException($"Введите корректное положительное значение {field}.");
+    }
     private void SetEquipmentTabs(IReadOnlyList<string> values)
     {
         const string allEquipment = "Все ножи";
@@ -958,6 +1067,14 @@ public partial class CatalogView : UserControl
             ? value
             : throw new FormatException($"Поле «{field}» должно содержать целое число больше нуля.");
 
+    private static decimal ParsePositiveDecimal(string text, string field)
+    {
+        var value = ParseDecimal(text, field);
+        return value > 0
+            ? value
+            : throw new FormatException($"Поле «{field}» должно содержать число больше нуля.");
+    }
+
     private static decimal ParseNonNegativeDecimal(string text, string field)
     {
         var value = ParseDecimal(text, field);
@@ -981,6 +1098,15 @@ public partial class CatalogView : UserControl
     };
 
     private sealed record StatusOption(DieCutStatus Value, string Name);
+
+    private sealed record ShaftFilterOption(int? Value, string Display)
+    {
+        public override string ToString() => Display;
+    }
+    private sealed record DimensionFilterOption(decimal? Value, string Display)
+    {
+        public override string ToString() => Display;
+    }
 
     private sealed record DieCutRow(DieCutSummary Source)
     {

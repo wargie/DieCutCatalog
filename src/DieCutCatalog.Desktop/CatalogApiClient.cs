@@ -5,42 +5,84 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using DieCutCatalog.Application.Employees;
+using DieCutCatalog.Application.Security;
 
 namespace DieCutCatalog.Desktop;
 
 internal sealed partial class CatalogApiClient : IDisposable
 {
-    private readonly HttpClient _httpClient = new();
+    private readonly HttpClient _httpClient;
     private readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web);
+
+    public CatalogApiClient() : this(new HttpClient())
+    {
+    }
+
+    internal CatalogApiClient(HttpClient httpClient)
+    {
+        _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+    }
     private Uri? _baseAddress;
 
     public string? AccessToken { get; private set; }
+    public DateTimeOffset? SessionExpiresAt { get; private set; }
+    public string? ServerAddress => _baseAddress?.ToString().TrimEnd('/');
 
     public void Configure(string serverAddress)
     {
-        var address = serverAddress.Trim();
-        if (!Uri.TryCreate(address, UriKind.Absolute, out var uri)
-            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
-        {
-            throw new CatalogApiException("Укажите корректный адрес сервера, например https://catalog.company.ru.");
-        }
+        var developmentMode = string.Equals(
+            Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT"),
+            "Development",
+            StringComparison.OrdinalIgnoreCase);
+        if (!ServerAddressPolicy.TryCreateBaseUri(serverAddress, developmentMode, out var uri, out var error))
+            throw new CatalogApiException(error!);
 
-        _baseAddress = new Uri(uri.ToString().TrimEnd('/') + "/");
+        _baseAddress = uri;
         AccessToken = null;
+        SessionExpiresAt = null;
     }
 
     public async Task<LoginResult> LoginAsync(string email, string password)
     {
         var result = await SendAsync<LoginResult>(HttpMethod.Post, "api/auth/login", new { email, password }, false);
         AccessToken = result.AccessToken;
+        SessionExpiresAt = result.ExpiresAt;
         return result;
     }
 
+    public async Task<EmployeeProfile> RestoreSessionAsync(StoredClientSession session)
+    {
+        Configure(session.ServerAddress);
+        AccessToken = session.AccessToken;
+        SessionExpiresAt = session.ExpiresAt;
+        try
+        {
+            return await SendAsync<EmployeeProfile>(HttpMethod.Post, "api/auth/resume");
+        }
+        catch
+        {
+            AccessToken = null;
+            SessionExpiresAt = null;
+            throw;
+        }
+    }
+
+    public Task DisconnectAsync() =>
+        AccessToken is null ? Task.CompletedTask : SendAsync(HttpMethod.Post, "api/auth/disconnect");
+
+    public StoredClientSession? GetStoredSession(string clientVersion) =>
+        ServerAddress is not null && AccessToken is not null && SessionExpiresAt is not null
+            ? new StoredClientSession(clientVersion, ServerAddress, AccessToken, SessionExpiresAt.Value)
+            : null;
     public async Task LogoutAsync()
     {
         if (AccessToken is null) return;
         try { await SendAsync(HttpMethod.Post, "api/auth/logout"); }
-        finally { AccessToken = null; }
+        finally
+        {
+            AccessToken = null;
+            SessionExpiresAt = null;
+        }
     }
 
     public Task<EmployeeProfile> UpdateProfileAsync(string firstName, string lastName, string? position, string? phone, string? additionalContacts) =>

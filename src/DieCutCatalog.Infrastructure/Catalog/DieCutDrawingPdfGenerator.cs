@@ -20,6 +20,12 @@ internal static class DieCutDrawingPdfGenerator
 
     public static byte[] Generate(DieCut dieCut)
     {
+        var parameterViolation = DieCutParameterLimits.FindViolation(
+            dieCut.Shaft, dieCut.X, dieCut.Y, dieCut.Streams, dieCut.Repeats,
+            dieCut.H, dieCut.GrooveSpacing, dieCut.LabelCornerRadius);
+        if (parameterViolation is not null)
+            throw new ValidationException($"Чертёж нельзя сформировать: {parameterViolation}");
+
         EnsureFontResolver();
 
         using var document = new PdfDocument();

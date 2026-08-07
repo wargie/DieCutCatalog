@@ -40,9 +40,19 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
         if (query.Shaft is not null) dieCuts = dieCuts.Where(x => x.Shaft == query.Shaft);
 
         var total = await dieCuts.CountAsync(cancellationToken);
-        var items = await dieCuts
-            .OrderBy(x => x.Equipment.Name)
-            .ThenBy(x => x.NormalizedNumber)
+        var ordered = query.SortBy switch
+        {
+            DieCutSortField.LabelWidth when query.SortDescending => dieCuts
+                .OrderByDescending(x => x.X).ThenBy(x => x.Equipment.Name).ThenBy(x => x.NormalizedNumber),
+            DieCutSortField.LabelWidth => dieCuts
+                .OrderBy(x => x.X).ThenBy(x => x.Equipment.Name).ThenBy(x => x.NormalizedNumber),
+            DieCutSortField.LabelLength when query.SortDescending => dieCuts
+                .OrderByDescending(x => x.Y).ThenBy(x => x.Equipment.Name).ThenBy(x => x.NormalizedNumber),
+            DieCutSortField.LabelLength => dieCuts
+                .OrderBy(x => x.Y).ThenBy(x => x.Equipment.Name).ThenBy(x => x.NormalizedNumber),
+            _ => dieCuts.OrderBy(x => x.Equipment.Name).ThenBy(x => x.NormalizedNumber)
+        };
+        var items = await ordered
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(x => new DieCutSummary(
@@ -110,38 +120,101 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
         return Map(dieCut, equipment.Name);
     }
 
-    public async Task<DieCutDetails?> AddCirculationAsync(
+    public Task<DieCutDetails?> AddCirculationAsync(
         Guid id,
         long quantity,
         Guid employeeId,
+        CancellationToken cancellationToken = default) =>
+        AddCirculationAsync(id, quantity, null, employeeId, cancellationToken);
+
+    public async Task<DieCutDetails?> AddCirculationAsync(
+        Guid id,
+        long? quantity,
+        decimal? runLengthMeters,
+        Guid employeeId,
         CancellationToken cancellationToken = default)
     {
-        if (quantity <= 0) throw new ValidationException("Тираж должен быть целым числом больше нуля.");
+        if (quantity.HasValue == runLengthMeters.HasValue)
+            throw new ValidationException("Укажите либо тираж в штуках, либо пробег в метрах.");
+        if (quantity is <= 0)
+            throw new ValidationException("Тираж должен быть целым числом больше нуля.");
+        if (runLengthMeters is <= 0)
+            throw new ValidationException("Пробег должен быть числом больше нуля.");
 
+        if (dbContext.Database.ProviderName == "Npgsql.EntityFrameworkCore.PostgreSQL")
+        {
+            await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+            await dbContext.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT 1 FROM die_cuts WHERE \"Id\" = {id} FOR UPDATE",
+                cancellationToken);
+
+            var result = await AddCirculationCoreAsync(id, quantity, runLengthMeters, employeeId, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return result;
+        }
+
+        return await AddCirculationCoreAsync(id, quantity, runLengthMeters, employeeId, cancellationToken);
+    }
+
+    private async Task<DieCutDetails?> AddCirculationCoreAsync(
+        Guid id,
+        long? quantity,
+        decimal? runLengthMeters,
+        Guid employeeId,
+        CancellationToken cancellationToken)
+    {
         var dieCut = await dbContext.DieCuts.Include(x => x.Equipment).SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (dieCut is null) return null;
         EnsureOperational(dieCut);
-        if (quantity > long.MaxValue - dieCut.Mileage || quantity > long.MaxValue - dieCut.LifetimeMileage)
-            throw new ValidationException("Итоговый тираж превышает допустимое значение.");
 
-        var before = UsageSnapshot.From(dieCut);
-        var (runLengthMeters, revolutions) = DieCutCalculations.CalculateRunMetrics(
-            quantity, dieCut.Streams, dieCut.Y, dieCut.GapY, dieCut.Shaft);
-        var now = DateTimeOffset.UtcNow;
-        dieCut.Mileage += quantity;
-        dieCut.RunLengthMeters += runLengthMeters;
-        dieCut.Revolutions = checked(dieCut.Revolutions + revolutions);
-        dieCut.LifetimeMileage += quantity;
-        dieCut.LifetimeRunLengthMeters += runLengthMeters;
-        dieCut.LifetimeRevolutions = checked(dieCut.LifetimeRevolutions + revolutions);
-        if (dieCut.Status == DieCutStatus.Active && dieCut.Revolutions >= dieCut.NextInspectionRevolutions)
-            dieCut.Status = DieCutStatus.NeedsInspection;
-        var after = UsageSnapshot.From(dieCut);
-        Touch(dieCut, employeeId, now);
-        dbContext.DieCutEvents.Add(NewEvent(
-            dieCut.Id, employeeId, DieCutEventType.CirculationAdded, quantity, before, after, now));
-        await dbContext.SaveChangesAsync(cancellationToken);
-        return Map(dieCut, dieCut.Equipment.Name);
+        long addedQuantity;
+        decimal addedRunLengthMeters;
+        long addedRevolutions;
+        try
+        {
+            if (quantity.HasValue)
+            {
+                addedQuantity = quantity.Value;
+                (addedRunLengthMeters, addedRevolutions) = DieCutCalculations.CalculateRunMetrics(
+                    addedQuantity, dieCut.Streams, dieCut.Y, dieCut.GapY, dieCut.Shaft);
+            }
+            else
+            {
+                addedRunLengthMeters = decimal.Round(runLengthMeters!.Value, 6, MidpointRounding.AwayFromZero);
+                (addedQuantity, addedRevolutions) = DieCutCalculations.CalculateRunMetricsFromMeters(
+                    addedRunLengthMeters, dieCut.Streams, dieCut.Y, dieCut.GapY, dieCut.Shaft);
+                if (addedQuantity <= 0)
+                    throw new ValidationException("Указанный пробег слишком мал для расчёта одной этикетки.");
+            }
+
+            if (addedQuantity > long.MaxValue - dieCut.Mileage
+                || addedQuantity > long.MaxValue - dieCut.LifetimeMileage)
+                throw new ValidationException("Итоговый тираж превышает допустимое значение.");
+            if (addedRevolutions > long.MaxValue - dieCut.Revolutions
+                || addedRevolutions > long.MaxValue - dieCut.LifetimeRevolutions)
+                throw new ValidationException("Итоговое количество оборотов превышает допустимое значение.");
+
+            var before = UsageSnapshot.From(dieCut);
+            var now = DateTimeOffset.UtcNow;
+            dieCut.Mileage += addedQuantity;
+            dieCut.RunLengthMeters += addedRunLengthMeters;
+            dieCut.Revolutions += addedRevolutions;
+            dieCut.LifetimeMileage += addedQuantity;
+            dieCut.LifetimeRunLengthMeters += addedRunLengthMeters;
+            dieCut.LifetimeRevolutions += addedRevolutions;
+            if (dieCut.Status == DieCutStatus.Active && dieCut.Revolutions >= dieCut.NextInspectionRevolutions)
+                dieCut.Status = DieCutStatus.NeedsInspection;
+            var after = UsageSnapshot.From(dieCut);
+            Touch(dieCut, employeeId, now);
+            dbContext.DieCutEvents.Add(NewEvent(
+                dieCut.Id, employeeId, DieCutEventType.CirculationAdded, addedQuantity, before, after, now));
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return Map(dieCut, dieCut.Equipment.Name);
+        }
+        catch (OverflowException)
+        {
+            throw new ValidationException("Введённое значение превышает допустимый диапазон.");
+        }
     }
 
     public async Task<DieCutDetails?> InstallReplacementAsync(
@@ -238,7 +311,13 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
         await dbContext.DieCuts.AsNoTracking().Where(x => x.Status != DieCutStatus.Deleted)
             .Select(x => x.Material).Distinct().OrderBy(x => x).ToListAsync(cancellationToken),
         await dbContext.DieCuts.AsNoTracking().Where(x => x.Status != DieCutStatus.Deleted)
-            .Select(x => x.Figure).Distinct().OrderBy(x => x).ToListAsync(cancellationToken));
+            .Select(x => x.Figure).Distinct().OrderBy(x => x).ToListAsync(cancellationToken),
+        await dbContext.DieCuts.AsNoTracking().Where(x => x.Status != DieCutStatus.Deleted)
+            .Select(x => x.X).Distinct().OrderBy(x => x).ToListAsync(cancellationToken),
+        await dbContext.DieCuts.AsNoTracking().Where(x => x.Status != DieCutStatus.Deleted)
+            .Select(x => x.Y).Distinct().OrderBy(x => x).ToListAsync(cancellationToken),
+        await dbContext.DieCuts.AsNoTracking().Where(x => x.Status != DieCutStatus.Deleted)
+            .Select(x => x.Shaft).Distinct().OrderBy(x => x).ToListAsync(cancellationToken));
 
     private async Task<(Equipment Equipment, string Material, string Figure)> ResolveReferencesAsync(
         SaveDieCutCommand command, CancellationToken cancellationToken)
@@ -290,12 +369,10 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
         if (string.IsNullOrWhiteSpace(command.Material) || command.Material.Length > 200) throw new ValidationException("Укажите материал.");
         if (string.IsNullOrWhiteSpace(command.Figure) || command.Figure.Trim().Length > 100)
             throw new ValidationException("Выберите фигуру из справочника.");
-        if (command.Shaft <= 0 || command.X <= 0 || command.Y <= 0) throw new ValidationException("Раппорт вала, L и B должны быть больше нуля.");
-        if (command.Streams <= 0 || command.Repeats <= 0) throw new ValidationException("Количество ручьёв и этикеток в ручье должно быть больше нуля.");
-        if (command.GrooveSpacing < 0) throw new ValidationException("Расстояние между ручьями не может быть отрицательным.");
-        if (command.LabelCornerRadius < 0) throw new ValidationException("Радиус скругления этикетки не может быть отрицательным.");
-        if (command.LabelCornerRadius > Math.Min(command.X, command.Y) / 2) throw new ValidationException("Радиус скругления не может превышать половину меньшей стороны этикетки.");
-        if (command.H <= 0) throw new ValidationException("Ширина материала должна быть больше нуля.");
+        var parameterViolation = DieCutParameterLimits.FindViolation(
+            command.Shaft, command.X, command.Y, command.Streams, command.Repeats,
+            command.H, command.GrooveSpacing, command.LabelCornerRadius);
+        if (parameterViolation is not null) throw new ValidationException(parameterViolation);
         var (gapX, gapY) = DieCutCalculations.Calculate(command.Shaft, command.X, command.Y, command.Streams, command.Repeats, command.H, command.GrooveSpacing);
         if (gapX < 0) throw new ValidationException("Ширина материала не вмещает L × ручьи и расстояния между ручьями.");
         if (gapY < 0) throw new ValidationException("Длина окружности вала не вмещает B × количество этикеток в ручье.");

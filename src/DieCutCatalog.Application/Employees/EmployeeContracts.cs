@@ -98,6 +98,14 @@ public interface IAccountService
         string accessToken,
         CancellationToken cancellationToken = default);
 
+    Task<EmployeeProfile?> ResumeSessionAsync(
+        string accessToken,
+        CancellationToken cancellationToken = default);
+
+    Task<bool> DisconnectSessionAsync(
+        string accessToken,
+        CancellationToken cancellationToken = default);
+
     Task<EmployeeProfile?> GetProfileAsync(
         string accessToken,
         CancellationToken cancellationToken = default);

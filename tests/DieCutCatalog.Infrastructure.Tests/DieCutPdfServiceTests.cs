@@ -166,6 +166,23 @@ public sealed class DieCutPdfServiceTests
         Assert.Contains("расстояния между ручьями", exception.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Empty(await db.DieCutDocuments.ToListAsync());
     }
+    [Fact]
+    public async Task Generate_rejects_legacy_record_above_production_limits()
+    {
+        using var storage = new TemporaryStorage();
+        await using var db = CreateDatabase();
+        var dieCut = CreateDieCut();
+        dieCut.Streams = DieCutParameterLimits.MaximumStreams + 1;
+        db.DieCuts.Add(dieCut);
+        await db.SaveChangesAsync();
+        var service = CreateService(db, storage.Path);
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.GenerateAsync(dieCut.Id, Guid.NewGuid()));
+
+        Assert.Contains(DieCutParameterLimits.MaximumStreams.ToString(), exception.Message, StringComparison.Ordinal);
+        Assert.Empty(await db.DieCutDocuments.ToListAsync());
+    }
     private static CatalogDbContext CreateDatabase()
     {
         var options = new DbContextOptionsBuilder<CatalogDbContext>()

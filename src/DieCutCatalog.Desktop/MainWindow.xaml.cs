@@ -1,10 +1,14 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using DieCutCatalog.Application.Employees;
+using DieCutCatalog.Application.Updates;
 using DieCutCatalog.Domain.Employees;
 using DieCutCatalog.Desktop.Views;
 using Microsoft.Win32;
@@ -16,28 +20,66 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     private readonly CatalogApiClient _api = new();
     private EmployeeProfile? _profile;
     private bool _isClosing;
+    private bool _isUpdateWorkflowRunning;
 
     public MainWindow()
     {
         InitializeComponent();
+        ApplicationVersionText.Text = $"Версия {GetCurrentVersion()}";
         ReferenceDataView.ReferencesChanged += async (_, _) => await CatalogView.ReloadReferenceDataAsync();
         ReferenceDataView.BackRequested += (_, _) => ShowCatalog();
 
         Closing += MainWindow_Closing;
+        Loaded += MainWindow_Loaded;
     }
 
-    private async void MainWindow_Closing(object? sender, CancelEventArgs e)
+    private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
+    {
+        var updatedVersion = UpdateCompletionNotice.TryTake();
+        if (updatedVersion is not null)
+        {
+            MessageBox.Show(
+                $"DieCut Catalog успешно обновлён до версии {updatedVersion}.",
+                "Обновление завершено",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+
+        var session = ProtectedSessionStore.Load(GetCurrentVersion());
+        if (session is null) return;
+
+        ServerAddressBox.Text = session.ServerAddress;
+        try
+        {
+            _profile = await _api.RestoreSessionAsync(session);
+            await OpenShellAsync();
+        }
+        catch (CatalogApiException exception)
+        {
+            if (!exception.Message.StartsWith("Не удалось подключиться", StringComparison.Ordinal))
+                ProtectedSessionStore.Clear();
+            LoginError.Text = $"Не удалось восстановить сохранённый вход. {exception.Message}";
+            LoginError.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void MainWindow_Closing(object? sender, CancelEventArgs e)
     {
         if (_isClosing) return;
 
         e.Cancel = true;
         _isClosing = true;
-        try { await _api.LogoutAsync(); }
+        _ = DisconnectAndCloseAsync();
+    }
+
+    private async Task DisconnectAndCloseAsync()
+    {
+        try { await _api.DisconnectAsync(); }
         catch { }
         finally
         {
             _api.Dispose();
-            Close();
+            _ = Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(Close));
         }
     }
     private async void Login_Click(object sender, RoutedEventArgs e)
@@ -55,6 +97,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                 RequiredNewPasswordBox.Focus();
                 return;
             }
+            SaveSession();
             await OpenShellAsync();
 
         }, LoginError);
@@ -78,10 +121,16 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             RequiredNewPasswordBox.Clear();
             RequiredPasswordConfirmationBox.Clear();
             PasswordChangeOverlay.Visibility = Visibility.Collapsed;
+            SaveSession();
             await OpenShellAsync();
         }, RequiredPasswordError);
     }
 
+    private void SaveSession()
+    {
+        var session = _api.GetStoredSession(GetCurrentVersion());
+        if (session is not null) ProtectedSessionStore.Save(session);
+    }
     private async Task OpenShellAsync()
     {
         PasswordBox.Clear();
@@ -94,6 +143,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         LoginView.Visibility = Visibility.Collapsed;
         ShellView.Visibility = Visibility.Visible;
         ShowCatalog();
+        _ = CheckForUpdatesAsync(notifyWhenCurrent: false);
     }
 
     private void PopulateProfile()
@@ -141,9 +191,11 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     {
         CatalogView.Visibility = Visibility.Collapsed;
         ReferenceDataView.Visibility = Visibility.Visible;
+        EmployeesView.Visibility = Visibility.Collapsed;
         EmployeeView.Visibility = Visibility.Collapsed;
         CatalogNavButton.Appearance = Wpf.Ui.Controls.ControlAppearance.Transparent;
         ReferenceDataNavButton.Appearance = Wpf.Ui.Controls.ControlAppearance.Primary;
+        EmployeesNavButton.Appearance = Wpf.Ui.Controls.ControlAppearance.Transparent;
         EmployeeNavButton.Appearance = Wpf.Ui.Controls.ControlAppearance.Transparent;
         await ReferenceDataView.ReloadAsync();
     }
@@ -257,11 +309,102 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         await RunBusyAsync((Button)sender, async () =>
         {
             await _api.LogoutAsync();
+            ProtectedSessionStore.Clear();
             _profile = null; ProfilePhoto.Source = null; CatalogView.Clear(); ReferenceDataView.Clear(); EmployeesView.Clear();
             ShellView.Visibility = Visibility.Collapsed; LoginView.Visibility = Visibility.Visible; EmailBox.Focus();
         });
     }
 
+    private async void CheckUpdates_Click(object sender, RoutedEventArgs e)
+    {
+        await RunBusyAsync((Button)sender, () => CheckForUpdatesAsync(notifyWhenCurrent: true));
+    }
+
+    private async Task CheckForUpdatesAsync(bool notifyWhenCurrent)
+    {
+        if (_isUpdateWorkflowRunning)
+        {
+            if (notifyWhenCurrent)
+            {
+                MessageBox.Show(
+                    "Проверка или загрузка обновления уже выполняется.",
+                    "Обновления DieCut Catalog",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            return;
+        }
+
+        _isUpdateWorkflowRunning = true;
+        CheckUpdatesButton.IsEnabled = false;
+        var updateAccepted = false;
+        try
+        {
+            var manifest = await _api.GetLatestUpdateAsync();
+            var currentVersion = GetCurrentVersion();
+            if (manifest is null || !ClientUpdateVersion.IsNewer(manifest.Version, currentVersion))
+            {
+                if (notifyWhenCurrent)
+                {
+                    MessageBox.Show($"Установлена актуальная версия {currentVersion}.", "Обновления DieCut Catalog", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                return;
+            }
+
+            var notes = string.IsNullOrWhiteSpace(manifest.Notes) ? string.Empty : $"\n\n{manifest.Notes.Trim()}";
+            var shouldDownload = MessageBox.Show(
+                $"Доступно обновление {manifest.ReleaseName} (версия {manifest.Version}).{notes}\n\nСкачать обновление?",
+                "Доступно обновление",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Information);
+            if (shouldDownload != MessageBoxResult.Yes) return;
+            updateAccepted = true;
+
+            var packagePath = ClientUpdateLauncher.PreparePackagePath(manifest);
+
+            var downloadWindow = new UpdateDownloadWindow(_api, manifest, packagePath) { Owner = this };
+            if (downloadWindow.ShowDialog() != true)
+            {
+                ClientUpdateLauncher.DiscardPackage(packagePath);
+                return;
+            }
+
+            var shouldInstall = MessageBox.Show(
+                $"Обновление {manifest.Version} загружено и проверено.\n\nУстановить его сейчас? Приложение будет закрыто и запущено снова.",
+                "Установка обновления",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+            if (shouldInstall != MessageBoxResult.Yes)
+            {
+                ClientUpdateLauncher.DiscardPackage(packagePath);
+                return;
+            }
+
+            ClientUpdateLauncher.Start(manifest, packagePath);
+            Close();
+        }
+        catch (Exception exception) when (!notifyWhenCurrent && !updateAccepted)
+        {
+            Debug.WriteLine($"Automatic update check failed: {exception.Message}");
+        }
+        catch (Exception exception) when (!notifyWhenCurrent)
+        {
+            MessageBox.Show(exception.Message, "Обновление DieCut Catalog", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            _isUpdateWorkflowRunning = false;
+            if (!_isClosing) CheckUpdatesButton.IsEnabled = true;
+        }
+    }
+
+    private static string GetCurrentVersion()
+    {
+        var assembly = Assembly.GetEntryAssembly() ?? typeof(MainWindow).Assembly;
+        return assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+            ?? assembly.GetName().Version?.ToString(3)
+            ?? "0.0.0";
+    }
     private async Task RunBusyAsync(Button button, Func<Task> action, TextBlock? inlineError = null)
     {
         button.IsEnabled = false;

@@ -15,7 +15,9 @@ public sealed record DieCutQuery(
     decimal? MaxY,
     int? Shaft,
     int Page = 1,
-    int PageSize = 50);
+    int PageSize = 50,
+    DieCutSortField SortBy = DieCutSortField.Default,
+    bool SortDescending = false);
 
 public sealed record SaveDieCutCommand(
     string Number,
@@ -113,7 +115,17 @@ public sealed record PagedResult<T>(IReadOnlyList<T> Items, int Total, int Page,
 public sealed record CatalogFacets(
     IReadOnlyList<string> Equipment,
     IReadOnlyList<string> Materials,
-    IReadOnlyList<string> Figures);
+    IReadOnlyList<string> Figures,
+    IReadOnlyList<decimal> LabelWidths,
+    IReadOnlyList<decimal> LabelLengths,
+    IReadOnlyList<int> Shafts);
+
+public enum DieCutSortField
+{
+    Default,
+    LabelWidth,
+    LabelLength
+}
 
 public enum CatalogReferenceType
 {
@@ -195,7 +207,7 @@ public interface IDieCutCatalogService
     Task<DieCutDetails?> GetAsync(Guid id, CancellationToken cancellationToken = default);
     Task<DieCutDetails> CreateAsync(SaveDieCutCommand command, Guid employeeId, CancellationToken cancellationToken = default);
     Task<DieCutDetails?> UpdateAsync(Guid id, SaveDieCutCommand command, Guid employeeId, CancellationToken cancellationToken = default);
-    Task<DieCutDetails?> AddCirculationAsync(Guid id, long quantity, Guid employeeId, CancellationToken cancellationToken = default);
+    Task<DieCutDetails?> AddCirculationAsync(Guid id, long? quantity, decimal? runLengthMeters, Guid employeeId, CancellationToken cancellationToken = default);
     Task<DieCutDetails?> InstallReplacementAsync(Guid id, Guid employeeId, CancellationToken cancellationToken = default);
     Task<DieCutDetails?> RetireAsync(Guid id, Guid employeeId, CancellationToken cancellationToken = default);
     Task<DieCutDetails?> DeleteAsync(Guid id, Guid employeeId, CancellationToken cancellationToken = default);

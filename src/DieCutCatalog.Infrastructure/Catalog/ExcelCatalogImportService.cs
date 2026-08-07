@@ -126,9 +126,9 @@ public sealed class ExcelCatalogImportService(CatalogDbContext dbContext) : IExc
                         var streams = RequiredInt(cells, 5, "streams");
                         var repeats = RequiredInt(cells, 6, "repeats");
                         var h = RequiredDecimal(cells, 10, "H");
-                        if (shaft <= 0 || x <= 0 || y <= 0 || streams <= 0 || repeats <= 0 || h <= 0)
-                            throw new InvalidDataException("shaft, X (L), Y (B), streams (ручьи), repeats (этикеток в ручье) и H (ширина материала) должны быть больше нуля.");
-
+                        var parameterViolation = DieCutParameterLimits.FindViolation(
+                            shaft, x, y, streams, repeats, h, grooveSpacing: 0, cornerRadius: 0);
+                        if (parameterViolation is not null) throw new InvalidDataException(parameterViolation);
                         var (gapX, gapY) = DieCutCalculations.Calculate(shaft, x, y, streams, repeats, h, grooveSpacing: 0);
                         if (gapX < 0) throw new InvalidDataException("H (ширина материала) меньше X (L) × streams (ручьи).");
                         if (gapY < 0) throw new InvalidDataException("Длина окружности shaft не вмещает Y (B) × repeats (этикеток в ручье).");

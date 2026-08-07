@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO;
 using System.Net.Http;
 using System.Text;
@@ -8,18 +9,28 @@ namespace DieCutCatalog.Desktop;
 internal sealed partial class CatalogApiClient
 {
     public Task<PagedResult<DieCutSummary>> SearchDieCutsAsync(
-        string? search,
         string? equipment,
         string? material,
         string? figure,
+        decimal? labelWidth,
+        decimal? labelLength,
+        int? shaft,
+        DieCutSortField sortBy,
+        bool sortDescending,
         int page,
         int pageSize = 100)
     {
         var query = new StringBuilder($"api/die-cuts/?page={page}&pageSize={pageSize}");
-        Append(query, "search", search);
         Append(query, "equipment", equipment);
         Append(query, "material", material);
         Append(query, "figure", figure);
+        Append(query, "minX", labelWidth);
+        Append(query, "maxX", labelWidth);
+        Append(query, "minY", labelLength);
+        Append(query, "maxY", labelLength);
+        Append(query, "shaft", shaft?.ToString(CultureInfo.InvariantCulture));
+        Append(query, "sortBy", sortBy.ToString());
+        Append(query, "sortDescending", sortDescending.ToString().ToLowerInvariant());
         return SendAsync<PagedResult<DieCutSummary>>(HttpMethod.Get, query.ToString());
     }
 
@@ -35,8 +46,8 @@ internal sealed partial class CatalogApiClient
     public Task<DieCutDetails> UpdateDieCutAsync(Guid id, SaveDieCutCommand command) =>
         SendAsync<DieCutDetails>(HttpMethod.Put, $"api/die-cuts/{id}", command);
 
-    public Task<DieCutDetails> AddCirculationAsync(Guid id, long quantity) =>
-        SendAsync<DieCutDetails>(HttpMethod.Post, $"api/die-cuts/{id}/circulations", new { quantity });
+    public Task<DieCutDetails> AddCirculationAsync(Guid id, long? quantity, decimal? runLengthMeters) =>
+        SendAsync<DieCutDetails>(HttpMethod.Post, $"api/die-cuts/{id}/circulations", new { quantity, runLengthMeters });
 
     public Task<DieCutDetails> InstallReplacementAsync(Guid id, string password) =>
         SendAsync<DieCutDetails>(HttpMethod.Post, $"api/die-cuts/{id}/install-replacement", new { password });
@@ -101,5 +112,11 @@ internal sealed partial class CatalogApiClient
         {
             query.Append('&').Append(name).Append('=').Append(Uri.EscapeDataString(value.Trim()));
         }
+    }
+
+    private static void Append(StringBuilder query, string name, decimal? value)
+    {
+        if (value is not null)
+            Append(query, name, value.Value.ToString(CultureInfo.InvariantCulture));
     }
 }

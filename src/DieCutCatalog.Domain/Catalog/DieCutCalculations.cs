@@ -27,10 +27,35 @@ public static class DieCutCalculations
         decimal interLabelSpacingMeters,
         int shaft)
     {
-        var runLengthMeters = quantity / (decimal)streams * (labelLengthMm / 1000m + interLabelSpacingMeters);
-        var rapportLengthMeters = shaft * ShaftPitchMm / 1000m;
-        return (runLengthMeters, checked((long)decimal.Ceiling(runLengthMeters / rapportLengthMeters)));
+        var runLengthMeters = quantity / (decimal)streams
+            * CalculateLabelPitchMeters(labelLengthMm, interLabelSpacingMeters);
+        return (runLengthMeters, CalculateRevolutions(runLengthMeters, shaft));
     }
+
+    public static (long Quantity, long Revolutions) CalculateRunMetricsFromMeters(
+        decimal runLengthMeters,
+        int streams,
+        decimal labelLengthMm,
+        decimal interLabelSpacingMeters,
+        int shaft)
+    {
+        var quantity = checked((long)decimal.Round(
+            runLengthMeters * streams / CalculateLabelPitchMeters(labelLengthMm, interLabelSpacingMeters),
+            0,
+            MidpointRounding.AwayFromZero));
+        return (quantity, CalculateRevolutions(runLengthMeters, shaft));
+    }
+
+    public static long CalculateRevolutions(decimal runLengthMeters, int shaft)
+    {
+        var rapportLengthMeters = shaft * ShaftPitchMm / 1000m;
+        return checked((long)decimal.Ceiling(runLengthMeters / rapportLengthMeters));
+    }
+
+    private static decimal CalculateLabelPitchMeters(
+        decimal labelLengthMm,
+        decimal interLabelSpacingMeters) =>
+        labelLengthMm / 1000m + interLabelSpacingMeters;
 
     public static (decimal A1, decimal A2) Calculate(
         int shaft,
