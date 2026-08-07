@@ -449,6 +449,30 @@
                             </StackPanel>
                         </Border>
 
+                        <Border x:Name="JustCutSection" Style="{StaticResource EditorSection}" Visibility="Collapsed">
+                            <StackPanel>
+                                <Border Height="36" Padding="12,0" Background="#F6F8FB"
+                                        BorderBrush="#DCE3EA" BorderThickness="0,0,0,1">
+                                    <TextBlock Text="СТОИМОСТЬ JUSTCUT" Style="{StaticResource EditorSectionTitle}" />
+                                </Border>
+                                <Grid Margin="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock x:Name="JustCutPriceText" Text="Расчёт не выполнялся"
+                                                   FontWeight="SemiBold" Foreground="#245B91" />
+                                        <TextBlock x:Name="JustCutPriceDetailsText" Margin="0,3,12,0"
+                                                   FontSize="11" Foreground="{StaticResource SecondaryTextBrush}"
+                                                   Text="Окончательная цена с НДС, заказ не создаётся" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <ui:Button x:Name="CalculateJustCutButton" Grid.Column="1" Appearance="Primary"
+                                               Content="Рассчитать" Click="CalculateJustCutPrice_Click" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
                         <Border x:Name="DrawingSection" Style="{StaticResource EditorSection}" Visibility="Collapsed">
                             <StackPanel>
                                 <Border Height="36" Padding="12,0" Background="#F6F8FB"
@@ -512,6 +536,9 @@
                                         <TextBlock x:Name="GenerationText" Grid.Column="1" Foreground="{StaticResource SecondaryTextBrush}" />
                                     </Grid>
                                     <ProgressBar x:Name="ResourceProgressBar" Height="8" Margin="0,6,0,0" Minimum="0" />
+                                    <TextBlock Margin="0,5,0,0" FontSize="11" FontWeight="SemiBold"
+                                               Foreground="{StaticResource SecondaryTextBrush}"
+                                               Text="Критический ресурс: 500 000 оборотов" />
                                     <TextBlock x:Name="LifetimeUsageText" Margin="0,6,0,0" FontSize="11"
                                                TextWrapping="Wrap" Foreground="{StaticResource SecondaryTextBrush}" />
                                     <Grid Margin="0,12,0,0">

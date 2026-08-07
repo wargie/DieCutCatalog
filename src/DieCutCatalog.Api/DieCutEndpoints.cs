@@ -42,6 +42,21 @@ internal static class DieCutEndpoints
             return events is null ? Results.NotFound() : Results.Ok(events);
         });
 
+        group.MapPost("/{id:guid}/justcut/price", async (
+            Guid id,
+            HttpContext context,
+            JustCutPriceParameters parameters,
+            IJustCutService justCut,
+            IAccountService accounts,
+            CancellationToken cancellationToken) =>
+        {
+            var employee = await AuthorizeAsync(context, accounts, cancellationToken);
+            if (employee is null) return Results.Unauthorized();
+            if (employee.MustChangePassword) return PasswordChangeRequired();
+            var result = await justCut.CalculatePriceAsync(id, parameters, cancellationToken);
+            return result is null ? Results.NotFound() : Results.Ok(result);
+        });
+
         group.MapPost("/", async (HttpContext context, SaveDieCutRequest request, IDieCutCatalogService catalog, IAccountService accounts, CancellationToken cancellationToken) =>
         {
             var employee = await AuthorizeAsync(context, accounts, cancellationToken);

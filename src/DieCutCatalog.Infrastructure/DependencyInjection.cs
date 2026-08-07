@@ -3,6 +3,7 @@ using DieCutCatalog.Infrastructure.Catalog;
 using DieCutCatalog.Application.Employees;
 using DieCutCatalog.Domain.Employees;
 using DieCutCatalog.Infrastructure.Employees;
+using DieCutCatalog.Infrastructure.JustCut;
 using DieCutCatalog.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -49,6 +50,13 @@ public static class DependencyInjection
                 options.EnableSsl = enableSsl;
             }
         });
+        services.Configure<JustCutOptions>(options =>
+        {
+            options.BaseUrl = configuration["JustCut:BaseUrl"] ?? "http://api1c.justcut.ru:8081/jctest/hs/jcexch/";
+            options.UidContragent = configuration["JustCut:UidContragent"] ?? string.Empty;
+            options.Environment = configuration["JustCut:Environment"] ?? "Test";
+            if (int.TryParse(configuration["JustCut:TimeoutSeconds"], out var timeoutSeconds)) options.TimeoutSeconds = Math.Clamp(timeoutSeconds, 5, 180);
+        });
 
         services.AddScoped<IPasswordHasher<Employee>, PasswordHasher<Employee>>();
         services.AddScoped<IAccountEmailSender, SmtpAccountEmailSender>();
@@ -57,6 +65,11 @@ public static class DependencyInjection
         services.AddScoped<ICatalogAdministrationService, CatalogAdministrationService>();
         services.AddScoped<IExcelCatalogImportService, ExcelCatalogImportService>();
         services.AddScoped<IDieCutPdfService, DieCutPdfService>();
+        services.AddHttpClient<IJustCutService, JustCutService>((serviceProvider, client) =>
+        {
+            var justCut = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<JustCutOptions>>().Value;
+            client.Timeout = TimeSpan.FromSeconds(Math.Clamp(justCut.TimeoutSeconds, 5, 180));
+        });
 
         return services;
     }

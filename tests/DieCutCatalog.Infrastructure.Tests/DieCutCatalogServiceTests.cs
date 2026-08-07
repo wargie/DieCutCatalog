@@ -379,6 +379,33 @@ public sealed class DieCutCatalogServiceTests
     }
 
     [Fact]
+    public async Task Update_PersistsJustCutPriceAndWritesJournalEvent()
+    {
+        await using var fixture = CreateFixture();
+        var created = await fixture.Service.CreateAsync(NewDieCut("JC-PRICE", "Nilpeter/Lesko"), fixture.EmployeeId);
+        var calculatedAt = DateTimeOffset.UtcNow;
+        var price = new JustCutPriceResult(12_345.67m, "RUB", true, 998877, calculatedAt, "Test");
+
+        var updated = await fixture.Service.UpdateAsync(
+            created.Id,
+            NewDieCut("JC-PRICE", "Nilpeter/Lesko") with { JustCutPrice = price },
+            fixture.EmployeeId);
+        var reloaded = await fixture.Service.GetAsync(created.Id);
+        var events = await fixture.Service.GetEventsAsync(created.Id);
+
+        Assert.NotNull(updated);
+        Assert.NotNull(reloaded);
+        Assert.Equal(12_345.67m, reloaded.JustCutPriceAmount);
+        Assert.Equal("RUB", reloaded.JustCutPriceCurrency);
+        Assert.True(reloaded.JustCutPriceIncludesVat);
+        Assert.Equal(998877, reloaded.JustCutNumberOrder);
+        Assert.Equal(calculatedAt, reloaded.JustCutCalculatedAt);
+        Assert.Equal("Test", reloaded.JustCutEnvironment);
+        var priceEvent = Assert.Single(events!, item => item.Type == DieCutEventType.JustCutPriceSaved);
+        Assert.Equal(12_345.67m, priceEvent.JustCutPriceAmount);
+        Assert.Equal("RUB", priceEvent.JustCutPriceCurrency);
+    }
+    [Fact]
     public async Task AddCirculation_ReachingInspectionThresholdChangesStatus()
     {
         await using var fixture = CreateFixture();

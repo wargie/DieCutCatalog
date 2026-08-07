@@ -116,6 +116,8 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
         else if (dieCut.Status == DieCutStatus.Active && dieCut.Revolutions >= dieCut.NextInspectionRevolutions)
             dieCut.Status = DieCutStatus.NeedsInspection;
         dbContext.DieCutEvents.Add(NewEvent(dieCut.Id, employeeId, DieCutEventType.Updated, null, usage, usage, dieCut.UpdatedAt));
+        if (command.JustCutPrice is not null)
+            dbContext.DieCutEvents.Add(NewEvent(dieCut.Id, employeeId, DieCutEventType.JustCutPriceSaved, null, usage, usage, dieCut.UpdatedAt, command.JustCutPrice));
         await dbContext.SaveChangesAsync(cancellationToken);
         return Map(dieCut, equipment.Name);
     }
@@ -299,6 +301,12 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
                 x.RunLengthMetersAfter,
                 x.RevolutionsBefore,
                 x.RevolutionsAfter,
+                x.JustCutPriceAmount,
+                x.JustCutPriceCurrency,
+                x.JustCutPriceIncludesVat,
+                x.JustCutNumberOrder,
+                x.JustCutCalculatedAt,
+                x.JustCutEnvironment,
                 x.OccurredAt,
                 x.EmployeeId,
                 (x.Employee.FirstName + " " + x.Employee.LastName).Trim()))
@@ -355,6 +363,15 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
         target.Comments = TrimToNull(source.Comments);
         target.Date = source.Date;
         target.Status = source.Status;
+        if (source.JustCutPrice is { } price)
+        {
+            target.JustCutPriceAmount = price.Amount;
+            target.JustCutPriceCurrency = price.Currency;
+            target.JustCutPriceIncludesVat = price.IncludesVat;
+            target.JustCutNumberOrder = price.NumberOrder;
+            target.JustCutCalculatedAt = price.CalculatedAt;
+            target.JustCutEnvironment = price.Environment;
+        }
         target.UpdatedByEmployeeId = employeeId;
         target.UpdatedAt = DateTimeOffset.UtcNow;
     }
@@ -398,7 +415,8 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
         long? quantity,
         UsageSnapshot before,
         UsageSnapshot after,
-        DateTimeOffset occurredAt) => new()
+        DateTimeOffset occurredAt,
+        JustCutPriceResult? justCutPrice = null) => new()
         {
             DieCutId = dieCutId,
             EmployeeId = employeeId,
@@ -410,6 +428,12 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
             RunLengthMetersAfter = after.RunLengthMeters,
             RevolutionsBefore = before.Revolutions,
             RevolutionsAfter = after.Revolutions,
+            JustCutPriceAmount = justCutPrice?.Amount,
+            JustCutPriceCurrency = justCutPrice?.Currency,
+            JustCutPriceIncludesVat = justCutPrice?.IncludesVat,
+            JustCutNumberOrder = justCutPrice?.NumberOrder,
+            JustCutCalculatedAt = justCutPrice?.CalculatedAt,
+            JustCutEnvironment = justCutPrice?.Environment,
             OccurredAt = occurredAt
         };
 
@@ -426,12 +450,15 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
         x.Id, x.Number, x.JcOrderNumber, equipment, x.Shaft, x.X, x.Y, x.Streams, x.Repeats,
         x.GrooveSpacing, x.LabelCornerRadius, x.GapX, x.GapY, x.Material, x.H, x.Figure, x.Comments, x.Date, x.Mileage,
         x.RunLengthMeters, x.Revolutions, x.LifetimeMileage, x.LifetimeRunLengthMeters, x.LifetimeRevolutions,
-        x.Generation, x.NextInspectionRevolutions, x.Status, x.CreatedAt, x.UpdatedAt);
+        x.Generation, x.NextInspectionRevolutions, x.Status,
+        x.JustCutPriceAmount, x.JustCutPriceCurrency, x.JustCutPriceIncludesVat, x.JustCutNumberOrder,
+        x.JustCutCalculatedAt, x.JustCutEnvironment, x.CreatedAt, x.UpdatedAt);
 
     private static System.Linq.Expressions.Expression<Func<DieCut, DieCutDetails>> ToDetails() => x => new DieCutDetails(
         x.Id, x.Number, x.JcOrderNumber, x.Equipment.Name, x.Shaft, x.X, x.Y, x.Streams, x.Repeats,
         x.GrooveSpacing, x.LabelCornerRadius, x.GapX, x.GapY, x.Material, x.H, x.Figure, x.Comments, x.Date, x.Mileage,
         x.RunLengthMeters, x.Revolutions, x.LifetimeMileage, x.LifetimeRunLengthMeters, x.LifetimeRevolutions,
-        x.Generation, x.NextInspectionRevolutions, x.Status, x.CreatedAt, x.UpdatedAt);
+        x.Generation, x.NextInspectionRevolutions, x.Status,
+        x.JustCutPriceAmount, x.JustCutPriceCurrency, x.JustCutPriceIncludesVat, x.JustCutNumberOrder,
+        x.JustCutCalculatedAt, x.JustCutEnvironment, x.CreatedAt, x.UpdatedAt);
 }
-

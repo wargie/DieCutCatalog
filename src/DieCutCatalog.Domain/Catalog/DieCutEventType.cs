@@ -9,5 +9,6 @@ public enum DieCutEventType
     DrawingGenerated = 4,
     Deleted = 5,
     Updated = 6,
-    ReplacementInstalled = 7
+    ReplacementInstalled = 7,
+    JustCutPriceSaved = 8
 }

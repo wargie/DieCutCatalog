@@ -32,6 +32,12 @@ public sealed class DieCut
     public int Generation { get; set; } = 1;
     public long NextInspectionRevolutions { get; set; } = 500_000;
     public DieCutStatus Status { get; set; } = DieCutStatus.Active;
+    public decimal? JustCutPriceAmount { get; set; }
+    public string? JustCutPriceCurrency { get; set; }
+    public bool? JustCutPriceIncludesVat { get; set; }
+    public long? JustCutNumberOrder { get; set; }
+    public DateTimeOffset? JustCutCalculatedAt { get; set; }
+    public string? JustCutEnvironment { get; set; }
 
     public Guid CreatedByEmployeeId { get; set; }
     public Guid UpdatedByEmployeeId { get; set; }
@@ -41,4 +47,3 @@ public sealed class DieCut
     public ICollection<DieCutEvent> Events { get; set; } = new List<DieCutEvent>();
     public ICollection<DieCutDocument> Documents { get; set; } = new List<DieCutDocument>();
 }
-

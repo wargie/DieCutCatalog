@@ -49,6 +49,8 @@ public partial class CatalogView : UserControl
     private DieCutStatus _loadedStatus = DieCutStatus.Active;
     private string? _pendingPdfPath;
     private DieCutDocumentDetails? _currentDocument;
+    private DieCutDetails? _currentDetails;
+    private JustCutPriceResult? _pendingJustCutPrice;
 
     public CatalogView()
     {
@@ -318,6 +320,36 @@ public partial class CatalogView : UserControl
         }
     }
 
+    private async void CalculateJustCutPrice_Click(object sender, RoutedEventArgs e)
+    {
+        if (_api is null || _editingId is null || _currentDetails is null) return;
+        var dialog = new JustCutPriceWindow(_currentDetails) { Owner = Window.GetWindow(this) };
+        if (dialog.ShowDialog() != true || dialog.Parameters is null) return;
+
+        CalculateJustCutButton.IsEnabled = false;
+        JustCutPriceText.Text = "Выполняется расчёт…";
+        JustCutPriceDetailsText.Text = "Ожидаем ответ тестовой системы JustCut";
+        try
+        {
+            var result = await _api.CalculateJustCutPriceAsync(_editingId.Value, dialog.Parameters);
+            _pendingJustCutPrice = result;
+            JustCutPriceText.Text = $"{result.Amount:N0} {result.Currency}";
+            JustCutPriceDetailsText.Text =
+                $"Окончательная цена с НДС · {result.Environment} · " +
+                result.CalculatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm", CultureInfo.CurrentCulture) +
+                " · нажмите «Сохранить», чтобы записать расчёт";
+        }
+        catch (CatalogApiException exception)
+        {
+            JustCutPriceText.Text = "Расчёт не выполнен";
+            JustCutPriceDetailsText.Text = exception.Message;
+        }
+        finally
+        {
+            CalculateJustCutButton.IsEnabled = true;
+        }
+    }
+
     private async void UploadPdf_Click(object sender, RoutedEventArgs e)
     {
         if (_api is null || _editingId is null) return;
@@ -437,12 +469,15 @@ public partial class CatalogView : UserControl
         _editingId = null;
         _pendingPdfPath = null;
         _currentDocument = null;
+        _currentDetails = null;
+        _pendingJustCutPrice = null;
         DieCutsGrid.SelectedItem = null;
         _events.Clear();
         ClearEditorFields();
         OperationsPanel.Visibility = Visibility.Collapsed;
         EventsSection.Visibility = Visibility.Collapsed;
         DrawingSection.Visibility = Visibility.Collapsed;
+        JustCutSection.Visibility = Visibility.Collapsed;
         EditorStatusBadge.Visibility = Visibility.Collapsed;
         EditorTitle.Text = "Новый нож";
         EditorStatus.Text = string.Empty;
@@ -763,12 +798,14 @@ public partial class CatalogView : UserControl
             FigureBox.Text,
             string.IsNullOrWhiteSpace(CommentsBox.Text) ? null : CommentsBox.Text,
             DateBox.SelectedDate is DateTime date ? DateOnly.FromDateTime(date) : null,
-            selectedStatus.Value);
+            selectedStatus.Value,
+            _pendingJustCutPrice);
     }
 
     private void FillEditor(DieCutDetails details)
     {
         _editingId = details.Id;
+        _currentDetails = details;
         EditorTitle.Text = $"Нож {details.Number}";
         NumberBox.Text = details.Number;
         JcOrderNumberBox.Text = details.JcOrderNumber;
@@ -804,6 +841,19 @@ public partial class CatalogView : UserControl
         OperationsPanel.Visibility = Visibility.Visible;
         EventsSection.Visibility = Visibility.Visible;
         DrawingSection.Visibility = Visibility.Visible;
+        JustCutSection.Visibility = Visibility.Visible;
+        _pendingJustCutPrice = null;
+        if (details.JustCutPriceAmount is { } savedAmount)
+        {
+            JustCutPriceText.Text = $"{savedAmount:N0} {details.JustCutPriceCurrency}";
+            JustCutPriceDetailsText.Text = $"Сохранённый расчёт · {details.JustCutEnvironment} · {details.JustCutCalculatedAt?.ToLocalTime():dd.MM.yyyy HH:mm}";
+        }
+        else
+        {
+            JustCutPriceText.Text = "Расчёт не выполнялся";
+            JustCutPriceDetailsText.Text = "Окончательная цена с НДС, заказ не создаётся";
+        }
+        CalculateJustCutButton.IsEnabled = true;
         SetDrawingButtonsEnabled(true);
         var operational = details.Status is not DieCutStatus.Retired and not DieCutStatus.Deleted;
         SaveButton.IsEnabled = operational;
@@ -932,11 +982,13 @@ public partial class CatalogView : UserControl
         OperationsPanel.Visibility = Visibility.Collapsed;
         EventsSection.Visibility = Visibility.Collapsed;
         DrawingSection.Visibility = Visibility.Collapsed;
+        JustCutSection.Visibility = Visibility.Collapsed;
         EditorStatusBadge.Visibility = Visibility.Collapsed;
         EditorColumn.Width = new GridLength(0);
         _editingId = null;
         _pendingPdfPath = null;
         _currentDocument = null;
+        _currentDetails = null;
         _events.Clear();
         DocumentNameText.Text = "PDF не прикреплён";
         OpenPdfButton.IsEnabled = false;
@@ -1179,9 +1231,10 @@ public partial class CatalogView : UserControl
                     "Изменены параметры ножа",
                 DieCutEventType.DrawingGenerated =>
                     "Сформирован PDF-чертёж ножа",
+                DieCutEventType.JustCutPriceSaved =>
+                    $"Сохранён расчёт JUSTCUT: {source.JustCutPriceAmount:N2} {source.JustCutPriceCurrency} · {source.JustCutEnvironment}",
                 _ => "Изменение ножа"
             };
         }
     }
 }
-

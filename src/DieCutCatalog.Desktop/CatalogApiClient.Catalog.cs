@@ -46,6 +46,13 @@ internal sealed partial class CatalogApiClient
     public Task<DieCutDetails> UpdateDieCutAsync(Guid id, SaveDieCutCommand command) =>
         SendAsync<DieCutDetails>(HttpMethod.Put, $"api/die-cuts/{id}", command);
 
+    public Task<JustCutPriceResult> CalculateJustCutPriceAsync(Guid id, JustCutPriceParameters parameters) =>
+        SendAsync<JustCutPriceResult>(
+            HttpMethod.Post,
+            $"api/die-cuts/{id}/justcut/price",
+            parameters,
+            notFoundMessage: "На сервере приложения не установлена поддержка JustCUT. Обновите серверную часть до тестовой версии 1.7.0.");
+
     public Task<DieCutDetails> AddCirculationAsync(Guid id, long? quantity, decimal? runLengthMeters) =>
         SendAsync<DieCutDetails>(HttpMethod.Post, $"api/die-cuts/{id}/circulations", new { quantity, runLengthMeters });
 

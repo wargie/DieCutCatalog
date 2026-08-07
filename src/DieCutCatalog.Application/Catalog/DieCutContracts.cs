@@ -35,7 +35,8 @@ public sealed record SaveDieCutCommand(
     string Figure,
     string? Comments,
     DateOnly? Date,
-    DieCutStatus Status);
+    DieCutStatus Status,
+    JustCutPriceResult? JustCutPrice = null);
 
 public sealed record DieCutSummary(
     Guid Id,
@@ -93,6 +94,12 @@ public sealed record DieCutDetails(
     int Generation,
     long NextInspectionRevolutions,
     DieCutStatus Status,
+    decimal? JustCutPriceAmount,
+    string? JustCutPriceCurrency,
+    bool? JustCutPriceIncludesVat,
+    long? JustCutNumberOrder,
+    DateTimeOffset? JustCutCalculatedAt,
+    string? JustCutEnvironment,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
 
@@ -106,6 +113,12 @@ public sealed record DieCutEventDetails(
     decimal RunLengthMetersAfter,
     long RevolutionsBefore,
     long RevolutionsAfter,
+    decimal? JustCutPriceAmount,
+    string? JustCutPriceCurrency,
+    bool? JustCutPriceIncludesVat,
+    long? JustCutNumberOrder,
+    DateTimeOffset? JustCutCalculatedAt,
+    string? JustCutEnvironment,
     DateTimeOffset OccurredAt,
     Guid EmployeeId,
     string EmployeeName);
