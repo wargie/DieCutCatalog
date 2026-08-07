@@ -91,6 +91,9 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
         dieCut.Property(x => x.Figure).HasMaxLength(100).IsRequired();
         dieCut.Property(x => x.Comments).HasMaxLength(2000);
         dieCut.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
+        dieCut.Property(x => x.JustCutPriceAmount).HasPrecision(18, 2);
+        dieCut.Property(x => x.JustCutPriceCurrency).HasMaxLength(16);
+        dieCut.Property(x => x.JustCutEnvironment).HasMaxLength(32);
         dieCut.HasOne(x => x.Equipment)
             .WithMany(x => x.DieCuts)
             .HasForeignKey(x => x.EquipmentId)
@@ -103,6 +106,9 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
         dieCutEvent.Property(x => x.Type).HasConversion<string>().HasMaxLength(32);
         dieCutEvent.Property(x => x.RunLengthMetersBefore).HasPrecision(18, 6);
         dieCutEvent.Property(x => x.RunLengthMetersAfter).HasPrecision(18, 6);
+        dieCutEvent.Property(x => x.JustCutPriceAmount).HasPrecision(18, 2);
+        dieCutEvent.Property(x => x.JustCutPriceCurrency).HasMaxLength(16);
+        dieCutEvent.Property(x => x.JustCutEnvironment).HasMaxLength(32);
         dieCutEvent.HasOne(x => x.DieCut)
             .WithMany(x => x.Events)
             .HasForeignKey(x => x.DieCutId)

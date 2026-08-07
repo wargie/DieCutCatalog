@@ -66,7 +66,7 @@ public sealed class JustCutServiceTests
         RectangleId, "016LS", null, "Label Source", 80, 50m, 80m, 4, 3,
         2m, 2m, 0m, 0m, "PP white", 330m, "прямоугольник", null,
         DateOnly.FromDateTime(DateTime.Today), 0, 0m, 0, 0, 0m, 0, 1,
-        1_000_000, DieCutStatus.Active, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+        500_000, DieCutStatus.Active, null, null, null, null, null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
 
     private sealed class RecordingHandler(HttpStatusCode statusCode, string body) : HttpMessageHandler
     {

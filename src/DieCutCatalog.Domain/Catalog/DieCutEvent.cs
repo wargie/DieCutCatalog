@@ -18,5 +18,11 @@ public sealed class DieCutEvent
     public decimal RunLengthMetersAfter { get; set; }
     public long RevolutionsBefore { get; set; }
     public long RevolutionsAfter { get; set; }
+    public decimal? JustCutPriceAmount { get; set; }
+    public string? JustCutPriceCurrency { get; set; }
+    public bool? JustCutPriceIncludesVat { get; set; }
+    public long? JustCutNumberOrder { get; set; }
+    public DateTimeOffset? JustCutCalculatedAt { get; set; }
+    public string? JustCutEnvironment { get; set; }
     public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
 }
