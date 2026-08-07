@@ -23,6 +23,7 @@ public partial class CatalogPage : ContentPage
         base.OnAppearing();
         AvatarInitials.Text = SessionProfile.Initials;
         if (!loaded) await LoadCatalogAsync();
+        await AndroidUpdateCoordinator.CheckAsync(this, notifyWhenCurrent: false);
     }
 
     private async Task LoadCatalogAsync()

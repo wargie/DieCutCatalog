@@ -41,6 +41,14 @@
                 </Border>
 
                 <Button Text="Сохранить изменения" Style="{StaticResource PrimaryButton}" Clicked="Save_Clicked" />
+
+                <Border Stroke="{StaticResource Divider}" StrokeShape="RoundRectangle 6" Padding="16">
+                    <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="8">
+                        <Label Text="Приложение" Style="{StaticResource SectionTitle}" />
+                        <Label x:Name="AppVersionLabel" Grid.Row="1" TextColor="{StaticResource TextSecondary}" VerticalTextAlignment="Center" />
+                        <Button Grid.RowSpan="2" Grid.Column="1" Text="Проверить обновления" BackgroundColor="{StaticResource SurfaceMuted}" TextColor="{StaticResource BrandBlue}" Clicked="CheckUpdates_Clicked" />
+                    </Grid>
+                </Border>
             </VerticalStackLayout>
         </ScrollView>
 

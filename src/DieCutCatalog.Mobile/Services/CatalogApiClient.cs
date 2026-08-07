@@ -6,13 +6,13 @@ using DieCutCatalog.Mobile.Models;
 
 namespace DieCutCatalog.Mobile.Services;
 
-public sealed class CatalogApiClient
+public sealed partial class CatalogApiClient
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly HttpClient http = new()
     {
         BaseAddress = new Uri("https://diecutcatalog.duckdns.org/"),
-        Timeout = TimeSpan.FromSeconds(30)
+        Timeout = TimeSpan.FromMinutes(5)
     };
 
     public static CatalogApiClient Current { get; } = new();

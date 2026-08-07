@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentPage x:Class="DieCutCatalog.Mobile.Views.AndroidUpdatePage"
+             xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             Title="Обновление"
+             Shell.NavBarIsVisible="True"
+             Shell.BackgroundColor="White"
+             Shell.ForegroundColor="{StaticResource TextPrimary}">
+    <Grid RowDefinitions="*,Auto">
+        <ScrollView>
+            <VerticalStackLayout Padding="22,22,22,30" Spacing="18">
+                <Image Source="flexprint_logo.png" WidthRequest="64" HeightRequest="64" HorizontalOptions="Start" />
+                <Label Text="Доступно обновление" FontSize="25" FontFamily="OpenSansSemibold" />
+                <Label x:Name="ReleaseNameLabel" FontSize="19" TextColor="{StaticResource BrandBlue}" />
+                <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="10">
+                    <Label Text="Установлено" />
+                    <Label x:Name="CurrentVersionLabel" Grid.Column="1" FontFamily="OpenSansSemibold" />
+                    <Label Grid.Row="1" Text="Новая версия" />
+                    <Label x:Name="NewVersionLabel" Grid.Row="1" Grid.Column="1" FontFamily="OpenSansSemibold" />
+                    <Label Grid.Row="2" Text="Размер" />
+                    <Label x:Name="PackageSizeLabel" Grid.Row="2" Grid.Column="1" FontFamily="OpenSansSemibold" />
+                </Grid>
+                <Border Stroke="{StaticResource Divider}" StrokeShape="RoundRectangle 6" Padding="16">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="Что изменилось" Style="{StaticResource SectionTitle}" />
+                        <Label x:Name="NotesLabel" LineBreakMode="WordWrap" />
+                    </VerticalStackLayout>
+                </Border>
+                <VerticalStackLayout x:Name="ProgressPanel" IsVisible="False" Spacing="8">
+                    <ProgressBar x:Name="DownloadProgress" ProgressColor="{StaticResource BrandBlue}" />
+                    <Label x:Name="ProgressLabel" HorizontalTextAlignment="Center" TextColor="{StaticResource TextSecondary}" />
+                </VerticalStackLayout>
+                <Label x:Name="UpdateErrorLabel" IsVisible="False" TextColor="{StaticResource BrandRed}" />
+                <Label x:Name="PermissionHintLabel" IsVisible="False"
+                       Text="Разрешите установку приложений для DieCut Catalog, вернитесь сюда и снова нажмите «Установить»."
+                       TextColor="{StaticResource BrandRed}" />
+            </VerticalStackLayout>
+        </ScrollView>
+        <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="10" Padding="18,12,18,18" BackgroundColor="White">
+            <Button x:Name="LaterButton" Text="Позже" BackgroundColor="{StaticResource SurfaceMuted}" TextColor="{StaticResource TextPrimary}" Clicked="Later_Clicked" />
+            <Button x:Name="InstallButton" Grid.Column="1" Text="Скачать и установить" Style="{StaticResource PrimaryButton}" Clicked="Install_Clicked" />
+        </Grid>
+    </Grid>
+</ContentPage>

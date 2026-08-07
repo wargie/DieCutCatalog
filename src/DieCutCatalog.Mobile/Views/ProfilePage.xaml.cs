@@ -8,6 +8,7 @@ public partial class ProfilePage : ContentPage
     {
         InitializeComponent();
         LoadProfile();
+        AppVersionLabel.Text = $"Версия {AppInfo.Current.VersionString}";
     }
 
     private void LoadProfile()
@@ -84,4 +85,7 @@ public partial class ProfilePage : ContentPage
             ConfirmSaveButton.IsEnabled = true;
         }
     }
+
+    private async void CheckUpdates_Clicked(object sender, EventArgs e) =>
+        await AndroidUpdateCoordinator.CheckAsync(this, notifyWhenCurrent: true);
 }
