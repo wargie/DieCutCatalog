@@ -244,10 +244,11 @@ internal static class DieCutEndpoints
 
 internal sealed record SaveDieCutRequest(
     string Number, string? JcOrderNumber, string Equipment, int Shaft, decimal X, decimal Y,
-    int Streams, int Repeats, decimal GrooveSpacing, decimal LabelCornerRadius, string Material, decimal H, string Figure, string? Comments, DateOnly? Date, DieCutStatus Status)
+    int Streams, int Repeats, decimal GrooveSpacing, decimal LabelCornerRadius, string Material, decimal H, string Figure, string? Comments, DateOnly? Date, DieCutStatus Status,
+    JustCutPriceResult? JustCutPrice = null)
 {
     public SaveDieCutCommand ToCommand() => new(Number, JcOrderNumber, Equipment, Shaft, X, Y, Streams,
-        Repeats, GrooveSpacing, LabelCornerRadius, Material, H, Figure, Comments, Date, Status);
+        Repeats, GrooveSpacing, LabelCornerRadius, Material, H, Figure, Comments, Date, Status, JustCutPrice);
 }
 
 internal sealed record AddCirculationRequest(long? Quantity, decimal? RunLengthMeters);

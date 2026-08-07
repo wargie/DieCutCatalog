@@ -30,6 +30,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\DieCutCatalog.Infrastructure\DieCutCatalog.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\DieCutCatalog.Api\DieCutCatalog.Api.csproj" />
   </ItemGroup>
 
 </Project>
