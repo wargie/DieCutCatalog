@@ -9,8 +9,8 @@
     <Nullable>enable</Nullable>
     <ApplicationTitle>DieCut Catalog</ApplicationTitle>
     <ApplicationId>com.flexprint.diecutcatalog</ApplicationId>
-    <ApplicationDisplayVersion>0.3.0</ApplicationDisplayVersion>
-    <ApplicationVersion>4</ApplicationVersion>
+    <ApplicationDisplayVersion>0.3.1</ApplicationDisplayVersion>
+    <ApplicationVersion>5</ApplicationVersion>
     <SupportedOSPlatformVersion>29.0</SupportedOSPlatformVersion>
     <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
   </PropertyGroup>
@@ -19,7 +19,7 @@
     <AndroidKeyStore>true</AndroidKeyStore>
   </PropertyGroup>
   <ItemGroup>
-    <MauiIcon Include="Resources/AppIcon/appicon.png" />
+    <MauiIcon Include="Resources/AppIcon/appicon.svg" ForegroundFile="Resources/AppIcon/appiconfg.svg" Color="#E31E24" />
     <MauiSplashScreen Include="Resources/Splash/splash_logo.png" Color="#FFFFFF" BaseSize="128,128" />
     <MauiImage Include="Resources/Images/*" />
     <MauiFont Include="Resources/Fonts/*" />
