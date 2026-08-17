@@ -54,6 +54,53 @@ public sealed class CatalogAdministrationServiceTests
 
         Assert.Contains("используется", exception.Message);
     }
+
+    [Fact]
+    public async Task CustomDirectory_CreatesGroupDirectoryAndValues()
+    {
+        await using var fixture = CreateFixture();
+        var group = await fixture.Administration.AddDirectoryGroupAsync("Производство");
+        var directory = await fixture.Administration.AddDirectoryAsync(
+            new CreateReferenceDirectoryCommand(group.Id, "Причины списания", "Причины вывода ножа из эксплуатации"));
+        var value = await fixture.Administration.AddDirectoryValueAsync(directory.Id, "Естественный износ");
+
+        var overview = await fixture.Administration.GetDirectoryOverviewAsync();
+        var values = await fixture.Administration.GetDirectoryValuesAsync(directory.Id, false);
+
+        Assert.Equal(group.Id, Assert.Single(overview.Groups).Id);
+        Assert.Equal(1, Assert.Single(overview.Directories).ValueCount);
+        Assert.Equal(value.Id, Assert.Single(values).Id);
+    }
+
+    [Fact]
+    public async Task CustomDirectoryValue_CanBeArchivedAndRestored()
+    {
+        await using var fixture = CreateFixture();
+        var directory = await fixture.Administration.AddDirectoryAsync(
+            new CreateReferenceDirectoryCommand(null, "Поставщики", null));
+        var value = await fixture.Administration.AddDirectoryValueAsync(directory.Id, "JustCut");
+
+        await fixture.Administration.UpdateDirectoryValueAsync(directory.Id, value.Id, value.Name, true);
+        Assert.Empty(await fixture.Administration.GetDirectoryValuesAsync(directory.Id, false));
+        Assert.True(Assert.Single(await fixture.Administration.GetDirectoryValuesAsync(directory.Id, true)).IsArchived);
+
+        await fixture.Administration.UpdateDirectoryValueAsync(directory.Id, value.Id, value.Name, false);
+        Assert.False(Assert.Single(await fixture.Administration.GetDirectoryValuesAsync(directory.Id, false)).IsArchived);
+    }
+
+    [Fact]
+    public async Task DeleteCustomDirectory_RejectsNonEmptyDirectory()
+    {
+        await using var fixture = CreateFixture();
+        var directory = await fixture.Administration.AddDirectoryAsync(
+            new CreateReferenceDirectoryCommand(null, "Тип дефекта", null));
+        await fixture.Administration.AddDirectoryValueAsync(directory.Id, "Скол");
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(
+            () => fixture.Administration.DeleteDirectoryAsync(directory.Id));
+
+        Assert.Contains("непустой", exception.Message);
+    }
     [Fact]
     public async Task AuditLog_ContainsEventsAndExportsCsvAndPdf()
     {

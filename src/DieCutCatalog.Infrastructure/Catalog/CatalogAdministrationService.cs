@@ -126,6 +126,145 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         await dbContext.SaveChangesAsync(cancellationToken);
         return true;
     }
+
+    public async Task<ReferenceDirectoryOverview> GetDirectoryOverviewAsync(CancellationToken cancellationToken = default)
+    {
+        var groups = await dbContext.ReferenceDirectoryGroups.AsNoTracking()
+            .OrderBy(x => x.SortOrder).ThenBy(x => x.Name)
+            .Select(x => new ReferenceDirectoryGroupItem(x.Id, x.Name, x.SortOrder))
+            .ToListAsync(cancellationToken);
+        var directories = await dbContext.ReferenceDirectories.AsNoTracking()
+            .OrderBy(x => x.SortOrder).ThenBy(x => x.Name)
+            .Select(x => new ReferenceDirectoryItem(
+                x.Id, x.GroupId, x.Name, x.Description, x.SortOrder, x.IsArchived, x.Values.Count))
+            .ToListAsync(cancellationToken);
+        return new ReferenceDirectoryOverview(groups, directories);
+    }
+
+    public async Task<ReferenceDirectoryGroupItem> AddDirectoryGroupAsync(
+        string name, CancellationToken cancellationToken = default)
+    {
+        var clean = ValidateDirectoryName(name, 120);
+        var normalized = Normalize(clean);
+        if (await dbContext.ReferenceDirectoryGroups.AnyAsync(x => x.NormalizedName == normalized, cancellationToken))
+            throw new ValidationException("Группа с таким названием уже существует.");
+        var sortOrder = (await dbContext.ReferenceDirectoryGroups.MaxAsync(x => (int?)x.SortOrder, cancellationToken) ?? -1) + 1;
+        var group = new ReferenceDirectoryGroup { Name = clean, NormalizedName = normalized, SortOrder = sortOrder };
+        dbContext.ReferenceDirectoryGroups.Add(group);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return new ReferenceDirectoryGroupItem(group.Id, group.Name, group.SortOrder);
+    }
+
+    public async Task<ReferenceDirectoryItem> AddDirectoryAsync(
+        CreateReferenceDirectoryCommand command, CancellationToken cancellationToken = default)
+    {
+        await ValidateGroupAsync(command.GroupId, cancellationToken);
+        var clean = ValidateDirectoryName(command.Name, 120);
+        var normalized = Normalize(clean);
+        if (await dbContext.ReferenceDirectories.AnyAsync(x => x.NormalizedName == normalized, cancellationToken))
+            throw new ValidationException("Справочник с таким названием уже существует.");
+        var sortOrder = (await dbContext.ReferenceDirectories
+            .Where(x => x.GroupId == command.GroupId).MaxAsync(x => (int?)x.SortOrder, cancellationToken) ?? -1) + 1;
+        var directory = new ReferenceDirectory
+        {
+            GroupId = command.GroupId, Name = clean, NormalizedName = normalized,
+            Description = CleanDescription(command.Description), SortOrder = sortOrder
+        };
+        dbContext.ReferenceDirectories.Add(directory);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return ToItem(directory, 0);
+    }
+
+    public async Task<ReferenceDirectoryItem?> UpdateDirectoryAsync(
+        Guid id, UpdateReferenceDirectoryCommand command, CancellationToken cancellationToken = default)
+    {
+        await ValidateGroupAsync(command.GroupId, cancellationToken);
+        var directory = await dbContext.ReferenceDirectories.Include(x => x.Values)
+            .SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (directory is null) return null;
+        var clean = ValidateDirectoryName(command.Name, 120);
+        var normalized = Normalize(clean);
+        if (await dbContext.ReferenceDirectories.AnyAsync(
+                x => x.Id != id && x.NormalizedName == normalized, cancellationToken))
+            throw new ValidationException("Справочник с таким названием уже существует.");
+        directory.GroupId = command.GroupId;
+        directory.Name = clean;
+        directory.NormalizedName = normalized;
+        directory.Description = CleanDescription(command.Description);
+        directory.IsArchived = command.IsArchived;
+        directory.UpdatedAt = DateTimeOffset.UtcNow;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return ToItem(directory, directory.Values.Count);
+    }
+
+    public async Task<bool> DeleteDirectoryAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var directory = await dbContext.ReferenceDirectories.Include(x => x.Values)
+            .SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (directory is null) return false;
+        if (directory.Values.Count != 0)
+            throw new ValidationException("Нельзя удалить непустой справочник. Сначала архивируйте его или удалите значения.");
+        dbContext.ReferenceDirectories.Remove(directory);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task<IReadOnlyList<ReferenceDirectoryValueItem>> GetDirectoryValuesAsync(
+        Guid directoryId, bool includeArchived, CancellationToken cancellationToken = default)
+    {
+        if (!await dbContext.ReferenceDirectories.AnyAsync(x => x.Id == directoryId, cancellationToken))
+            return [];
+        return await dbContext.ReferenceDirectoryValues.AsNoTracking()
+            .Where(x => x.DirectoryId == directoryId && (includeArchived || !x.IsArchived))
+            .OrderBy(x => x.IsArchived).ThenBy(x => x.SortOrder).ThenBy(x => x.Name)
+            .Select(x => new ReferenceDirectoryValueItem(
+                x.Id, x.DirectoryId, x.Name, x.SortOrder, x.IsArchived, x.UpdatedAt))
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<ReferenceDirectoryValueItem> AddDirectoryValueAsync(
+        Guid directoryId, string name, CancellationToken cancellationToken = default)
+    {
+        var directory = await dbContext.ReferenceDirectories.SingleOrDefaultAsync(
+            x => x.Id == directoryId, cancellationToken)
+            ?? throw new ValidationException("Справочник не найден.");
+        if (directory.IsArchived) throw new ValidationException("Нельзя изменить архивный справочник.");
+        var clean = ValidateDirectoryName(name, 200);
+        var normalized = Normalize(clean);
+        if (await dbContext.ReferenceDirectoryValues.AnyAsync(
+                x => x.DirectoryId == directoryId && x.NormalizedName == normalized, cancellationToken))
+            throw new ValidationException("Такое значение уже существует в справочнике.");
+        var sortOrder = (await dbContext.ReferenceDirectoryValues.Where(x => x.DirectoryId == directoryId)
+            .MaxAsync(x => (int?)x.SortOrder, cancellationToken) ?? -1) + 1;
+        var value = new ReferenceDirectoryValue
+        {
+            DirectoryId = directoryId, Name = clean, NormalizedName = normalized, SortOrder = sortOrder
+        };
+        dbContext.ReferenceDirectoryValues.Add(value);
+        directory.UpdatedAt = DateTimeOffset.UtcNow;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return ToItem(value);
+    }
+
+    public async Task<ReferenceDirectoryValueItem?> UpdateDirectoryValueAsync(
+        Guid directoryId, Guid id, string name, bool isArchived, CancellationToken cancellationToken = default)
+    {
+        var value = await dbContext.ReferenceDirectoryValues.SingleOrDefaultAsync(
+            x => x.Id == id && x.DirectoryId == directoryId, cancellationToken);
+        if (value is null) return null;
+        var clean = ValidateDirectoryName(name, 200);
+        var normalized = Normalize(clean);
+        if (await dbContext.ReferenceDirectoryValues.AnyAsync(
+                x => x.Id != id && x.DirectoryId == directoryId && x.NormalizedName == normalized, cancellationToken))
+            throw new ValidationException("Такое значение уже существует в справочнике.");
+        value.Name = clean;
+        value.NormalizedName = normalized;
+        value.IsArchived = isArchived;
+        value.UpdatedAt = DateTimeOffset.UtcNow;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return ToItem(value);
+    }
+
     public async Task<PagedResult<AuditLogEntry>> SearchAuditLogAsync(
         string? search, int page, int pageSize, CancellationToken cancellationToken = default)
     {
@@ -278,6 +417,28 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         return clean;
     }
     private static string Normalize(string value) => value.Trim().ToUpperInvariant();
+    private async Task ValidateGroupAsync(Guid? groupId, CancellationToken cancellationToken)
+    {
+        if (groupId.HasValue && !await dbContext.ReferenceDirectoryGroups.AnyAsync(x => x.Id == groupId, cancellationToken))
+            throw new ValidationException("Выбранная группа не найдена.");
+    }
+    private static string ValidateDirectoryName(string? name, int max)
+    {
+        var clean = name?.Trim() ?? "";
+        if (clean.Length == 0 || clean.Length > max)
+            throw new ValidationException($"Название должно содержать от 1 до {max} символов.");
+        return clean;
+    }
+    private static string? CleanDescription(string? description)
+    {
+        var clean = description?.Trim();
+        if (clean?.Length > 500) throw new ValidationException("Описание не должно превышать 500 символов.");
+        return string.IsNullOrEmpty(clean) ? null : clean;
+    }
+    private static ReferenceDirectoryItem ToItem(ReferenceDirectory x, int count) =>
+        new(x.Id, x.GroupId, x.Name, x.Description, x.SortOrder, x.IsArchived, count);
+    private static ReferenceDirectoryValueItem ToItem(ReferenceDirectoryValue x) =>
+        new(x.Id, x.DirectoryId, x.Name, x.SortOrder, x.IsArchived, x.UpdatedAt);
     private static string EventName(AuditLogEntry entry) => entry.AccessType switch
     {
         EmployeeAccessEventType.LoggedIn => "Вход в систему",

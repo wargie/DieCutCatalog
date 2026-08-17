@@ -52,6 +52,79 @@ internal static class CatalogAdministrationEndpoints
                 ? Results.NoContent()
                 : Results.NotFound();
         }).RequireRateLimiting("auth");
+
+        group.MapGet("/directories", async (HttpContext context, ICatalogAdministrationService service,
+            IAccountService accounts, CancellationToken cancellationToken) =>
+        {
+            var profile = await AuthorizeAsync(context, accounts, cancellationToken);
+            return profile is null ? Results.Unauthorized() : Results.Ok(await service.GetDirectoryOverviewAsync(cancellationToken));
+        });
+
+        group.MapPost("/directory-groups", async (ReferenceNameRequest request, HttpContext context,
+            ICatalogAdministrationService service, IAccountService accounts, CancellationToken cancellationToken) =>
+        {
+            var profile = await AuthorizeAsync(context, accounts, cancellationToken);
+            if (profile is null) return Results.Unauthorized();
+            if (profile.Role != EmployeeRole.Administrator) return AdministratorRequired();
+            return Results.Ok(await service.AddDirectoryGroupAsync(request.Name, cancellationToken));
+        });
+
+        group.MapPost("/directories", async (CreateReferenceDirectoryCommand request, HttpContext context,
+            ICatalogAdministrationService service, IAccountService accounts, CancellationToken cancellationToken) =>
+        {
+            var profile = await AuthorizeAsync(context, accounts, cancellationToken);
+            if (profile is null) return Results.Unauthorized();
+            if (profile.Role != EmployeeRole.Administrator) return AdministratorRequired();
+            return Results.Ok(await service.AddDirectoryAsync(request, cancellationToken));
+        });
+
+        group.MapPut("/directories/{id:guid}", async (Guid id, UpdateReferenceDirectoryCommand request,
+            HttpContext context, ICatalogAdministrationService service, IAccountService accounts,
+            CancellationToken cancellationToken) =>
+        {
+            var profile = await AuthorizeAsync(context, accounts, cancellationToken);
+            if (profile is null) return Results.Unauthorized();
+            if (profile.Role != EmployeeRole.Administrator) return AdministratorRequired();
+            var item = await service.UpdateDirectoryAsync(id, request, cancellationToken);
+            return item is null ? Results.NotFound() : Results.Ok(item);
+        });
+
+        group.MapDelete("/directories/{id:guid}", async (Guid id, HttpContext context,
+            ICatalogAdministrationService service, IAccountService accounts, CancellationToken cancellationToken) =>
+        {
+            var profile = await AuthorizeAsync(context, accounts, cancellationToken);
+            if (profile is null) return Results.Unauthorized();
+            if (profile.Role != EmployeeRole.Administrator) return AdministratorRequired();
+            return await service.DeleteDirectoryAsync(id, cancellationToken) ? Results.NoContent() : Results.NotFound();
+        });
+
+        group.MapGet("/directories/{id:guid}/values", async (Guid id, bool includeArchived, HttpContext context,
+            ICatalogAdministrationService service, IAccountService accounts, CancellationToken cancellationToken) =>
+        {
+            var profile = await AuthorizeAsync(context, accounts, cancellationToken);
+            return profile is null ? Results.Unauthorized() : Results.Ok(await service.GetDirectoryValuesAsync(id, includeArchived, cancellationToken));
+        });
+
+        group.MapPost("/directories/{id:guid}/values", async (Guid id, ReferenceNameRequest request,
+            HttpContext context, ICatalogAdministrationService service, IAccountService accounts,
+            CancellationToken cancellationToken) =>
+        {
+            var profile = await AuthorizeAsync(context, accounts, cancellationToken);
+            if (profile is null) return Results.Unauthorized();
+            if (profile.Role != EmployeeRole.Administrator) return AdministratorRequired();
+            return Results.Ok(await service.AddDirectoryValueAsync(id, request.Name, cancellationToken));
+        });
+
+        group.MapPut("/directories/{directoryId:guid}/values/{id:guid}", async (Guid directoryId, Guid id,
+            ReferenceValueRequest request, HttpContext context, ICatalogAdministrationService service,
+            IAccountService accounts, CancellationToken cancellationToken) =>
+        {
+            var profile = await AuthorizeAsync(context, accounts, cancellationToken);
+            if (profile is null) return Results.Unauthorized();
+            if (profile.Role != EmployeeRole.Administrator) return AdministratorRequired();
+            var item = await service.UpdateDirectoryValueAsync(directoryId, id, request.Name, request.IsArchived, cancellationToken);
+            return item is null ? Results.NotFound() : Results.Ok(item);
+        });
         group.MapGet("/audit-log", async (string? search, int page, int pageSize, HttpContext context,
             ICatalogAdministrationService service, IAccountService accounts, CancellationToken cancellationToken) =>
         {
@@ -95,3 +168,4 @@ internal static class CatalogAdministrationEndpoints
 }
 
 internal sealed record ReferenceNameRequest(string Name);
+internal sealed record ReferenceValueRequest(string Name, bool IsArchived);

@@ -12,6 +12,9 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     public DbSet<EmployeeAccessEvent> EmployeeAccessEvents => Set<EmployeeAccessEvent>();
     public DbSet<Equipment> Equipment => Set<Equipment>();
     public DbSet<CatalogReferenceEntry> CatalogReferenceEntries => Set<CatalogReferenceEntry>();
+    public DbSet<ReferenceDirectoryGroup> ReferenceDirectoryGroups => Set<ReferenceDirectoryGroup>();
+    public DbSet<ReferenceDirectory> ReferenceDirectories => Set<ReferenceDirectory>();
+    public DbSet<ReferenceDirectoryValue> ReferenceDirectoryValues => Set<ReferenceDirectoryValue>();
     public DbSet<DieCut> DieCuts => Set<DieCut>();
     public DbSet<DieCutEvent> DieCutEvents => Set<DieCutEvent>();
     public DbSet<DieCutDocument> DieCutDocuments => Set<DieCutDocument>();
@@ -68,6 +71,32 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
         reference.Property(x => x.Kind).HasConversion<string>().HasMaxLength(32);
         reference.Property(x => x.Name).HasMaxLength(200).IsRequired();
         reference.Property(x => x.NormalizedName).HasMaxLength(200).IsRequired();
+
+        var directoryGroup = modelBuilder.Entity<ReferenceDirectoryGroup>();
+        directoryGroup.ToTable("reference_directory_groups");
+        directoryGroup.HasKey(x => x.Id);
+        directoryGroup.HasIndex(x => x.NormalizedName).IsUnique();
+        directoryGroup.Property(x => x.Name).HasMaxLength(120).IsRequired();
+        directoryGroup.Property(x => x.NormalizedName).HasMaxLength(120).IsRequired();
+
+        var directory = modelBuilder.Entity<ReferenceDirectory>();
+        directory.ToTable("reference_directories");
+        directory.HasKey(x => x.Id);
+        directory.HasIndex(x => x.NormalizedName).IsUnique();
+        directory.Property(x => x.Name).HasMaxLength(120).IsRequired();
+        directory.Property(x => x.NormalizedName).HasMaxLength(120).IsRequired();
+        directory.Property(x => x.Description).HasMaxLength(500);
+        directory.HasOne(x => x.Group).WithMany(x => x.Directories).HasForeignKey(x => x.GroupId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        var directoryValue = modelBuilder.Entity<ReferenceDirectoryValue>();
+        directoryValue.ToTable("reference_directory_values");
+        directoryValue.HasKey(x => x.Id);
+        directoryValue.HasIndex(x => new { x.DirectoryId, x.NormalizedName }).IsUnique();
+        directoryValue.Property(x => x.Name).HasMaxLength(200).IsRequired();
+        directoryValue.Property(x => x.NormalizedName).HasMaxLength(200).IsRequired();
+        directoryValue.HasOne(x => x.Directory).WithMany(x => x.Values).HasForeignKey(x => x.DirectoryId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         var dieCut = modelBuilder.Entity<DieCut>();
         dieCut.ToTable("die_cuts");

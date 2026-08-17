@@ -17,6 +17,10 @@ public partial class ReferenceDataView : UserControl
     private readonly ObservableCollection<CatalogReferenceItem> _figures = [];
     private readonly ObservableCollection<CatalogReferenceItem> _equipment = [];
     private readonly ObservableCollection<AuditLogRow> _audit = [];
+    private readonly ObservableCollection<DirectoryRow> _directories = [];
+    private readonly ObservableCollection<ReferenceDirectoryGroupItem> _directoryGroups = [];
+    private readonly ObservableCollection<DirectoryValueRow> _directoryValues = [];
+    private IReadOnlyList<ReferenceDirectoryValueItem> _allDirectoryValues = [];
     private CatalogApiClient? _api;
     private bool _isAdministrator;
 
@@ -30,6 +34,9 @@ public partial class ReferenceDataView : UserControl
         FiguresGrid.ItemsSource = _figures;
         EquipmentGrid.ItemsSource = _equipment;
         AuditGrid.ItemsSource = _audit;
+        DirectoriesList.ItemsSource = _directories;
+        DirectoryGroupBox.ItemsSource = _directoryGroups;
+        DirectoryValuesGrid.ItemsSource = _directoryValues;
     }
 
     internal async Task InitializeAsync(CatalogApiClient api, bool isAdministrator)
@@ -50,6 +57,7 @@ public partial class ReferenceDataView : UserControl
             Replace(_materials, references.Materials);
             Replace(_figures, references.Figures);
             Replace(_equipment, references.Equipment);
+            await LoadDirectoriesAsync();
             await LoadAuditAsync();
         }
         catch (CatalogApiException exception) { SetStatus(exception.Message, true); }
@@ -62,6 +70,9 @@ public partial class ReferenceDataView : UserControl
         _figures.Clear();
         _equipment.Clear();
         _audit.Clear();
+        _directories.Clear();
+        _directoryGroups.Clear();
+        _directoryValues.Clear();
     }
 
     private async Task LoadAuditAsync()
@@ -74,6 +85,128 @@ public partial class ReferenceDataView : UserControl
             ? $"Показано {result.Items.Count} из {result.Total}. Экспорт содержит весь журнал."
             : $"Записей: {result.Total}";
     }
+
+    private async Task LoadDirectoriesAsync(Guid? selectId = null)
+    {
+        if (_api is null) return;
+        var overview = await _api.GetReferenceDirectoryOverviewAsync();
+        _directoryGroups.Clear();
+        foreach (var group in overview.Groups) _directoryGroups.Add(group);
+        _directories.Clear();
+        foreach (var directory in overview.Directories.Where(x => !x.IsArchived)
+                     .OrderBy(x => GroupName(x.GroupId)).ThenBy(x => x.SortOrder).ThenBy(x => x.Name))
+            _directories.Add(new DirectoryRow(directory, GroupName(directory.GroupId)));
+        var selected = _directories.FirstOrDefault(x => x.Id == selectId)
+            ?? DirectoriesList.SelectedItem as DirectoryRow
+            ?? _directories.FirstOrDefault();
+        DirectoriesList.SelectedItem = selected;
+        if (selected is not null) await LoadDirectoryValuesAsync(selected);
+        else ClearDirectorySelection();
+    }
+
+    private string GroupName(Guid? id) => id is null
+        ? "Без группы"
+        : _directoryGroups.FirstOrDefault(x => x.Id == id)?.Name ?? "Без группы";
+
+    private async Task LoadDirectoryValuesAsync(DirectoryRow directory)
+    {
+        if (_api is null) return;
+        SelectedDirectoryTitle.Text = directory.Name;
+        SelectedDirectoryDescription.Text = $"{directory.GroupName} · значений: {directory.ValueCount}";
+        _allDirectoryValues = await _api.GetReferenceDirectoryValuesAsync(directory.Id);
+        ApplyDirectoryValueFilter();
+    }
+
+    private void ApplyDirectoryValueFilter()
+    {
+        var term = DirectoryValueSearchBox.Text.Trim();
+        _directoryValues.Clear();
+        foreach (var value in _allDirectoryValues.Where(x => term.Length == 0 || x.Name.Contains(term, StringComparison.CurrentCultureIgnoreCase)))
+            _directoryValues.Add(new DirectoryValueRow(value));
+    }
+
+    private void ClearDirectorySelection()
+    {
+        SelectedDirectoryTitle.Text = "Выберите справочник";
+        SelectedDirectoryDescription.Text = "Создайте справочник слева или выберите существующий.";
+        _allDirectoryValues = [];
+        _directoryValues.Clear();
+    }
+
+    private async void ReloadDirectories_Click(object sender, RoutedEventArgs e) => await RunAsync(() => LoadDirectoriesAsync());
+
+    private async void AddGroup_Click(object sender, RoutedEventArgs e) => await RunAsync(async () =>
+    {
+        if (_api is null || !_isAdministrator) return;
+        await _api.AddReferenceDirectoryGroupAsync(NewGroupNameBox.Text);
+        NewGroupNameBox.Clear();
+        await LoadDirectoriesAsync();
+        SetStatus("Группа создана.", false);
+    });
+
+    private async void AddDirectory_Click(object sender, RoutedEventArgs e) => await RunAsync(async () =>
+    {
+        if (_api is null || !_isAdministrator) return;
+        var groupId = DirectoryGroupBox.SelectedItem is ReferenceDirectoryGroupItem group ? group.Id : (Guid?)null;
+        var created = await _api.AddReferenceDirectoryAsync(groupId, NewDirectoryNameBox.Text, null);
+        NewDirectoryNameBox.Clear();
+        await LoadDirectoriesAsync(created.Id);
+        SetStatus("Справочник создан.", false);
+    });
+
+    private async void DirectoriesList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (DirectoriesList.SelectedItem is DirectoryRow row) await RunAsync(() => LoadDirectoryValuesAsync(row));
+        else ClearDirectorySelection();
+    }
+
+    private async void AddDirectoryValue_Click(object sender, RoutedEventArgs e) => await RunAsync(async () =>
+    {
+        if (_api is null || !_isAdministrator || DirectoriesList.SelectedItem is not DirectoryRow directory)
+        { SetStatus("Выберите справочник.", true); return; }
+        await _api.AddReferenceDirectoryValueAsync(directory.Id, DirectoryValueNameBox.Text);
+        DirectoryValueNameBox.Clear();
+        await LoadDirectoriesAsync(directory.Id);
+        SetStatus("Значение добавлено.", false);
+    });
+
+    private async void RenameDirectoryValue_Click(object sender, RoutedEventArgs e) => await RunAsync(async () =>
+    {
+        if (_api is null || !_isAdministrator || DirectoriesList.SelectedItem is not DirectoryRow directory || DirectoryValuesGrid.SelectedItem is not DirectoryValueRow value)
+        { SetStatus("Выберите значение.", true); return; }
+        await _api.UpdateReferenceDirectoryValueAsync(directory.Id, value.Id, DirectoryValueNameBox.Text, value.IsArchived);
+        await LoadDirectoryValuesAsync(directory);
+        SetStatus("Значение сохранено.", false);
+    });
+
+    private async void ArchiveDirectoryValue_Click(object sender, RoutedEventArgs e) => await RunAsync(async () =>
+    {
+        if (_api is null || !_isAdministrator || DirectoriesList.SelectedItem is not DirectoryRow directory || DirectoryValuesGrid.SelectedItem is not DirectoryValueRow value)
+        { SetStatus("Выберите значение.", true); return; }
+        await _api.UpdateReferenceDirectoryValueAsync(directory.Id, value.Id, value.Name, !value.IsArchived);
+        await LoadDirectoryValuesAsync(directory);
+        SetStatus(value.IsArchived ? "Значение восстановлено." : "Значение архивировано.", false);
+    });
+
+    private async void ArchiveDirectory_Click(object sender, RoutedEventArgs e) => await RunAsync(async () =>
+    {
+        if (_api is null || !_isAdministrator || DirectoriesList.SelectedItem is not DirectoryRow directory)
+        { SetStatus("Выберите справочник.", true); return; }
+        await _api.UpdateReferenceDirectoryAsync(directory.Id, directory.GroupId, directory.Name, directory.Description, true);
+        await LoadDirectoriesAsync();
+        SetStatus("Справочник архивирован.", false);
+    });
+
+    private void DirectoryValuesGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (DirectoryValuesGrid.SelectedItem is DirectoryValueRow value)
+        {
+            DirectoryValueNameBox.Text = value.Name;
+            ArchiveDirectoryValueButton.Content = value.IsArchived ? "Восстановить" : "В архив";
+        }
+    }
+
+    private void DirectoryValueSearchBox_TextChanged(object sender, TextChangedEventArgs e) => ApplyDirectoryValueFilter();
 
     private async Task AddAsync(CatalogReferenceType type, TextBox box)
     {
@@ -166,6 +299,9 @@ public partial class ReferenceDataView : UserControl
             MaterialNameBox, FigureNameBox, EquipmentNameBox,
             AddMaterialButton, RenameMaterialButton, AddFigureButton,
             RenameFigureButton, DeleteMaterialButton, DeleteFigureButton, AddEquipmentButton, RenameEquipmentButton, DeleteEquipmentButton
+            , ReloadDirectoriesButton, AddGroupButton, AddDirectoryButton, AddDirectoryValueButton,
+            RenameDirectoryValueButton, ArchiveDirectoryValueButton, ArchiveDirectoryButton,
+            NewGroupNameBox, NewDirectoryNameBox, DirectoryGroupBox, DirectoryValueNameBox
         }) control.IsEnabled = enabled;
         if (!enabled)
             SetStatus("Справочники доступны для просмотра. Изменения может вносить администратор.", false);
@@ -257,5 +393,25 @@ public partial class ReferenceDataView : UserControl
             DieCutEventType.Deleted => "Нож удалён",
             _ => type.ToString()
         };
+    }
+
+    private sealed class DirectoryRow(ReferenceDirectoryItem item, string groupName)
+    {
+        public Guid Id { get; } = item.Id;
+        public Guid? GroupId { get; } = item.GroupId;
+        public string Name { get; } = item.Name;
+        public string? Description { get; } = item.Description;
+        public int ValueCount { get; } = item.ValueCount;
+        public string GroupName { get; } = groupName;
+        public string Subtitle { get; } = $"{groupName} · {item.ValueCount}";
+    }
+
+    private sealed class DirectoryValueRow(ReferenceDirectoryValueItem item)
+    {
+        public Guid Id { get; } = item.Id;
+        public string Name { get; } = item.Name;
+        public bool IsArchived { get; } = item.IsArchived;
+        public string State { get; } = item.IsArchived ? "В архиве" : "Активно";
+        public string Updated { get; } = item.UpdatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm");
     }
 }

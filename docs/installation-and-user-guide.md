@@ -209,8 +209,6 @@ Production-адрес `https://diecutcatalog.duckdns.org` уже встроен 
 
 ## Каталог
 
-![Каталог ножей](images/catalog.png)
-
 Подсказки:
 
 1. Вкладки **Все ножи**, **Nilpeter/Lesko**, **MarkAndy**, **Big Lesko**, **Label Source** ограничивают список по оборудованию.

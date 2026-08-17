@@ -20,6 +20,36 @@ internal sealed partial class CatalogApiClient
     public Task DeleteCatalogReferenceAsync(CatalogReferenceType type, Guid id, string password) =>
         SendAsync(HttpMethod.Delete, $"api/catalog-administration/references/{type}/{id}", new { password });
 
+    public Task<ReferenceDirectoryOverview> GetReferenceDirectoryOverviewAsync() =>
+        SendAsync<ReferenceDirectoryOverview>(HttpMethod.Get, "api/catalog-administration/directories");
+
+    public Task<ReferenceDirectoryGroupItem> AddReferenceDirectoryGroupAsync(string name) =>
+        SendAsync<ReferenceDirectoryGroupItem>(HttpMethod.Post, "api/catalog-administration/directory-groups", new { name });
+
+    public Task<ReferenceDirectoryItem> AddReferenceDirectoryAsync(Guid? groupId, string name, string? description) =>
+        SendAsync<ReferenceDirectoryItem>(HttpMethod.Post, "api/catalog-administration/directories", new { groupId, name, description });
+
+    public Task<ReferenceDirectoryItem> UpdateReferenceDirectoryAsync(
+        Guid id, Guid? groupId, string name, string? description, bool isArchived) =>
+        SendAsync<ReferenceDirectoryItem>(HttpMethod.Put, $"api/catalog-administration/directories/{id}",
+            new { groupId, name, description, isArchived });
+
+    public Task DeleteReferenceDirectoryAsync(Guid id) =>
+        SendAsync(HttpMethod.Delete, $"api/catalog-administration/directories/{id}");
+
+    public Task<IReadOnlyList<ReferenceDirectoryValueItem>> GetReferenceDirectoryValuesAsync(Guid id, bool includeArchived = true) =>
+        SendAsync<IReadOnlyList<ReferenceDirectoryValueItem>>(HttpMethod.Get,
+            $"api/catalog-administration/directories/{id}/values?includeArchived={includeArchived.ToString().ToLowerInvariant()}");
+
+    public Task<ReferenceDirectoryValueItem> AddReferenceDirectoryValueAsync(Guid id, string name) =>
+        SendAsync<ReferenceDirectoryValueItem>(HttpMethod.Post,
+            $"api/catalog-administration/directories/{id}/values", new { name });
+
+    public Task<ReferenceDirectoryValueItem> UpdateReferenceDirectoryValueAsync(
+        Guid directoryId, Guid id, string name, bool isArchived) =>
+        SendAsync<ReferenceDirectoryValueItem>(HttpMethod.Put,
+            $"api/catalog-administration/directories/{directoryId}/values/{id}", new { name, isArchived });
+
     public Task<PagedResult<AuditLogEntry>> SearchAuditLogAsync(string? search, int page, int pageSize = 200)
     {
         var query = new StringBuilder($"api/catalog-administration/audit-log?page={page}&pageSize={pageSize}");

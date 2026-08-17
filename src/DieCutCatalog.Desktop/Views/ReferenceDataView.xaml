@@ -31,7 +31,55 @@
         </Grid>
 
         <TabControl Grid.Row="2" Background="Transparent" BorderThickness="0">
-            <TabItem Header="Справочники">
+            <TabItem Header="Пользовательские">
+                <Grid Margin="0,16,0,0">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="280" /><ColumnDefinition Width="16" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" Style="{StaticResource SurfaceCard}" Padding="14">
+                        <Grid>
+                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="10" /><RowDefinition Height="*" /><RowDefinition Height="12" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <TextBlock Text="Группы и справочники" Style="{StaticResource SectionTitle}" />
+                                <ui:Button x:Name="ReloadDirectoriesButton" Grid.Column="1" Content="Обновить" Appearance="Secondary" Click="ReloadDirectories_Click" />
+                            </Grid>
+                            <ListBox x:Name="DirectoriesList" Grid.Row="2" BorderThickness="0" Background="Transparent"
+                                     SelectionChanged="DirectoriesList_SelectionChanged">
+                                <ListBox.ItemTemplate><DataTemplate><StackPanel Margin="4,5"><TextBlock Text="{Binding Name}" FontWeight="SemiBold" /><TextBlock Text="{Binding Subtitle}" Style="{StaticResource CaptionText}" /></StackPanel></DataTemplate></ListBox.ItemTemplate>
+                            </ListBox>
+                            <StackPanel Grid.Row="4">
+                                <TextBox x:Name="NewGroupNameBox" Style="{StaticResource CompactTextBox}" ToolTip="Название новой группы" />
+                                <ui:Button x:Name="AddGroupButton" Margin="0,7,0,10" Content="Добавить группу" Appearance="Secondary" Click="AddGroup_Click" />
+                                <ComboBox x:Name="DirectoryGroupBox" DisplayMemberPath="Name" SelectedValuePath="Id" />
+                                <TextBox x:Name="NewDirectoryNameBox" Margin="0,7,0,0" Style="{StaticResource CompactTextBox}" ToolTip="Название нового справочника" />
+                                <ui:Button x:Name="AddDirectoryButton" Margin="0,7,0,0" Content="Новый справочник" Appearance="Primary" Click="AddDirectory_Click" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                    <Border Grid.Column="2" Style="{StaticResource SurfaceCard}" Padding="16">
+                        <Grid>
+                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="12" /><RowDefinition Height="Auto" /><RowDefinition Height="12" /><RowDefinition Height="*" /><RowDefinition Height="12" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <StackPanel><TextBlock x:Name="SelectedDirectoryTitle" Text="Выберите справочник" Style="{StaticResource SectionTitle}" /><TextBlock x:Name="SelectedDirectoryDescription" Margin="0,4,0,0" Style="{StaticResource CaptionText}" /></StackPanel>
+                                <ui:Button x:Name="ArchiveDirectoryButton" Grid.Column="1" Content="Архивировать" Appearance="Secondary" Click="ArchiveDirectory_Click" />
+                            </Grid>
+                            <TextBox x:Name="DirectoryValueSearchBox" Grid.Row="2" Style="{StaticResource CompactTextBox}" ToolTip="Поиск по значениям" TextChanged="DirectoryValueSearchBox_TextChanged" />
+                            <DataGrid x:Name="DirectoryValuesGrid" Grid.Row="4" AutoGenerateColumns="False" IsReadOnly="True" SelectionChanged="DirectoryValuesGrid_SelectionChanged">
+                                <DataGrid.Columns><DataGridTextColumn Header="Название" Binding="{Binding Name}" Width="*" /><DataGridTextColumn Header="Состояние" Binding="{Binding State}" Width="130" /><DataGridTextColumn Header="Изменено" Binding="{Binding Updated}" Width="150" /></DataGrid.Columns>
+                            </DataGrid>
+                            <Grid Grid.Row="6">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="8" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="8" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="8" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <TextBox x:Name="DirectoryValueNameBox" Style="{StaticResource CompactTextBox}" ToolTip="Название значения" />
+                                <ui:Button x:Name="AddDirectoryValueButton" Grid.Column="2" Content="Добавить" Appearance="Primary" Click="AddDirectoryValue_Click" />
+                                <ui:Button x:Name="RenameDirectoryValueButton" Grid.Column="4" Content="Сохранить" Appearance="Secondary" Click="RenameDirectoryValue_Click" />
+                                <ui:Button x:Name="ArchiveDirectoryValueButton" Grid.Column="6" Content="В архив" Appearance="Secondary" Click="ArchiveDirectoryValue_Click" />
+                            </Grid>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Системные">
                 <Grid Margin="0,16,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
