@@ -56,6 +56,35 @@ public sealed class CatalogAdministrationServiceTests
     }
 
     [Fact]
+    public async Task ImportReferences_AddsUniqueValuesAndSkipsDuplicates()
+    {
+        await using var fixture = CreateFixture();
+
+        var result = await fixture.Administration.ImportReferencesAsync(
+            CatalogReferenceType.Material, ["Paper", "Clear PET30", " clear pet30 ", "White PET", ""]);
+        var references = await fixture.Administration.GetReferencesAsync();
+
+        Assert.Equal(2, result.Added);
+        Assert.Equal(3, result.Skipped);
+        Assert.Contains(references.Materials, x => x.Name == "Clear PET30");
+        Assert.Contains(references.Materials, x => x.Name == "White PET");
+    }
+
+    [Fact]
+    public async Task ReferenceArticle_CanBeSavedAndRead()
+    {
+        await using var fixture = CreateFixture();
+        var material = Assert.Single((await fixture.Administration.GetReferencesAsync()).Materials);
+
+        var updated = await fixture.Administration.UpdateReferenceArticleAsync(
+            CatalogReferenceType.Material, material.Id, @"{\rtf1 Описание материала}");
+        var refreshed = Assert.Single((await fixture.Administration.GetReferencesAsync()).Materials);
+
+        Assert.True(updated);
+        Assert.Equal(@"{\rtf1 Описание материала}", refreshed.ArticleRtf);
+    }
+
+    [Fact]
     public async Task CustomDirectory_CreatesGroupDirectoryAndValues()
     {
         await using var fixture = CreateFixture();
@@ -73,6 +102,24 @@ public sealed class CatalogAdministrationServiceTests
     }
 
     [Fact]
+    public async Task DeleteDirectoryGroup_PreservesDirectoriesWithoutGroup()
+    {
+        await using var fixture = CreateFixture();
+        var group = await fixture.Administration.AddDirectoryGroupAsync("Временная группа");
+        var directory = await fixture.Administration.AddDirectoryAsync(
+            new CreateReferenceDirectoryCommand(group.Id, "Сохраняемый справочник", null));
+
+        var deleted = await fixture.Administration.DeleteDirectoryGroupAsync(group.Id);
+        var overview = await fixture.Administration.GetDirectoryOverviewAsync();
+
+        Assert.True(deleted);
+        Assert.Empty(overview.Groups);
+        var preserved = Assert.Single(overview.Directories);
+        Assert.Equal(directory.Id, preserved.Id);
+        Assert.Null(preserved.GroupId);
+    }
+
+    [Fact]
     public async Task CustomDirectoryValue_CanBeArchivedAndRestored()
     {
         await using var fixture = CreateFixture();
@@ -86,6 +133,54 @@ public sealed class CatalogAdministrationServiceTests
 
         await fixture.Administration.UpdateDirectoryValueAsync(directory.Id, value.Id, value.Name, false);
         Assert.False(Assert.Single(await fixture.Administration.GetDirectoryValuesAsync(directory.Id, false)).IsArchived);
+    }
+
+    [Fact]
+    public async Task ImportDirectoryValues_AddsUniqueValuesAndPreservesOrder()
+    {
+        await using var fixture = CreateFixture();
+        var directory = await fixture.Administration.AddDirectoryAsync(
+            new CreateReferenceDirectoryCommand(null, "Материалы поставщика", null));
+        await fixture.Administration.AddDirectoryValueAsync(directory.Id, "Existing");
+
+        var result = await fixture.Administration.ImportDirectoryValuesAsync(
+            directory.Id, ["Existing", "Clear PET30", "clear pet30", "White PET", ""]);
+        var values = await fixture.Administration.GetDirectoryValuesAsync(directory.Id, false);
+
+        Assert.Equal(2, result.Added);
+        Assert.Equal(3, result.Skipped);
+        Assert.Equal(["Existing", "Clear PET30", "White PET"], values.Select(x => x.Name));
+    }
+
+    [Fact]
+    public async Task DeleteDirectoryValue_RemovesSelectedValue()
+    {
+        await using var fixture = CreateFixture();
+        var directory = await fixture.Administration.AddDirectoryAsync(
+            new CreateReferenceDirectoryCommand(null, "Удаляемые значения", null));
+        var value = await fixture.Administration.AddDirectoryValueAsync(directory.Id, "Временная позиция");
+
+        var deleted = await fixture.Administration.DeleteDirectoryValueAsync(directory.Id, value.Id);
+        var values = await fixture.Administration.GetDirectoryValuesAsync(directory.Id, true);
+
+        Assert.True(deleted);
+        Assert.Empty(values);
+    }
+
+    [Fact]
+    public async Task DirectoryValueArticle_CanBeSavedAndRead()
+    {
+        await using var fixture = CreateFixture();
+        var directory = await fixture.Administration.AddDirectoryAsync(
+            new CreateReferenceDirectoryCommand(null, "Карточки", null));
+        var value = await fixture.Administration.AddDirectoryValueAsync(directory.Id, "Clear PET30");
+
+        var updated = await fixture.Administration.UpdateDirectoryValueArticleAsync(
+            directory.Id, value.Id, @"{\rtf1 Техническое описание}");
+        var refreshed = Assert.Single(await fixture.Administration.GetDirectoryValuesAsync(directory.Id, true));
+
+        Assert.True(updated);
+        Assert.Equal(@"{\rtf1 Техническое описание}", refreshed.ArticleRtf);
     }
 
     [Fact]

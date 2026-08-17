@@ -33,12 +33,14 @@ foreach ($path in @($publishRoot, $updaterRoot)) {
 if (Test-Path -LiteralPath $archivePath) { Remove-Item -LiteralPath $archivePath -Force }
 
 dotnet publish (Join-Path $repoRoot "src/DieCutCatalog.Desktop/DieCutCatalog.Desktop.csproj") `
-    --configuration Release --runtime $Runtime --self-contained true `
+    --configuration Release --runtime $Runtime --self-contained true --no-restore `
+    --maxcpucount:1 -p:UseSharedCompilation=false -p:NodeReuse=false `
     -p:PublishSingleFile=true -p:DebugType=None --output $publishRoot
 if ($LASTEXITCODE -ne 0) { throw "Не удалось собрать клиент." }
 
 dotnet publish (Join-Path $repoRoot "src/DieCutCatalog.Updater/DieCutCatalog.Updater.csproj") `
-    --configuration Release --runtime $Runtime --self-contained true `
+    --configuration Release --runtime $Runtime --self-contained true --no-restore `
+    --maxcpucount:1 -p:UseSharedCompilation=false -p:NodeReuse=false `
     -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None --output $updaterRoot
 if ($LASTEXITCODE -ne 0) { throw "Не удалось собрать updater." }
 

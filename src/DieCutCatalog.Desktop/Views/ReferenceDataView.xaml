@@ -3,212 +3,198 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              Background="{StaticResource AppBackgroundBrush}">
+    <UserControl.Resources>
+        <Style x:Key="DirectorySubtitleText" TargetType="TextBlock" BasedOn="{StaticResource CaptionText}">
+            <Style.Triggers>
+                <Trigger Property="Text" Value="">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </Trigger>
+                <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}" Value="True">
+                    <Setter Property="Foreground" Value="#EAF2FC" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="NavigationCountText" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="Margin" Value="8,0,0,0" />
+        </Style>
+        <Style x:Key="PanelEyebrow" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#315E91" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style x:Key="LeftAlignedGridText" TargetType="TextBlock">
+            <Setter Property="TextAlignment" Value="Left" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="12,0,8,0" />
+        </Style>
+    </UserControl.Resources>
+
     <Grid Margin="28,22,28,24">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="18" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
+        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="18" /><RowDefinition Height="*" /></Grid.RowDefinitions>
         <Grid>
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="18" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <ui:Button x:Name="BackToCatalogButton" MinWidth="150" Height="36" VerticalAlignment="Top"
-                           Content="Каталог ножей" Appearance="Secondary" Click="BackToCatalog_Click">
-                    <ui:Button.Icon><ui:SymbolIcon Symbol="ChevronLeft20" /></ui:Button.Icon>
-                </ui:Button>
-                <StackPanel Grid.Column="2">
-                    <TextBlock Text="Справочники" Style="{StaticResource PageTitle}" />
-                    <TextBlock Margin="0,5,0,0" Text="Материалы, фигуры, оборудование и журнал действий"
-                               Style="{StaticResource CaptionText}" />
+            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="18" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <ui:Button x:Name="BackToCatalogButton" MinWidth="150" Height="36" VerticalAlignment="Top" Content="Каталог ножей" Appearance="Secondary" Click="BackToCatalog_Click">
+                <ui:Button.Icon><ui:SymbolIcon Symbol="ChevronLeft20" /></ui:Button.Icon>
+            </ui:Button>
+            <StackPanel Grid.Column="2">
+                <TextBlock Text="Справочники" Style="{StaticResource PageTitle}" />
+                <TextBlock Margin="0,5,0,0" Text="Системные и пользовательские списки значений" Style="{StaticResource CaptionText}" />
+            </StackPanel>
+            <StackPanel Grid.Column="3" HorizontalAlignment="Right">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <ui:Button x:Name="ReloadDirectoriesButton" Margin="0,0,8,0" Content="Обновить" Appearance="Secondary" Click="ReloadDirectories_Click" />
+                    <ui:Button x:Name="NewDirectoryButton" Content="Новый справочник" Appearance="Primary" Click="NewDirectoryButton_Click">
+                        <ui:Button.Icon><ui:SymbolIcon Symbol="Add20" /></ui:Button.Icon>
+                    </ui:Button>
                 </StackPanel>
-            </Grid>
-            <TextBlock x:Name="StatusText" HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                       Foreground="{StaticResource SuccessTextBrush}" />
+                <TextBlock x:Name="StatusText" Margin="0,7,0,0" HorizontalAlignment="Right" Foreground="{StaticResource SuccessTextBrush}" />
+            </StackPanel>
         </Grid>
 
         <TabControl Grid.Row="2" Background="Transparent" BorderThickness="0">
-            <TabItem Header="Пользовательские">
+            <TabItem Header="Справочники">
                 <Grid Margin="0,16,0,0">
-                    <Grid.ColumnDefinitions><ColumnDefinition Width="280" /><ColumnDefinition Width="16" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                    <Border Grid.Column="0" Style="{StaticResource SurfaceCard}" Padding="14">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="310" /><ColumnDefinition Width="14" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" Style="{StaticResource SurfaceCard}" Padding="12">
                         <Grid>
-                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="10" /><RowDefinition Height="*" /><RowDefinition Height="12" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                            <Grid>
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                <TextBlock Text="Группы и справочники"
-                                           Margin="0,0,10,0"
-                                           VerticalAlignment="Center"
-                                           TextWrapping="Wrap"
-                                           Style="{StaticResource SectionTitle}" />
-                                <ui:Button x:Name="ReloadDirectoriesButton" Grid.Column="1" Content="Обновить" Appearance="Secondary" Click="ReloadDirectories_Click" />
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="12" />
+                                <RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Grid Margin="4,2,4,8">
+                                <TextBlock Text="Системные" Style="{StaticResource PanelEyebrow}" />
+                                <TextBlock Text="Базовые поля" HorizontalAlignment="Right" Style="{StaticResource CaptionText}" />
                             </Grid>
-                            <ListBox x:Name="DirectoriesList" Grid.Row="2" BorderThickness="0" Background="Transparent"
-                                     SelectionChanged="DirectoriesList_SelectionChanged">
-                                <ListBox.ItemTemplate><DataTemplate><StackPanel Margin="4,5"><TextBlock Text="{Binding Name}" FontWeight="SemiBold" /><TextBlock Text="{Binding Subtitle}" Style="{StaticResource CaptionText}" /></StackPanel></DataTemplate></ListBox.ItemTemplate>
+                            <StackPanel Grid.Row="1">
+                                <ui:Button x:Name="MaterialsNavButton" Height="42" Margin="0,2" HorizontalContentAlignment="Stretch" Appearance="Primary" Click="ShowMaterials_Click">
+                                    <Grid Width="258"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Text="Материалы" FontWeight="SemiBold" VerticalAlignment="Center" /><TextBlock x:Name="MaterialsCountText" Grid.Column="1" Style="{StaticResource NavigationCountText}" /></Grid>
+                                </ui:Button>
+                                <ui:Button x:Name="FiguresNavButton" Height="42" Margin="0,2" HorizontalContentAlignment="Stretch" Appearance="Transparent" Click="ShowFigures_Click">
+                                    <Grid Width="258"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Text="Фигуры" FontWeight="SemiBold" VerticalAlignment="Center" /><TextBlock x:Name="FiguresCountText" Grid.Column="1" Style="{StaticResource NavigationCountText}" /></Grid>
+                                </ui:Button>
+                                <ui:Button x:Name="EquipmentNavButton" Height="42" Margin="0,2" HorizontalContentAlignment="Stretch" Appearance="Transparent" Click="ShowEquipment_Click">
+                                    <Grid Width="258"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Text="Оборудование" FontWeight="SemiBold" VerticalAlignment="Center" /><TextBlock x:Name="EquipmentCountText" Grid.Column="1" Style="{StaticResource NavigationCountText}" /></Grid>
+                                </ui:Button>
+                            </StackPanel>
+                            <Border Grid.Row="2" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0" />
+                            <Grid Grid.Row="3" Margin="4,2,4,7">
+                                <TextBlock Text="Пользовательские" Style="{StaticResource PanelEyebrow}" />
+                                <TextBlock x:Name="DirectoriesCountText" HorizontalAlignment="Right" Style="{StaticResource CaptionText}" />
+                            </Grid>
+                            <ListBox x:Name="DirectoriesList" Grid.Row="4" Margin="0,0,0,8" BorderThickness="0" Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled" SelectionChanged="DirectoriesList_SelectionChanged">
+                                <ListBox.GroupStyle>
+                                    <GroupStyle>
+                                        <GroupStyle.ContainerStyle>
+                                            <Style TargetType="GroupItem">
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="GroupItem">
+                                                            <Expander Margin="0,3" IsExpanded="False">
+                                                                <Expander.Header>
+                                                                    <Grid Width="270" Height="34" PreviewMouseRightButtonDown="DirectoryGroupHeader_RightClick">
+                                                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center" FontWeight="SemiBold" />
+                                                                        <TextBlock Grid.Column="1" Margin="8,0,4,0" Text="{Binding ItemCount}" VerticalAlignment="Center" Foreground="{StaticResource SecondaryTextBrush}" />
+                                                                    </Grid>
+                                                                </Expander.Header>
+                                                                <ItemsPresenter Margin="12,2,0,5" />
+                                                            </Expander>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Style>
+                                        </GroupStyle.ContainerStyle>
+                                    </GroupStyle>
+                                </ListBox.GroupStyle>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="5,5" MinHeight="34">
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                            <StackPanel VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                                <TextBlock Text="{Binding Description}" TextTrimming="CharacterEllipsis" Style="{StaticResource DirectorySubtitleText}" />
+                                            </StackPanel>
+                                            <Border Grid.Column="1" MinWidth="28" Height="24" Margin="8,0,0,0" VerticalAlignment="Center" Background="#EAF2FC" CornerRadius="12">
+                                                <TextBlock Text="{Binding ValueCount}" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#214F82" FontSize="12" />
+                                            </Border>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
                             </ListBox>
-                            <StackPanel Grid.Row="4">
-                                <TextBox x:Name="NewGroupNameBox" Style="{StaticResource CompactTextBox}" ToolTip="Название новой группы" />
-                                <ui:Button x:Name="AddGroupButton" Margin="0,7,0,10" Content="Добавить группу" Appearance="Secondary" Click="AddGroup_Click" />
-                                <ComboBox x:Name="DirectoryGroupBox" DisplayMemberPath="Name" SelectedValuePath="Id" />
-                                <TextBox x:Name="NewDirectoryNameBox" Margin="0,7,0,0" Style="{StaticResource CompactTextBox}" ToolTip="Название нового справочника" />
-                                <ui:Button x:Name="AddDirectoryButton" Margin="0,7,0,0" Content="Новый справочник" Appearance="Primary" Click="AddDirectory_Click" />
+                            <StackPanel Grid.Row="5">
+                                <Border BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0" Margin="0,0,0,10" />
+                                <TextBlock Text="Новая группа" Style="{StaticResource FieldLabel}" Margin="2,0,0,5" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="8" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <TextBox x:Name="NewGroupNameBox" Style="{StaticResource CompactTextBox}" KeyDown="NewGroupNameBox_KeyDown" />
+                                    <ui:Button x:Name="AddGroupButton" Grid.Column="2" Content="Добавить" Appearance="Secondary" Click="AddGroup_Click" />
+                                </Grid>
+                                <Border x:Name="CreateDirectoryPanel" Margin="0,10,0,0" Padding="10" Background="{StaticResource SurfaceMutedBrush}" BorderBrush="{StaticResource DividerBrush}" BorderThickness="1" CornerRadius="5" Visibility="Collapsed">
+                                    <StackPanel>
+                                        <TextBlock Text="Новый справочник" FontWeight="SemiBold" />
+                                        <ComboBox x:Name="DirectoryGroupBox" Margin="0,8,0,0" DisplayMemberPath="Name" SelectedValuePath="Id" />
+                                        <TextBox x:Name="NewDirectoryNameBox" Margin="0,7,0,0" Style="{StaticResource CompactTextBox}" ToolTip="Название нового справочника" />
+                                        <ui:Button x:Name="AddDirectoryButton" Margin="0,7,0,0" Content="Создать справочник" Appearance="Primary" Click="AddDirectory_Click" />
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
                         </Grid>
                     </Border>
-                    <Border Grid.Column="2" Style="{StaticResource SurfaceCard}" Padding="16">
-                        <Grid>
-                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="12" /><RowDefinition Height="Auto" /><RowDefinition Height="12" /><RowDefinition Height="*" /><RowDefinition Height="12" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+
+                    <Grid Grid.Column="2">
+                        <Border x:Name="MaterialsPanel" Style="{StaticResource SurfaceCard}" Padding="16">
                             <Grid>
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                <StackPanel><TextBlock x:Name="SelectedDirectoryTitle" Text="Выберите справочник" Style="{StaticResource SectionTitle}" /><TextBlock x:Name="SelectedDirectoryDescription" Margin="0,4,0,0" Style="{StaticResource CaptionText}" /></StackPanel>
-                                <ui:Button x:Name="ArchiveDirectoryButton" Grid.Column="1" Content="Архивировать" Appearance="Secondary" Click="ArchiveDirectory_Click" />
+                                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="14" /><RowDefinition Height="Auto" /><RowDefinition Height="12" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <StackPanel><TextBlock Text="Материалы" Style="{StaticResource SectionTitle}" /><TextBlock Margin="0,4,0,0" Text="Системное поле карточки ножа" Style="{StaticResource CaptionText}" /></StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                        <ui:Button Margin="0,0,8,0" Content="Открыть карточку" Appearance="Secondary" Click="OpenMaterialArticle_Click" />
+                                        <ui:Button x:Name="ImportMaterialsButton" Margin="0,0,8,0" Content="Импорт CSV" Appearance="Secondary" Click="ImportMaterials_Click" />
+                                        <ui:Button x:Name="RenameMaterialButton" Margin="0,0,8,0" Content="Сохранить" Appearance="Secondary" Click="RenameMaterial_Click" />
+                                        <ui:Button x:Name="AddMaterialButton" Margin="0,0,8,0" Content="Добавить" Appearance="Primary" Click="AddMaterial_Click" />
+                                        <ui:Button x:Name="DeleteMaterialButton" Content="Удалить" Background="#B42318" Foreground="White" Click="DeleteMaterial_Click" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBox x:Name="MaterialNameBox" Grid.Row="2" Style="{StaticResource CompactTextBox}" ToolTip="Введите новое название или выберите строку для изменения" />
+                                <DataGrid x:Name="MaterialsGrid" Grid.Row="4" AutoGenerateColumns="False" IsReadOnly="True" SelectionChanged="MaterialsGrid_SelectionChanged" MouseDoubleClick="MaterialsGrid_MouseDoubleClick"><DataGrid.Columns><DataGridTextColumn Header="Название" Binding="{Binding Name}" ElementStyle="{StaticResource LeftAlignedGridText}" Width="*" /></DataGrid.Columns></DataGrid>
                             </Grid>
-                            <TextBox x:Name="DirectoryValueSearchBox" Grid.Row="2" Style="{StaticResource CompactTextBox}" ToolTip="Поиск по значениям" TextChanged="DirectoryValueSearchBox_TextChanged" />
-                            <DataGrid x:Name="DirectoryValuesGrid" Grid.Row="4" AutoGenerateColumns="False" IsReadOnly="True" SelectionChanged="DirectoryValuesGrid_SelectionChanged">
-                                <DataGrid.Columns><DataGridTextColumn Header="Название" Binding="{Binding Name}" Width="*" /><DataGridTextColumn Header="Состояние" Binding="{Binding State}" Width="130" /><DataGridTextColumn Header="Изменено" Binding="{Binding Updated}" Width="150" /></DataGrid.Columns>
-                            </DataGrid>
-                            <Grid Grid.Row="6">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="8" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="8" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="8" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                <TextBox x:Name="DirectoryValueNameBox" Style="{StaticResource CompactTextBox}" ToolTip="Название значения" />
-                                <ui:Button x:Name="AddDirectoryValueButton" Grid.Column="2" Content="Добавить" Appearance="Primary" Click="AddDirectoryValue_Click" />
-                                <ui:Button x:Name="RenameDirectoryValueButton" Grid.Column="4" Content="Сохранить" Appearance="Secondary" Click="RenameDirectoryValue_Click" />
-                                <ui:Button x:Name="ArchiveDirectoryValueButton" Grid.Column="6" Content="В архив" Appearance="Secondary" Click="ArchiveDirectoryValue_Click" />
+                        </Border>
+                        <Border x:Name="FiguresPanel" Style="{StaticResource SurfaceCard}" Padding="16" Visibility="Collapsed">
+                            <Grid>
+                                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="14" /><RowDefinition Height="Auto" /><RowDefinition Height="12" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                                <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Фигуры" Style="{StaticResource SectionTitle}" /><TextBlock Margin="0,4,0,0" Text="Системное поле формы ножа" Style="{StaticResource CaptionText}" /></StackPanel><StackPanel Grid.Column="1" Orientation="Horizontal"><ui:Button Margin="0,0,8,0" Content="Открыть карточку" Appearance="Secondary" Click="OpenFigureArticle_Click" /><ui:Button x:Name="ImportFiguresButton" Margin="0,0,8,0" Content="Импорт CSV" Appearance="Secondary" Click="ImportFigures_Click" /><ui:Button x:Name="RenameFigureButton" Margin="0,0,8,0" Content="Сохранить" Appearance="Secondary" Click="RenameFigure_Click" /><ui:Button x:Name="AddFigureButton" Margin="0,0,8,0" Content="Добавить" Appearance="Primary" Click="AddFigure_Click" /><ui:Button x:Name="DeleteFigureButton" Content="Удалить" Background="#B42318" Foreground="White" Click="DeleteFigure_Click" /></StackPanel></Grid>
+                                <TextBox x:Name="FigureNameBox" Grid.Row="2" Style="{StaticResource CompactTextBox}" ToolTip="Введите новое название или выберите строку для изменения" />
+                                <DataGrid x:Name="FiguresGrid" Grid.Row="4" AutoGenerateColumns="False" IsReadOnly="True" SelectionChanged="FiguresGrid_SelectionChanged" MouseDoubleClick="FiguresGrid_MouseDoubleClick"><DataGrid.Columns><DataGridTextColumn Header="Название" Binding="{Binding Name}" ElementStyle="{StaticResource LeftAlignedGridText}" Width="*" /></DataGrid.Columns></DataGrid>
                             </Grid>
-                        </Grid>
-                    </Border>
+                        </Border>
+                        <Border x:Name="EquipmentPanel" Style="{StaticResource SurfaceCard}" Padding="16" Visibility="Collapsed">
+                            <Grid>
+                                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="14" /><RowDefinition Height="Auto" /><RowDefinition Height="12" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                                <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Оборудование" Style="{StaticResource SectionTitle}" /><TextBlock Margin="0,4,0,0" Text="Системный список печатных машин" Style="{StaticResource CaptionText}" /></StackPanel><StackPanel Grid.Column="1" Orientation="Horizontal"><ui:Button Margin="0,0,8,0" Content="Открыть карточку" Appearance="Secondary" Click="OpenEquipmentArticle_Click" /><ui:Button x:Name="ImportEquipmentButton" Margin="0,0,8,0" Content="Импорт CSV" Appearance="Secondary" Click="ImportEquipment_Click" /><ui:Button x:Name="RenameEquipmentButton" Margin="0,0,8,0" Content="Сохранить" Appearance="Secondary" Click="RenameEquipment_Click" /><ui:Button x:Name="AddEquipmentButton" Margin="0,0,8,0" Content="Добавить" Appearance="Primary" Click="AddEquipment_Click" /><ui:Button x:Name="DeleteEquipmentButton" Content="Удалить" Background="#B42318" Foreground="White" Click="DeleteEquipment_Click" /></StackPanel></Grid>
+                                <TextBox x:Name="EquipmentNameBox" Grid.Row="2" Style="{StaticResource CompactTextBox}" ToolTip="Введите новое название или выберите строку для изменения" />
+                                <DataGrid x:Name="EquipmentGrid" Grid.Row="4" AutoGenerateColumns="False" IsReadOnly="True" SelectionChanged="EquipmentGrid_SelectionChanged" MouseDoubleClick="EquipmentGrid_MouseDoubleClick"><DataGrid.Columns><DataGridTextColumn Header="Название" Binding="{Binding Name}" ElementStyle="{StaticResource LeftAlignedGridText}" Width="*" /></DataGrid.Columns></DataGrid>
+                            </Grid>
+                        </Border>
+                        <Border x:Name="CustomDirectoryPanel" Style="{StaticResource SurfaceCard}" Padding="16" Visibility="Collapsed">
+                            <Grid>
+                                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="14" /><RowDefinition Height="Auto" /><RowDefinition Height="12" /><RowDefinition Height="*" /><RowDefinition Height="12" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                                <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock x:Name="SelectedDirectoryTitle" Text="Выберите справочник" Style="{StaticResource SectionTitle}" /><TextBlock x:Name="SelectedDirectoryDescription" Margin="0,4,0,0" Style="{StaticResource CaptionText}" /></StackPanel><StackPanel Grid.Column="1" Orientation="Horizontal"><ui:Button Margin="0,0,8,0" Content="Открыть карточку" Appearance="Secondary" Click="OpenDirectoryValueArticle_Click" /><ui:Button x:Name="ImportDirectoryValuesButton" Margin="0,0,8,0" Content="Импорт CSV" Appearance="Secondary" Click="ImportDirectoryValues_Click" /><ui:Button x:Name="ArchiveDirectoryButton" Content="Архивировать" Appearance="Secondary" Click="ArchiveDirectory_Click" /></StackPanel></Grid>
+                                <TextBox x:Name="DirectoryValueSearchBox" Grid.Row="2" Style="{StaticResource CompactTextBox}" ToolTip="Поиск по значениям" TextChanged="DirectoryValueSearchBox_TextChanged" />
+                                <DataGrid x:Name="DirectoryValuesGrid" Grid.Row="4" AutoGenerateColumns="False" IsReadOnly="True" SelectionChanged="DirectoryValuesGrid_SelectionChanged" MouseDoubleClick="DirectoryValuesGrid_MouseDoubleClick"><DataGrid.Columns><DataGridTextColumn Header="Название" Binding="{Binding Name}" ElementStyle="{StaticResource LeftAlignedGridText}" Width="*" /><DataGridTextColumn Header="Состояние" Binding="{Binding State}" Width="130" /><DataGridTextColumn Header="Изменено" Binding="{Binding Updated}" Width="150" /></DataGrid.Columns></DataGrid>
+                                <Grid Grid.Row="6"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="8" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="8" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="8" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBox x:Name="DirectoryValueNameBox" Style="{StaticResource CompactTextBox}" ToolTip="Название значения" /><ui:Button x:Name="AddDirectoryValueButton" Grid.Column="2" Content="Добавить" Appearance="Primary" Click="AddDirectoryValue_Click" /><ui:Button x:Name="RenameDirectoryValueButton" Grid.Column="4" Content="Сохранить" Appearance="Secondary" Click="RenameDirectoryValue_Click" /><ui:Button x:Name="ArchiveDirectoryValueButton" Grid.Column="6" Content="В архив" Appearance="Secondary" Click="ArchiveDirectoryValue_Click" /></Grid>
+                            </Grid>
+                        </Border>
+                    </Grid>
                 </Grid>
             </TabItem>
-
-            <TabItem Header="Системные">
-                <Grid Margin="0,16,0,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="16" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="16" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-
-                    <Border Grid.Column="0" Style="{StaticResource SurfaceCard}" Padding="16">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" /><RowDefinition Height="12" />
-                                <RowDefinition Height="*" /><RowDefinition Height="12" /><RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <TextBlock Text="Материалы" Style="{StaticResource SectionTitle}" />
-                            <DataGrid x:Name="MaterialsGrid" Grid.Row="2" AutoGenerateColumns="False" IsReadOnly="True"
-                                      SelectionChanged="MaterialsGrid_SelectionChanged">
-                                <DataGrid.Columns><DataGridTextColumn Header="Название" Binding="{Binding Name}" Width="*" /></DataGrid.Columns>
-                            </DataGrid>
-                            <StackPanel Grid.Row="4">
-                                <TextBox x:Name="MaterialNameBox" Style="{StaticResource CompactTextBox}" />
-                                <UniformGrid Columns="3" Margin="0,8,0,0">
-                                    <ui:Button x:Name="AddMaterialButton" Margin="0,0,4,0" Content="Добавить"
-                                               Appearance="Primary" Click="AddMaterial_Click" />
-                                    <ui:Button x:Name="RenameMaterialButton" Margin="4,0,4,0" Content="Сохранить"
-                                               Appearance="Secondary" Click="RenameMaterial_Click" />
-                                    <ui:Button x:Name="DeleteMaterialButton" Margin="4,0,0,0" Content="Удалить"
-                                               Background="#B42318" Foreground="White" Click="DeleteMaterial_Click" />
-                                </UniformGrid>
-                            </StackPanel>
-                        </Grid>
-                    </Border>
-
-                    <Border Grid.Column="2" Style="{StaticResource SurfaceCard}" Padding="16">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" /><RowDefinition Height="12" />
-                                <RowDefinition Height="*" /><RowDefinition Height="12" /><RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <TextBlock Text="Фигуры" Style="{StaticResource SectionTitle}" />
-                            <DataGrid x:Name="FiguresGrid" Grid.Row="2" AutoGenerateColumns="False" IsReadOnly="True"
-                                      SelectionChanged="FiguresGrid_SelectionChanged">
-                                <DataGrid.Columns><DataGridTextColumn Header="Название" Binding="{Binding Name}" Width="*" /></DataGrid.Columns>
-                            </DataGrid>
-                            <StackPanel Grid.Row="4">
-                                <TextBox x:Name="FigureNameBox" Style="{StaticResource CompactTextBox}" />
-                                <UniformGrid Columns="3" Margin="0,8,0,0">
-                                    <ui:Button x:Name="AddFigureButton" Margin="0,0,4,0" Content="Добавить"
-                                               Appearance="Primary" Click="AddFigure_Click" />
-                                    <ui:Button x:Name="RenameFigureButton" Margin="4,0,4,0" Content="Сохранить"
-                                               Appearance="Secondary" Click="RenameFigure_Click" />
-                                    <ui:Button x:Name="DeleteFigureButton" Margin="4,0,0,0" Content="Удалить"
-                                               Background="#B42318" Foreground="White" Click="DeleteFigure_Click" />
-                                </UniformGrid>
-                            </StackPanel>
-                        </Grid>
-                    </Border>
-
-                    <Border Grid.Column="4" Style="{StaticResource SurfaceCard}" Padding="16">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" /><RowDefinition Height="12" />
-                                <RowDefinition Height="*" /><RowDefinition Height="12" /><RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <TextBlock Text="Оборудование" Style="{StaticResource SectionTitle}" />
-                            <DataGrid x:Name="EquipmentGrid" Grid.Row="2" AutoGenerateColumns="False" IsReadOnly="True"
-                                      SelectionChanged="EquipmentGrid_SelectionChanged">
-                                <DataGrid.Columns><DataGridTextColumn Header="Название" Binding="{Binding Name}" Width="*" /></DataGrid.Columns>
-                            </DataGrid>
-                            <StackPanel Grid.Row="4">
-                                <TextBox x:Name="EquipmentNameBox" Style="{StaticResource CompactTextBox}" />
-                                <UniformGrid Columns="3" Margin="0,8,0,0">
-                                    <ui:Button x:Name="AddEquipmentButton" Margin="0,0,4,0" Content="Добавить"
-                                               Appearance="Primary" Click="AddEquipment_Click" />
-                                    <ui:Button x:Name="RenameEquipmentButton" Margin="4,0,4,0" Content="Сохранить"
-                                               Appearance="Secondary" Click="RenameEquipment_Click" />
-                                    <ui:Button x:Name="DeleteEquipmentButton" Margin="4,0,0,0" Content="Удалить"
-                                               Background="#B42318" Foreground="White" Click="DeleteEquipment_Click" />
-                                </UniformGrid>
-                            </StackPanel>
-                        </Grid>
-                    </Border>
-                </Grid>
-            </TabItem>
-
             <TabItem Header="Журнал действий">
                 <Grid Margin="0,16,0,0">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="12" />
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="10" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="8" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="8" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBox x:Name="AuditSearchBox" Style="{StaticResource CompactTextBox}"
-                                 ToolTip="Поиск по номеру ножа, оборудованию или сотруднику" KeyDown="AuditSearchBox_KeyDown" />
-                        <ui:Button Grid.Column="2" Content="Найти" Appearance="Primary" Click="SearchAudit_Click" />
-                        <ui:Button Grid.Column="4" Content="CSV" Appearance="Secondary" Click="ExportCsv_Click" />
-                        <ui:Button Grid.Column="6" Content="PDF" Appearance="Secondary" Click="ExportPdf_Click" />
-                    </Grid>
-                    <Border Grid.Row="2" Style="{StaticResource SurfaceCard}">
-                        <DataGrid x:Name="AuditGrid" AutoGenerateColumns="False" IsReadOnly="True">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="Дата и время" Binding="{Binding OccurredAt}" Width="135" />
-                                <DataGridTextColumn Header="Нож" Binding="{Binding DieCutNumber}" Width="80" />
-                                <DataGridTextColumn Header="Оборудование" Binding="{Binding Equipment}" Width="130" />
-                                <DataGridTextColumn Header="Действие" Binding="{Binding Action}" Width="150" />
-                                <DataGridTextColumn Header="Тираж" Binding="{Binding Quantity}" Width="90" />
-                                <DataGridTextColumn Header="Пробег" Binding="{Binding Mileage}" Width="145" />
-                                <DataGridTextColumn Header="Метры" Binding="{Binding RunLength}" Width="145" />
-                                <DataGridTextColumn Header="Обороты" Binding="{Binding Revolutions}" Width="145" />
-                                <DataGridTextColumn Header="Сотрудник" Binding="{Binding EmployeeName}" Width="*" />
-                            </DataGrid.Columns>
-                        </DataGrid>
-                    </Border>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="12" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="10" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="8" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="8" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBox x:Name="AuditSearchBox" Style="{StaticResource CompactTextBox}" ToolTip="Поиск по номеру ножа, оборудованию или сотруднику" KeyDown="AuditSearchBox_KeyDown" /><ui:Button Grid.Column="2" Content="Найти" Appearance="Primary" Click="SearchAudit_Click" /><ui:Button Grid.Column="4" Content="CSV" Appearance="Secondary" Click="ExportCsv_Click" /><ui:Button Grid.Column="6" Content="PDF" Appearance="Secondary" Click="ExportPdf_Click" /></Grid>
+                    <Border Grid.Row="2" Style="{StaticResource SurfaceCard}"><DataGrid x:Name="AuditGrid" AutoGenerateColumns="False" IsReadOnly="True"><DataGrid.Columns><DataGridTextColumn Header="Дата и время" Binding="{Binding OccurredAt}" Width="135" /><DataGridTextColumn Header="Нож" Binding="{Binding DieCutNumber}" Width="80" /><DataGridTextColumn Header="Оборудование" Binding="{Binding Equipment}" Width="130" /><DataGridTextColumn Header="Действие" Binding="{Binding Action}" Width="150" /><DataGridTextColumn Header="Тираж" Binding="{Binding Quantity}" Width="90" /><DataGridTextColumn Header="Пробег" Binding="{Binding Mileage}" Width="145" /><DataGridTextColumn Header="Метры" Binding="{Binding RunLength}" Width="145" /><DataGridTextColumn Header="Обороты" Binding="{Binding Revolutions}" Width="145" /><DataGridTextColumn Header="Сотрудник" Binding="{Binding EmployeeName}" Width="*" /></DataGrid.Columns></DataGrid></Border>
                     <TextBlock x:Name="AuditSummary" Grid.Row="3" Margin="4,10,0,0" Style="{StaticResource CaptionText}" />
                 </Grid>
             </TabItem>

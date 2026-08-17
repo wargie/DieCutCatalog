@@ -12,5 +12,6 @@ public sealed class CatalogReferenceEntry
     public CatalogReferenceKind Kind { get; set; }
     public string Name { get; set; } = string.Empty;
     public string NormalizedName { get; set; } = string.Empty;
+    public string? ArticleRtf { get; set; }
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }

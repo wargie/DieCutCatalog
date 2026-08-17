@@ -13,9 +13,16 @@ internal sealed partial class CatalogApiClient
         SendAsync<CatalogReferenceItem>(HttpMethod.Post,
             $"api/catalog-administration/references/{type}", new { name });
 
+    public Task<ReferenceImportResult> ImportCatalogReferencesAsync(CatalogReferenceType type, IReadOnlyList<string> names) =>
+        SendAsync<ReferenceImportResult>(HttpMethod.Post,
+            $"api/catalog-administration/references/{type}/import", new { names });
+
     public Task<CatalogReferenceItem> RenameCatalogReferenceAsync(CatalogReferenceType type, Guid id, string name) =>
         SendAsync<CatalogReferenceItem>(HttpMethod.Put,
             $"api/catalog-administration/references/{type}/{id}", new { name });
+
+    public Task UpdateCatalogReferenceArticleAsync(CatalogReferenceType type, Guid id, string? articleRtf) =>
+        SendAsync(HttpMethod.Put, $"api/catalog-administration/references/{type}/{id}/article", new { articleRtf });
 
     public Task DeleteCatalogReferenceAsync(CatalogReferenceType type, Guid id, string password) =>
         SendAsync(HttpMethod.Delete, $"api/catalog-administration/references/{type}/{id}", new { password });
@@ -25,6 +32,9 @@ internal sealed partial class CatalogApiClient
 
     public Task<ReferenceDirectoryGroupItem> AddReferenceDirectoryGroupAsync(string name) =>
         SendAsync<ReferenceDirectoryGroupItem>(HttpMethod.Post, "api/catalog-administration/directory-groups", new { name });
+
+    public Task DeleteReferenceDirectoryGroupAsync(Guid id, string password) =>
+        SendAsync(HttpMethod.Delete, $"api/catalog-administration/directory-groups/{id}", new { password });
 
     public Task<ReferenceDirectoryItem> AddReferenceDirectoryAsync(Guid? groupId, string name, string? description) =>
         SendAsync<ReferenceDirectoryItem>(HttpMethod.Post, "api/catalog-administration/directories", new { groupId, name, description });
@@ -45,10 +55,21 @@ internal sealed partial class CatalogApiClient
         SendAsync<ReferenceDirectoryValueItem>(HttpMethod.Post,
             $"api/catalog-administration/directories/{id}/values", new { name });
 
+    public Task<ReferenceImportResult> ImportReferenceDirectoryValuesAsync(Guid id, IReadOnlyList<string> names) =>
+        SendAsync<ReferenceImportResult>(HttpMethod.Post,
+            $"api/catalog-administration/directories/{id}/values/import", new { names });
+
     public Task<ReferenceDirectoryValueItem> UpdateReferenceDirectoryValueAsync(
         Guid directoryId, Guid id, string name, bool isArchived) =>
         SendAsync<ReferenceDirectoryValueItem>(HttpMethod.Put,
             $"api/catalog-administration/directories/{directoryId}/values/{id}", new { name, isArchived });
+
+    public Task DeleteReferenceDirectoryValueAsync(Guid directoryId, Guid id) =>
+        SendAsync(HttpMethod.Delete, $"api/catalog-administration/directories/{directoryId}/values/{id}");
+
+    public Task UpdateReferenceDirectoryValueArticleAsync(Guid directoryId, Guid id, string? articleRtf) =>
+        SendAsync(HttpMethod.Put,
+            $"api/catalog-administration/directories/{directoryId}/values/{id}/article", new { articleRtf });
 
     public Task<PagedResult<AuditLogEntry>> SearchAuditLogAsync(string? search, int page, int pageSize = 200)
     {

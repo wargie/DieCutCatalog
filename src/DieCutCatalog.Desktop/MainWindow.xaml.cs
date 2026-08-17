@@ -49,6 +49,9 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         if (session is null) return;
 
         ServerAddressBox.Text = session.ServerAddress;
+        var loginButtonContent = LoginButton.Content;
+        LoginButton.IsEnabled = false;
+        LoginButton.Content = "Выполняется вход…";
         try
         {
             _profile = await _api.RestoreSessionAsync(session);
@@ -60,6 +63,11 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                 ProtectedSessionStore.Clear();
             LoginError.Text = $"Не удалось восстановить сохранённый вход. {exception.Message}";
             LoginError.Visibility = Visibility.Visible;
+        }
+        finally
+        {
+            LoginButton.Content = loginButtonContent;
+            LoginButton.IsEnabled = true;
         }
     }
 
@@ -78,7 +86,8 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         catch { }
         finally
         {
-            _api.Dispose();
+            // The API client has the same lifetime as the application. Disposing it here can
+            // race with UI operations that were already awaiting an HTTP response during shutdown.
             _ = Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(Close));
         }
     }

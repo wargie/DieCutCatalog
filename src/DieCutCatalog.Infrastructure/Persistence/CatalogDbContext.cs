@@ -63,6 +63,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
         equipment.HasIndex(x => x.NormalizedName).IsUnique();
         equipment.Property(x => x.Name).HasMaxLength(150).IsRequired();
         equipment.Property(x => x.NormalizedName).HasMaxLength(150).IsRequired();
+        equipment.Property(x => x.ArticleRtf).HasColumnType("text");
 
         var reference = modelBuilder.Entity<CatalogReferenceEntry>();
         reference.ToTable("catalog_reference_entries");
@@ -71,6 +72,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
         reference.Property(x => x.Kind).HasConversion<string>().HasMaxLength(32);
         reference.Property(x => x.Name).HasMaxLength(200).IsRequired();
         reference.Property(x => x.NormalizedName).HasMaxLength(200).IsRequired();
+        reference.Property(x => x.ArticleRtf).HasColumnType("text");
 
         var directoryGroup = modelBuilder.Entity<ReferenceDirectoryGroup>();
         directoryGroup.ToTable("reference_directory_groups");
@@ -95,6 +97,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
         directoryValue.HasIndex(x => new { x.DirectoryId, x.NormalizedName }).IsUnique();
         directoryValue.Property(x => x.Name).HasMaxLength(200).IsRequired();
         directoryValue.Property(x => x.NormalizedName).HasMaxLength(200).IsRequired();
+        directoryValue.Property(x => x.ArticleRtf).HasColumnType("text");
         directoryValue.HasOne(x => x.Directory).WithMany(x => x.Values).HasForeignKey(x => x.DirectoryId)
             .OnDelete(DeleteBehavior.Cascade);
 

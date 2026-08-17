@@ -20,14 +20,14 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
             .OrderBy(x => x.Name).ToListAsync(cancellationToken);
         var equipment = await dbContext.Equipment.AsNoTracking().Where(x => x.IsActive)
             .OrderBy(x => x.Name)
-            .Select(x => new CatalogReferenceItem(x.Id, CatalogReferenceType.Equipment, x.Name))
+            .Select(x => new CatalogReferenceItem(x.Id, CatalogReferenceType.Equipment, x.Name, x.ArticleRtf))
             .ToListAsync(cancellationToken);
 
         return new CatalogReferences(
             entries.Where(x => x.Kind == CatalogReferenceKind.Material)
-                .Select(x => new CatalogReferenceItem(x.Id, CatalogReferenceType.Material, x.Name)).ToArray(),
+                .Select(x => new CatalogReferenceItem(x.Id, CatalogReferenceType.Material, x.Name, x.ArticleRtf)).ToArray(),
             entries.Where(x => x.Kind == CatalogReferenceKind.Figure)
-                .Select(x => new CatalogReferenceItem(x.Id, CatalogReferenceType.Figure, x.Name)).ToArray(),
+                .Select(x => new CatalogReferenceItem(x.Id, CatalogReferenceType.Figure, x.Name, x.ArticleRtf)).ToArray(),
             equipment);
     }
 
@@ -54,6 +54,37 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         dbContext.CatalogReferenceEntries.Add(entry);
         await dbContext.SaveChangesAsync(cancellationToken);
         return new CatalogReferenceItem(entry.Id, type, entry.Name);
+    }
+
+    public async Task<ReferenceImportResult> ImportReferencesAsync(
+        CatalogReferenceType type, IReadOnlyList<string> names, CancellationToken cancellationToken = default)
+    {
+        var maxLength = type == CatalogReferenceType.Equipment ? 150 : 200;
+        var candidates = PrepareImportNames(names, maxLength);
+        if (candidates.Count == 0) return new ReferenceImportResult(0, names.Count);
+
+        HashSet<string> existing;
+        if (type == CatalogReferenceType.Equipment)
+        {
+            existing = (await dbContext.Equipment.AsNoTracking()
+                .Select(x => x.NormalizedName).ToListAsync(cancellationToken)).ToHashSet(StringComparer.Ordinal);
+            foreach (var candidate in candidates.Where(x => !existing.Contains(x.Key)))
+                dbContext.Equipment.Add(new Equipment { Name = candidate.Value, NormalizedName = candidate.Key });
+        }
+        else
+        {
+            var kind = ToKind(type);
+            existing = (await dbContext.CatalogReferenceEntries.AsNoTracking()
+                .Where(x => x.Kind == kind).Select(x => x.NormalizedName).ToListAsync(cancellationToken))
+                .ToHashSet(StringComparer.Ordinal);
+            foreach (var candidate in candidates.Where(x => !existing.Contains(x.Key)))
+                dbContext.CatalogReferenceEntries.Add(new CatalogReferenceEntry
+                    { Kind = kind, Name = candidate.Value, NormalizedName = candidate.Key });
+        }
+
+        var added = candidates.Count(x => !existing.Contains(x.Key));
+        if (added > 0) await dbContext.SaveChangesAsync(cancellationToken);
+        return new ReferenceImportResult(added, names.Count - added);
     }
 
     public async Task<CatalogReferenceItem?> RenameReferenceAsync(
@@ -127,6 +158,29 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         return true;
     }
 
+    public async Task<bool> UpdateReferenceArticleAsync(
+        CatalogReferenceType type, Guid id, string? articleRtf, CancellationToken cancellationToken = default)
+    {
+        var clean = CleanArticle(articleRtf);
+        if (type == CatalogReferenceType.Equipment)
+        {
+            var equipment = await dbContext.Equipment.SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
+            if (equipment is null) return false;
+            equipment.ArticleRtf = clean;
+        }
+        else
+        {
+            var kind = ToKind(type);
+            var entry = await dbContext.CatalogReferenceEntries.SingleOrDefaultAsync(
+                x => x.Id == id && x.Kind == kind, cancellationToken);
+            if (entry is null) return false;
+            entry.ArticleRtf = clean;
+            entry.UpdatedAt = DateTimeOffset.UtcNow;
+        }
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
     public async Task<ReferenceDirectoryOverview> GetDirectoryOverviewAsync(CancellationToken cancellationToken = default)
     {
         var groups = await dbContext.ReferenceDirectoryGroups.AsNoTracking()
@@ -153,6 +207,17 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         dbContext.ReferenceDirectoryGroups.Add(group);
         await dbContext.SaveChangesAsync(cancellationToken);
         return new ReferenceDirectoryGroupItem(group.Id, group.Name, group.SortOrder);
+    }
+
+    public async Task<bool> DeleteDirectoryGroupAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var group = await dbContext.ReferenceDirectoryGroups.Include(x => x.Directories)
+            .SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (group is null) return false;
+        foreach (var directory in group.Directories) directory.GroupId = null;
+        dbContext.ReferenceDirectoryGroups.Remove(group);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
     }
 
     public async Task<ReferenceDirectoryItem> AddDirectoryAsync(
@@ -218,7 +283,7 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
             .Where(x => x.DirectoryId == directoryId && (includeArchived || !x.IsArchived))
             .OrderBy(x => x.IsArchived).ThenBy(x => x.SortOrder).ThenBy(x => x.Name)
             .Select(x => new ReferenceDirectoryValueItem(
-                x.Id, x.DirectoryId, x.Name, x.SortOrder, x.IsArchived, x.UpdatedAt))
+                x.Id, x.DirectoryId, x.Name, x.SortOrder, x.IsArchived, x.UpdatedAt, x.ArticleRtf))
             .ToListAsync(cancellationToken);
     }
 
@@ -246,6 +311,42 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         return ToItem(value);
     }
 
+    public async Task<ReferenceImportResult> ImportDirectoryValuesAsync(
+        Guid directoryId, IReadOnlyList<string> names, CancellationToken cancellationToken = default)
+    {
+        var directory = await dbContext.ReferenceDirectories.SingleOrDefaultAsync(
+            x => x.Id == directoryId, cancellationToken)
+            ?? throw new ValidationException("Справочник не найден.");
+        if (directory.IsArchived) throw new ValidationException("Нельзя изменить архивный справочник.");
+
+        var candidates = PrepareImportNames(names, 200);
+        if (candidates.Count == 0) return new ReferenceImportResult(0, names.Count);
+        var existing = (await dbContext.ReferenceDirectoryValues.AsNoTracking()
+                .Where(x => x.DirectoryId == directoryId)
+                .Select(x => x.NormalizedName).ToListAsync(cancellationToken))
+            .ToHashSet(StringComparer.Ordinal);
+        var nextSortOrder = (await dbContext.ReferenceDirectoryValues
+            .Where(x => x.DirectoryId == directoryId).MaxAsync(x => (int?)x.SortOrder, cancellationToken) ?? -1) + 1;
+        var added = 0;
+        foreach (var candidate in candidates.Where(x => !existing.Contains(x.Key)))
+        {
+            dbContext.ReferenceDirectoryValues.Add(new ReferenceDirectoryValue
+            {
+                DirectoryId = directoryId,
+                Name = candidate.Value,
+                NormalizedName = candidate.Key,
+                SortOrder = nextSortOrder++
+            });
+            added++;
+        }
+        if (added > 0)
+        {
+            directory.UpdatedAt = DateTimeOffset.UtcNow;
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        return new ReferenceImportResult(added, names.Count - added);
+    }
+
     public async Task<ReferenceDirectoryValueItem?> UpdateDirectoryValueAsync(
         Guid directoryId, Guid id, string name, bool isArchived, CancellationToken cancellationToken = default)
     {
@@ -263,6 +364,32 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         value.UpdatedAt = DateTimeOffset.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
         return ToItem(value);
+    }
+
+    public async Task<bool> DeleteDirectoryValueAsync(
+        Guid directoryId, Guid id, CancellationToken cancellationToken = default)
+    {
+        var value = await dbContext.ReferenceDirectoryValues.SingleOrDefaultAsync(
+            x => x.Id == id && x.DirectoryId == directoryId, cancellationToken);
+        if (value is null) return false;
+        dbContext.ReferenceDirectoryValues.Remove(value);
+        var directory = await dbContext.ReferenceDirectories.SingleOrDefaultAsync(
+            x => x.Id == directoryId, cancellationToken);
+        if (directory is not null) directory.UpdatedAt = DateTimeOffset.UtcNow;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task<bool> UpdateDirectoryValueArticleAsync(
+        Guid directoryId, Guid id, string? articleRtf, CancellationToken cancellationToken = default)
+    {
+        var value = await dbContext.ReferenceDirectoryValues.SingleOrDefaultAsync(
+            x => x.Id == id && x.DirectoryId == directoryId, cancellationToken);
+        if (value is null) return false;
+        value.ArticleRtf = CleanArticle(articleRtf);
+        value.UpdatedAt = DateTimeOffset.UtcNow;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
     }
 
     public async Task<PagedResult<AuditLogEntry>> SearchAuditLogAsync(
@@ -417,6 +544,19 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         return clean;
     }
     private static string Normalize(string value) => value.Trim().ToUpperInvariant();
+    private static IReadOnlyDictionary<string, string> PrepareImportNames(IReadOnlyList<string> names, int maxLength)
+    {
+        if (names is null) throw new ValidationException("Файл импорта не содержит значений.");
+        if (names.Count > 10_000) throw new ValidationException("За один раз можно импортировать не более 10 000 строк.");
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var value in names)
+        {
+            var clean = value?.Trim() ?? string.Empty;
+            if (clean.Length == 0 || clean.Length > maxLength) continue;
+            result.TryAdd(Normalize(clean), clean);
+        }
+        return result;
+    }
     private async Task ValidateGroupAsync(Guid? groupId, CancellationToken cancellationToken)
     {
         if (groupId.HasValue && !await dbContext.ReferenceDirectoryGroups.AnyAsync(x => x.Id == groupId, cancellationToken))
@@ -435,10 +575,16 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         if (clean?.Length > 500) throw new ValidationException("Описание не должно превышать 500 символов.");
         return string.IsNullOrEmpty(clean) ? null : clean;
     }
+    private static string? CleanArticle(string? articleRtf)
+    {
+        if (articleRtf?.Length > 1_000_000)
+            throw new ValidationException("Текст карточки не должен превышать 1 МБ.");
+        return string.IsNullOrWhiteSpace(articleRtf) ? null : articleRtf;
+    }
     private static ReferenceDirectoryItem ToItem(ReferenceDirectory x, int count) =>
         new(x.Id, x.GroupId, x.Name, x.Description, x.SortOrder, x.IsArchived, count);
     private static ReferenceDirectoryValueItem ToItem(ReferenceDirectoryValue x) =>
-        new(x.Id, x.DirectoryId, x.Name, x.SortOrder, x.IsArchived, x.UpdatedAt);
+        new(x.Id, x.DirectoryId, x.Name, x.SortOrder, x.IsArchived, x.UpdatedAt, x.ArticleRtf);
     private static string EventName(AuditLogEntry entry) => entry.AccessType switch
     {
         EmployeeAccessEventType.LoggedIn => "Вход в систему",

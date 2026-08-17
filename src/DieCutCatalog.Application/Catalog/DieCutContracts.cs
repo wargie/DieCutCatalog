@@ -147,17 +147,21 @@ public enum CatalogReferenceType
     Equipment
 }
 
-public sealed record CatalogReferenceItem(Guid Id, CatalogReferenceType Type, string Name);
+public sealed record CatalogReferenceItem(Guid Id, CatalogReferenceType Type, string Name, string? ArticleRtf = null);
 public sealed record CatalogReferences(
     IReadOnlyList<CatalogReferenceItem> Materials,
     IReadOnlyList<CatalogReferenceItem> Figures,
     IReadOnlyList<CatalogReferenceItem> Equipment);
+public sealed record ReferenceImportCommand(IReadOnlyList<string> Names);
+public sealed record ReferenceImportResult(int Added, int Skipped);
 
 public sealed record ReferenceDirectoryGroupItem(Guid Id, string Name, int SortOrder);
 public sealed record ReferenceDirectoryItem(
     Guid Id, Guid? GroupId, string Name, string? Description, int SortOrder, bool IsArchived, int ValueCount);
 public sealed record ReferenceDirectoryValueItem(
-    Guid Id, Guid DirectoryId, string Name, int SortOrder, bool IsArchived, DateTimeOffset UpdatedAt);
+    Guid Id, Guid DirectoryId, string Name, int SortOrder, bool IsArchived, DateTimeOffset UpdatedAt,
+    string? ArticleRtf = null);
+public sealed record ReferenceArticleCommand(string? ArticleRtf);
 public sealed record ReferenceDirectoryOverview(
     IReadOnlyList<ReferenceDirectoryGroupItem> Groups,
     IReadOnlyList<ReferenceDirectoryItem> Directories);
@@ -187,16 +191,22 @@ public interface ICatalogAdministrationService
 {
     Task<CatalogReferences> GetReferencesAsync(CancellationToken cancellationToken = default);
     Task<CatalogReferenceItem> AddReferenceAsync(CatalogReferenceType type, string name, CancellationToken cancellationToken = default);
+    Task<ReferenceImportResult> ImportReferencesAsync(CatalogReferenceType type, IReadOnlyList<string> names, CancellationToken cancellationToken = default);
     Task<CatalogReferenceItem?> RenameReferenceAsync(CatalogReferenceType type, Guid id, string name, CancellationToken cancellationToken = default);
+    Task<bool> UpdateReferenceArticleAsync(CatalogReferenceType type, Guid id, string? articleRtf, CancellationToken cancellationToken = default);
     Task<bool> DeleteReferenceAsync(CatalogReferenceType type, Guid id, CancellationToken cancellationToken = default);
     Task<ReferenceDirectoryOverview> GetDirectoryOverviewAsync(CancellationToken cancellationToken = default);
     Task<ReferenceDirectoryGroupItem> AddDirectoryGroupAsync(string name, CancellationToken cancellationToken = default);
+    Task<bool> DeleteDirectoryGroupAsync(Guid id, CancellationToken cancellationToken = default);
     Task<ReferenceDirectoryItem> AddDirectoryAsync(CreateReferenceDirectoryCommand command, CancellationToken cancellationToken = default);
     Task<ReferenceDirectoryItem?> UpdateDirectoryAsync(Guid id, UpdateReferenceDirectoryCommand command, CancellationToken cancellationToken = default);
     Task<bool> DeleteDirectoryAsync(Guid id, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<ReferenceDirectoryValueItem>> GetDirectoryValuesAsync(Guid directoryId, bool includeArchived, CancellationToken cancellationToken = default);
     Task<ReferenceDirectoryValueItem> AddDirectoryValueAsync(Guid directoryId, string name, CancellationToken cancellationToken = default);
+    Task<ReferenceImportResult> ImportDirectoryValuesAsync(Guid directoryId, IReadOnlyList<string> names, CancellationToken cancellationToken = default);
     Task<ReferenceDirectoryValueItem?> UpdateDirectoryValueAsync(Guid directoryId, Guid id, string name, bool isArchived, CancellationToken cancellationToken = default);
+    Task<bool> UpdateDirectoryValueArticleAsync(Guid directoryId, Guid id, string? articleRtf, CancellationToken cancellationToken = default);
+    Task<bool> DeleteDirectoryValueAsync(Guid directoryId, Guid id, CancellationToken cancellationToken = default);
     Task<PagedResult<AuditLogEntry>> SearchAuditLogAsync(string? search, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ExportedFile> ExportAuditLogAsync(string? search, bool pdf, CancellationToken cancellationToken = default);
 }
