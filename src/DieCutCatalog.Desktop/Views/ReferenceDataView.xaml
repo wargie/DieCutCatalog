@@ -39,7 +39,11 @@
                             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="10" /><RowDefinition Height="*" /><RowDefinition Height="12" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                             <Grid>
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                <TextBlock Text="Группы и справочники" Style="{StaticResource SectionTitle}" />
+                                <TextBlock Text="Группы и справочники"
+                                           Margin="0,0,10,0"
+                                           VerticalAlignment="Center"
+                                           TextWrapping="Wrap"
+                                           Style="{StaticResource SectionTitle}" />
                                 <ui:Button x:Name="ReloadDirectoriesButton" Grid.Column="1" Content="Обновить" Appearance="Secondary" Click="ReloadDirectories_Click" />
                             </Grid>
                             <ListBox x:Name="DirectoriesList" Grid.Row="2" BorderThickness="0" Background="Transparent"
