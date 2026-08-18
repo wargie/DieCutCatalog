@@ -2,7 +2,7 @@
 
 **DieCut Catalog** — сетевая система FLEXPRINT для хранения, поиска и производственного учёта вырубных ножей. Полнофункциональный Windows-клиент и облегчённое Android-приложение работают с единым HTTPS API на Ubuntu-сервере. PostgreSQL хранит карточки, сотрудников и историю событий, а PDF-чертежи находятся в управляемом серверном хранилище.
 
-Текущая стабильная версия ПК и сервера: **1.9.1**. Текущая версия Android: **0.3.1**.
+Текущая стабильная версия ПК и сервера: **1.9.2**. Текущая версия Android: **0.3.1**.
 
 ![Вход в DieCut Catalog](docs/images/login.png)
 
@@ -59,7 +59,7 @@
 
 ![Редактор карточки позиции справочника](docs/images/reference-article-editor.png)
 
-[Скачать DieCut Catalog 1.9.1 для Windows](https://github.com/wargie/DieCutCatalog/releases/download/v1.9.1/DieCutCatalog-1.9.1-win-x64.zip) · [Описание релиза](https://github.com/wargie/DieCutCatalog/releases/tag/v1.9.1)
+[Скачать DieCut Catalog 1.9.2 для Windows](https://github.com/wargie/DieCutCatalog/releases/download/v1.9.2/DieCutCatalog-1.9.2-win-x64.zip) · [Описание релиза](https://github.com/wargie/DieCutCatalog/releases/tag/v1.9.2)
 
 ### Журнал действий
 
@@ -184,7 +184,7 @@ GitHub Actions выполняет сборку и оба набора тесто
 Автономная Windows-сборка с updater:
 
 ```powershell
-./scripts/Build-ClientRelease.ps1 -Version 1.9.1
+./scripts/Build-ClientRelease.ps1 -Version 1.9.2
 ```
 
 ## Production
@@ -208,6 +208,10 @@ API должен слушать только loopback-интерфейс и пу
 - [История версий](CHANGELOG.md)
 
 ## История версий
+
+### 1.9.2 — 18 августа 2026
+
+Добавлена обязательная PostgreSQL data migration `Employee` → `Operator` и upgrade integration test, воспроизводящий обновление базы 1.9.0 с последующей авторизацией legacy-сотрудника. [Описание и загрузка](https://github.com/wargie/DieCutCatalog/releases/tag/v1.9.2).
 
 ### 1.9.1 — 18 августа 2026
 
@@ -262,7 +266,7 @@ API должен слушать только loopback-интерфейс и пу
 
 ## Текущее состояние
 
-Рабочая сетевая версия включает единый Ubuntu-сервер, полный Windows-клиент и Android-клиент для просмотра каталога и регистрации ресурса у оборудования. Авторизация, карточки, тираж, пробег, обороты и профиль сотрудника синхронизируются через production API. Сервер и Windows-клиент соответствуют версии 1.9.1; Android 0.3.1 получает управляемое обновление через тот же сервер.
+Рабочая сетевая версия включает единый Ubuntu-сервер, полный Windows-клиент и Android-клиент для просмотра каталога и регистрации ресурса у оборудования. Авторизация, карточки, тираж, пробег, обороты и профиль сотрудника синхронизируются через production API. Сервер и Windows-клиент соответствуют версии 1.9.2; Android 0.3.1 получает управляемое обновление через тот же сервер.
 
 ## Обновления клиента
 

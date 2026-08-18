@@ -1,5 +1,6 @@
 using DieCutCatalog.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Testcontainers.PostgreSql;
 
 namespace DieCutCatalog.PostgreSql.Tests;
@@ -18,12 +19,28 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
         .WithPassword("postgres")
         .Build();
 
-    public CatalogDbContext CreateDbContext()
+    public CatalogDbContext CreateDbContext(string? connectionString = null)
     {
         var options = new DbContextOptionsBuilder<CatalogDbContext>()
-            .UseNpgsql(_container.GetConnectionString())
+            .UseNpgsql(connectionString ?? _container.GetConnectionString())
             .Options;
         return new CatalogDbContext(options);
+    }
+
+    public async Task<string> CreateIsolatedSchemaConnectionStringAsync()
+    {
+        var schema = $"upgrade_{Guid.NewGuid():N}";
+        await using var connection = new NpgsqlConnection(_container.GetConnectionString());
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"CREATE SCHEMA \"{schema}\";";
+        await command.ExecuteNonQueryAsync();
+
+        var connectionString = new NpgsqlConnectionStringBuilder(_container.GetConnectionString())
+        {
+            SearchPath = schema
+        };
+        return connectionString.ConnectionString;
     }
 
     public async Task InitializeAsync()

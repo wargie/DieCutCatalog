@@ -21,12 +21,12 @@
 3. Опубликуйте архив на сервере:
 
 ```powershell
-./scripts/Build-ClientRelease.ps1 -Version 1.9.1
+./scripts/Build-ClientRelease.ps1 -Version 1.9.2
 
 ./scripts/Publish-ClientUpdate.ps1 `
-  -Version 1.9.1 `
-  -PackagePath ./artifacts/release/DieCutCatalog-1.9.1-win-x64.zip `
-  -ReleaseName "DieCut Catalog 1.9.1" `
+  -Version 1.9.2 `
+  -PackagePath ./artifacts/release/DieCutCatalog-1.9.2-win-x64.zip `
+  -ReleaseName "DieCut Catalog 1.9.2" `
   -Notes "Две роли: оператор и администратор; единая матрица прав"
 ```
 
