@@ -142,6 +142,87 @@ public sealed class DieCutPdfServiceTests
     }
 
     [Fact]
+    public async Task Generated_square_uses_exact_equal_label_dimensions()
+    {
+        using var storage = new TemporaryStorage();
+        await using var db = CreateDatabase();
+        var dieCut = CreateDieCut();
+        dieCut.Figure = "квадрат";
+        dieCut.X = 50;
+        dieCut.Y = 50;
+        dieCut.LabelCornerRadius = 0;
+        db.DieCuts.Add(dieCut);
+        await db.SaveChangesAsync();
+        var service = CreateService(db, storage.Path);
+
+        var generated = await service.GenerateAsync(dieCut.Id, Guid.NewGuid());
+        var stored = await service.OpenAsync(dieCut.Id, generated!.Id);
+        using var copy = new MemoryStream();
+        await stored!.Content.CopyToAsync(copy);
+        await stored.Content.DisposeAsync();
+        copy.Position = 0;
+
+        using var pdf = UglyToad.PdfPig.PdfDocument.Open(copy);
+        var contours = pdf.GetPage(1).Paths
+            .Select(path => path.GetBoundingRectangle())
+            .Where(rectangle => rectangle is not null)
+            .Select(rectangle => rectangle!.Value)
+            .Where(rectangle =>
+                Math.Abs(rectangle.Width * 25.4 / 72 - 50) < 0.001
+                && Math.Abs(rectangle.Height * 25.4 / 72 - 50) < 0.001)
+            .ToArray();
+
+        Assert.Equal(dieCut.Streams * dieCut.Repeats, contours.Length);
+    }
+
+    [Theory]
+    [InlineData("специальная форма")]
+    [InlineData("перфорация")]
+    [InlineData("фигурный")]
+    [InlineData("произвольный контур")]
+    public async Task Generate_rejects_figures_without_a_parametric_contour(string figure)
+    {
+        using var storage = new TemporaryStorage();
+        await using var db = CreateDatabase();
+        var dieCut = CreateDieCut();
+        dieCut.Figure = figure;
+        db.DieCuts.Add(dieCut);
+        await db.SaveChangesAsync();
+        var service = CreateService(db, storage.Path);
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.GenerateAsync(dieCut.Id, Guid.NewGuid()));
+
+        Assert.Contains("загрузите утверждённый PDF", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(await db.DieCutDocuments.ToListAsync());
+        Assert.Empty(await db.DieCutEvents.ToListAsync());
+        Assert.False(Directory.Exists(Path.Combine(storage.Path, "die-cuts")));
+    }
+
+    [Theory]
+    [InlineData("круг")]
+    [InlineData("квадрат")]
+    public async Task Generate_rejects_circle_or_square_with_different_dimensions(string figure)
+    {
+        using var storage = new TemporaryStorage();
+        await using var db = CreateDatabase();
+        var dieCut = CreateDieCut();
+        dieCut.Figure = figure;
+        dieCut.X = 50;
+        dieCut.Y = 70;
+        db.DieCuts.Add(dieCut);
+        await db.SaveChangesAsync();
+        var service = CreateService(db, storage.Path);
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.GenerateAsync(dieCut.Id, Guid.NewGuid()));
+
+        Assert.Contains("размеры L и B должны совпадать", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(await db.DieCutDocuments.ToListAsync());
+        Assert.Empty(await db.DieCutEvents.ToListAsync());
+    }
+
+    [Fact]
     public async Task Generate_rejects_layout_that_exceeds_material_width()
     {
         using var storage = new TemporaryStorage();

@@ -483,6 +483,9 @@
                                     <TextBlock x:Name="DocumentNameText" Text="PDF не прикреплён"
                                                TextTrimming="CharacterEllipsis"
                                                Foreground="{StaticResource SecondaryTextBrush}" />
+                                    <TextBlock x:Name="DrawingGenerationHintText" Margin="0,8,0,0"
+                                               Foreground="#B42318" TextWrapping="Wrap"
+                                               Visibility="Collapsed" />
                                     <UniformGrid Columns="4" Margin="0,10,0,0">
                                         <ui:Button x:Name="UploadPdfButton" Margin="0,0,4,0" Appearance="Secondary"
                                                    Content="Загрузить" Click="UploadPdf_Click" />

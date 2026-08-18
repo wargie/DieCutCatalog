@@ -20,6 +20,10 @@ internal static class DieCutDrawingPdfGenerator
 
     public static byte[] Generate(DieCut dieCut)
     {
+        var figureViolation = DieCutFigureRules.FindPdfGenerationViolation(dieCut.Figure, dieCut.X, dieCut.Y);
+        if (figureViolation is not null)
+            throw new ValidationException($"Чертёж нельзя сформировать: {figureViolation}.");
+
         var parameterViolation = DieCutParameterLimits.FindViolation(
             dieCut.Shaft, dieCut.X, dieCut.Y, dieCut.Streams, dieCut.Repeats,
             dieCut.H, dieCut.GrooveSpacing, dieCut.LabelCornerRadius);
@@ -80,6 +84,7 @@ internal static class DieCutDrawingPdfGenerator
         var labelStartMm = (dieCut.H - groupWidthMm) / 2;
         var pitchMm = rapport / dieCut.Repeats;
         var radius = Math.Max(0, MillimetersToPoints(dieCut.LabelCornerRadius));
+        var contour = DieCutFigureRules.ResolvePdfContour(dieCut.Figure);
 
         for (var row = 0; row < dieCut.Repeats; row++)
         {
@@ -91,7 +96,7 @@ internal static class DieCutDrawingPdfGenerator
                 var y = frameY + MillimetersToPoints(yMm);
                 var width = MillimetersToPoints(dieCut.X);
                 var height = MillimetersToPoints(dieCut.Y);
-                DrawLabelContour(graphics, pen, dieCut.Figure, x, y, width, height, radius);
+                DrawLabelContour(graphics, pen, contour, x, y, width, height, radius);
             }
         }
 
@@ -116,24 +121,26 @@ internal static class DieCutDrawingPdfGenerator
     private static void DrawLabelContour(
         XGraphics graphics,
         XPen pen,
-        string figure,
+        ParametricPdfContour contour,
         double x,
         double y,
         double width,
         double height,
         double radius)
     {
-        if (IsCircle(figure))
+        if (contour == ParametricPdfContour.Circle)
         {
             graphics.DrawEllipse(pen, x, y, width, height);
             return;
         }
+        if (contour == ParametricPdfContour.RoundedRectangle)
+        {
+            graphics.DrawRoundedRectangle(pen, x, y, width, height, radius * 2, radius * 2);
+            return;
+        }
 
-        graphics.DrawRoundedRectangle(pen, x, y, width, height, radius * 2, radius * 2);
+        throw new ValidationException("Чертёж нельзя сформировать: тип контура не поддерживается.");
     }
-
-    private static bool IsCircle(string figure) =>
-        figure.Trim().ToLowerInvariant() is "круг" or "окружность" or "circle" or "round";
 
     private static double MillimetersToPoints(decimal value) => (double)value * PointsPerMillimeter;
     private static double MillimetersToPoints(double value) => value * PointsPerMillimeter;

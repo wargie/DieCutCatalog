@@ -954,8 +954,19 @@ public partial class CatalogView : UserControl
 
     private void SetDrawingButtonsEnabled(bool enabled)
     {
+        var generationViolation = _currentDetails is null
+            ? null
+            : DieCutFigureRules.FindPdfGenerationViolation(
+                _currentDetails.Figure, _currentDetails.X, _currentDetails.Y);
+        DrawingGenerationHintText.Text = generationViolation is null
+            ? string.Empty
+            : $"Создание PDF недоступно: {generationViolation}.";
+        DrawingGenerationHintText.Visibility = generationViolation is null
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+        GeneratePdfButton.ToolTip = generationViolation;
         UploadPdfButton.IsEnabled = enabled && _editingId is not null;
-        GeneratePdfButton.IsEnabled = enabled && _editingId is not null;
+        GeneratePdfButton.IsEnabled = enabled && _editingId is not null && generationViolation is null;
         OpenPdfButton.IsEnabled = enabled && _currentDocument is not null;
         DownloadPdfButton.IsEnabled = enabled && _currentDocument is not null;
     }
