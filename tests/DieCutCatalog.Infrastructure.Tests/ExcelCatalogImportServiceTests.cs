@@ -50,6 +50,36 @@ public sealed class ExcelCatalogImportServiceTests
     }
 
     [Fact]
+    public async Task Import_WithDeletedAndActiveSameNumber_DoesNotThrowAndTargetsActive()
+    {
+        await using var dbContext = CreateDbContext();
+        var equipment = new Equipment
+        {
+            Name = "Nilpeter/Lesko",
+            NormalizedName = "NILPETER/LESKO"
+        };
+        var deleted = ExistingDieCut(equipment, DieCutStatus.Deleted, "deleted");
+        var active = ExistingDieCut(equipment, DieCutStatus.Active, "active-before");
+        dbContext.DieCuts.AddRange(deleted, active);
+        await dbContext.SaveChangesAsync();
+        var service = new ExcelCatalogImportService(dbContext);
+
+        using var previewWorkbook = CreateWorkbook(includeInvalidRow: false);
+        var preview = await service.PreviewAsync(previewWorkbook);
+        using var importWorkbook = CreateWorkbook(includeInvalidRow: false);
+        var result = await service.ImportAsync(
+            importWorkbook, Guid.NewGuid(), overwriteExisting: true);
+
+        Assert.Equal(1, preview.ExistingRows);
+        Assert.Equal(0, preview.NewRows);
+        Assert.Equal(0, result.ImportedRows);
+        Assert.Equal(1, result.UpdatedRows);
+        Assert.Equal("старый", active.Comments);
+        Assert.Equal("deleted", deleted.Comments);
+        Assert.Equal(DieCutStatus.Deleted, deleted.Status);
+    }
+
+    [Fact]
     public async Task Preview_RejectsFractionalShaft()
     {
         await using var dbContext = CreateDbContext();
@@ -98,6 +128,24 @@ public sealed class ExcelCatalogImportServiceTests
             .Options;
         return new CatalogDbContext(options);
     }
+
+    private static DieCut ExistingDieCut(Equipment equipment, DieCutStatus status, string comments) => new()
+    {
+        Number = "001",
+        NormalizedNumber = "001",
+        Equipment = equipment,
+        EquipmentId = equipment.Id,
+        Shaft = 96,
+        X = 50,
+        Y = 50,
+        Streams = 1,
+        Repeats = 1,
+        Material = "Paper",
+        H = 200,
+        Figure = "прямоугольник",
+        Comments = comments,
+        Status = status
+    };
 
     private static MemoryStream CreateWorkbook(
         bool includeInvalidRow,

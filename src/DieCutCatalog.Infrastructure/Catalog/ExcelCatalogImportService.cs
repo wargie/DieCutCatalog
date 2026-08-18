@@ -14,6 +14,7 @@ public sealed class ExcelCatalogImportService(CatalogDbContext dbContext) : IExc
     {
         var parsed = Parse(content);
         var existingKeys = (await dbContext.DieCuts.AsNoTracking()
+            .Where(x => x.Status != DieCutStatus.Deleted)
             .Select(x => x.Equipment.NormalizedName + "\n" + x.NormalizedNumber)
             .ToListAsync(cancellationToken)).ToHashSet();
         var existing = parsed.Rows.Count(x => existingKeys.Contains(Key(x.Equipment, x.Number)));
@@ -35,7 +36,10 @@ public sealed class ExcelCatalogImportService(CatalogDbContext dbContext) : IExc
     {
         var parsed = Parse(content);
         var equipmentByName = await dbContext.Equipment.ToDictionaryAsync(x => x.NormalizedName, cancellationToken);
-        var existing = await dbContext.DieCuts.Include(x => x.Equipment).ToListAsync(cancellationToken);
+        var existing = await dbContext.DieCuts
+            .Where(x => x.Status != DieCutStatus.Deleted)
+            .Include(x => x.Equipment)
+            .ToListAsync(cancellationToken);
         var existingByKey = existing.ToDictionary(x => Key(x.Equipment.Name, x.Number));
         var imported = 0;
         var updated = 0;
