@@ -27,18 +27,22 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
         return new CatalogDbContext(options);
     }
 
-    public async Task<string> CreateIsolatedSchemaConnectionStringAsync()
+    public async Task<string> CreateIsolatedDatabaseConnectionStringAsync()
     {
-        var schema = $"upgrade_{Guid.NewGuid():N}";
-        await using var connection = new NpgsqlConnection(_container.GetConnectionString());
+        var database = $"upgrade_{Guid.NewGuid():N}";
+        var administratorConnectionString = new NpgsqlConnectionStringBuilder(_container.GetConnectionString())
+        {
+            Database = "postgres"
+        }.ConnectionString;
+        await using var connection = new NpgsqlConnection(administratorConnectionString);
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();
-        command.CommandText = $"CREATE SCHEMA \"{schema}\";";
+        command.CommandText = $"CREATE DATABASE \"{database}\";";
         await command.ExecuteNonQueryAsync();
 
         var connectionString = new NpgsqlConnectionStringBuilder(_container.GetConnectionString())
         {
-            SearchPath = schema
+            Database = database
         };
         return connectionString.ConnectionString;
     }

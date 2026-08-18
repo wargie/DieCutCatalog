@@ -17,7 +17,7 @@ public sealed class EmployeeRoleUpgradePostgreSqlTests(PostgreSqlFixture fixture
     [Fact]
     public async Task Upgrade_from_190_migrates_legacy_employee_role_and_preserves_login()
     {
-        var connectionString = await fixture.CreateIsolatedSchemaConnectionStringAsync();
+        var connectionString = await fixture.CreateIsolatedDatabaseConnectionStringAsync();
         var employeeId = Guid.NewGuid();
         const string email = "legacy-operator@example.test";
         const string password = "LegacyOperator!2026";
