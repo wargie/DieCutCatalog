@@ -388,8 +388,8 @@ docker compose -f compose.production.yaml up -d --force-recreate api
 ## Ссылки
 
 - Репозиторий: [github.com/wargie/DieCutCatalog](https://github.com/wargie/DieCutCatalog)
-- Актуальный Windows-релиз: [DieCut Catalog 1.9.2](https://github.com/wargie/DieCutCatalog/releases/tag/v1.9.2)
-- Скачать Windows-клиент: [DieCutCatalog-1.9.2-win-x64.zip](https://github.com/wargie/DieCutCatalog/releases/download/v1.9.2/DieCutCatalog-1.9.2-win-x64.zip)
+- Актуальный Windows-релиз: [DieCut Catalog 1.9.3](https://github.com/wargie/DieCutCatalog/releases/tag/v1.9.3)
+- Скачать Windows-клиент: [DieCutCatalog-1.9.3-win-x64.zip](https://github.com/wargie/DieCutCatalog/releases/download/v1.9.3/DieCutCatalog-1.9.3-win-x64.zip)
 - Рабочий сервер: [diecutcatalog.duckdns.org](https://diecutcatalog.duckdns.org)
 - Docker Engine: https://docs.docker.com/engine/install/ubuntu/
 - Docker Compose: https://docs.docker.com/compose/install/linux/
