@@ -168,6 +168,51 @@ public sealed class CatalogPostgreSqlTests(PostgreSqlFixture fixture)
         Assert.Equal(0, stored.Mileage);
         Assert.Equal(0, circulationEvents);
     }
+
+    [Fact]
+    public async Task Reference_position_move_preserves_article_and_archive_state_on_PostgreSQL()
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        Guid sourceDirectoryId;
+        Guid targetDirectoryId;
+        Guid sourceValueId;
+        Guid movedValueId;
+        const string article = @"{\rtf1 PostgreSQL technology article}";
+
+        await using (var writeContext = fixture.CreateDbContext())
+        {
+            var service = new CatalogAdministrationService(writeContext);
+            var sourceDirectory = await service.AddDirectoryAsync(
+                new CreateReferenceDirectoryCommand(null, $"Source-{suffix}", null));
+            var targetDirectory = await service.AddDirectoryAsync(
+                new CreateReferenceDirectoryCommand(null, $"Target-{suffix}", null));
+            var sourceValue = await service.AddDirectoryValueAsync(sourceDirectory.Id, $"Value-{suffix}");
+            await service.UpdateDirectoryValueArticleAsync(sourceDirectory.Id, sourceValue.Id, article);
+            await service.UpdateDirectoryValueAsync(sourceDirectory.Id, sourceValue.Id, sourceValue.Name, true);
+
+            var moved = await service.TransferPositionAsync(
+                new ReferencePositionTransferCommand(
+                    new ReferencePositionLocator(null, sourceDirectory.Id, sourceValue.Id),
+                    new ReferencePositionTarget(null, targetDirectory.Id),
+                    sourceValue.Name,
+                    Move: true));
+
+            Assert.NotNull(moved);
+            sourceDirectoryId = sourceDirectory.Id;
+            targetDirectoryId = targetDirectory.Id;
+            sourceValueId = sourceValue.Id;
+            movedValueId = moved.Id;
+        }
+
+        await using var verificationContext = fixture.CreateDbContext();
+        Assert.False(await verificationContext.ReferenceDirectoryValues.AsNoTracking()
+            .AnyAsync(x => x.Id == sourceValueId && x.DirectoryId == sourceDirectoryId));
+        var stored = await verificationContext.ReferenceDirectoryValues.AsNoTracking()
+            .SingleAsync(x => x.Id == movedValueId && x.DirectoryId == targetDirectoryId);
+        Assert.Equal(article, stored.ArticleRtf);
+        Assert.True(stored.IsArchived);
+    }
+
     private async Task<Equipment> AddEquipmentAsync()
     {
         var suffix = Guid.NewGuid().ToString("N");

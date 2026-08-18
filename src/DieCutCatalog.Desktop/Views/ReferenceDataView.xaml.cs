@@ -697,7 +697,7 @@ public partial class ReferenceDataView : UserControl
         var destination = new ReferencePositionDestination(source.SectionName, source.SystemType, source.DirectoryId);
         await RunAsync(async () =>
         {
-            await AddPositionAsync(destination, dialog.PositionName);
+            await TransferPositionAsync(source, destination, dialog.PositionName, false, null);
             await RefreshPositionsAsync(source.DirectoryId);
             SetStatus("Копия позиции создана в текущем разделе.", false);
         });
@@ -732,19 +732,7 @@ public partial class ReferenceDataView : UserControl
 
         await RunAsync(async () =>
         {
-            var createdId = await AddPositionAsync(dialog.Destination, dialog.PositionName);
-            if (move)
-            {
-                try
-                {
-                    await DeletePositionAsync(source, password);
-                }
-                catch
-                {
-                    await TryRollbackCreatedPositionAsync(dialog.Destination, createdId, password);
-                    throw;
-                }
-            }
+            await TransferPositionAsync(source, dialog.Destination, dialog.PositionName, move, password);
             await RefreshPositionsAsync(dialog.Destination.DirectoryId ?? source.DirectoryId);
             SetStatus(move ? "Позиция перенесена." : "Позиция скопирована.", false);
         });
@@ -764,33 +752,18 @@ public partial class ReferenceDataView : UserControl
                                            || destination.DirectoryId != source.DirectoryId).ToList();
     }
 
-    private async Task<Guid> AddPositionAsync(ReferencePositionDestination destination, string name)
-    {
-        if (destination.SystemType.HasValue)
-            return (await _api!.AddCatalogReferenceAsync(destination.SystemType.Value, name)).Id;
-        return (await _api!.AddReferenceDirectoryValueAsync(destination.DirectoryId!.Value, name)).Id;
-    }
-
-    private async Task DeletePositionAsync(PositionSelection source, string? password)
-    {
-        if (source.SystemType.HasValue)
-            await _api!.DeleteCatalogReferenceAsync(source.SystemType.Value, source.Id, password ?? string.Empty);
-        else
-            await _api!.DeleteReferenceDirectoryValueAsync(source.DirectoryId!.Value, source.Id);
-    }
-
-    private async Task TryRollbackCreatedPositionAsync(
-        ReferencePositionDestination destination, Guid createdId, string? password)
-    {
-        try
-        {
-            if (destination.SystemType.HasValue && !string.IsNullOrEmpty(password))
-                await _api!.DeleteCatalogReferenceAsync(destination.SystemType.Value, createdId, password);
-            else if (destination.DirectoryId.HasValue)
-                await _api!.DeleteReferenceDirectoryValueAsync(destination.DirectoryId.Value, createdId);
-        }
-        catch { /* The original error remains the useful one for the user. */ }
-    }
+    private Task<ReferencePositionTransferResult> TransferPositionAsync(
+        PositionSelection source,
+        ReferencePositionDestination destination,
+        string name,
+        bool move,
+        string? administratorPassword) =>
+        _api!.TransferReferencePositionAsync(
+            new ReferencePositionLocator(source.SystemType, source.DirectoryId, source.Id),
+            new ReferencePositionTarget(destination.SystemType, destination.DirectoryId),
+            name,
+            move,
+            administratorPassword);
 
     private async Task RefreshPositionsAsync(Guid? selectedDirectoryId)
     {

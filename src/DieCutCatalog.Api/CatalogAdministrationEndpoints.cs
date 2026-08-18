@@ -197,6 +197,29 @@ internal static class CatalogAdministrationEndpoints
                 ? Results.NoContent()
                 : Results.NotFound();
         });
+
+        group.MapPost("/positions/transfer", async (ReferencePositionTransferRequest request,
+            HttpContext context, ICatalogAdministrationService service, IAccountService accounts,
+            CancellationToken cancellationToken) =>
+        {
+            var profile = await AuthorizeAsync(context, accounts, cancellationToken);
+            if (profile is null) return Results.Unauthorized();
+            if (profile.Role != EmployeeRole.Administrator) return AdministratorRequired();
+            if (request.Move && (request.Source.SystemType.HasValue || request.Destination.SystemType.HasValue))
+            {
+                if (profile.MustChangePassword) return PasswordChangeRequired();
+                var administrator = await accounts.VerifyAdministratorPasswordAsync(
+                    request.AdministratorPassword ?? string.Empty, cancellationToken);
+                if (administrator is null) return AdministratorPasswordRequired();
+            }
+
+            var result = await service.TransferPositionAsync(
+                new ReferencePositionTransferCommand(
+                    request.Source, request.Destination, request.Name, request.Move),
+                cancellationToken);
+            return result is null ? Results.NotFound() : Results.Ok(result);
+        }).RequireRateLimiting("auth");
+
         group.MapGet("/audit-log", async (string? search, int page, int pageSize, HttpContext context,
             ICatalogAdministrationService service, IAccountService accounts, CancellationToken cancellationToken) =>
         {
@@ -241,3 +264,9 @@ internal static class CatalogAdministrationEndpoints
 
 internal sealed record ReferenceNameRequest(string Name);
 internal sealed record ReferenceValueRequest(string Name, bool IsArchived);
+internal sealed record ReferencePositionTransferRequest(
+    ReferencePositionLocator Source,
+    ReferencePositionTarget Destination,
+    string Name,
+    bool Move,
+    string? AdministratorPassword);

@@ -392,6 +392,36 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         return true;
     }
 
+    public async Task<ReferencePositionTransferResult?> TransferPositionAsync(
+        ReferencePositionTransferCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        ValidatePositionReference(command.Source.SystemType, command.Source.DirectoryId, "исходной позиции");
+        ValidatePositionReference(command.Destination.SystemType, command.Destination.DirectoryId, "целевого раздела");
+        if (command.Move && IsSameSection(command.Source, command.Destination))
+            throw new ValidationException("Нельзя перенести позицию в тот же раздел.");
+
+        var source = await LoadTransferSourceAsync(command.Source, cancellationToken);
+        if (source is null) return null;
+        if (command.Move) await EnsureTransferSourceCanBeDeletedAsync(source, cancellationToken);
+
+        await using var transaction = command.Move && dbContext.Database.IsRelational()
+            ? await dbContext.Database.BeginTransactionAsync(cancellationToken)
+            : null;
+        var result = await CreateTransferDestinationAsync(
+            command.Destination, command.Name, source.ArticleRtf, source.IsArchived, cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        if (command.Move)
+        {
+            await RemoveTransferSourceAsync(source, cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            if (transaction is not null) await transaction.CommitAsync(cancellationToken);
+        }
+
+        return result;
+    }
+
     public async Task<PagedResult<AuditLogEntry>> SearchAuditLogAsync(
         string? search, int page, int pageSize, CancellationToken cancellationToken = default)
     {
@@ -448,6 +478,164 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
             .OrderByDescending(x => x.OccurredAt)
             .ToArray();
     }
+
+    private async Task<TransferSource?> LoadTransferSourceAsync(
+        ReferencePositionLocator source,
+        CancellationToken cancellationToken)
+    {
+        if (source.SystemType == CatalogReferenceType.Equipment)
+        {
+            var equipment = await dbContext.Equipment.SingleOrDefaultAsync(
+                x => x.Id == source.Id, cancellationToken);
+            return equipment is null
+                ? null
+                : new TransferSource(equipment, source.SystemType, null, equipment.ArticleRtf, !equipment.IsActive);
+        }
+
+        if (source.SystemType.HasValue)
+        {
+            var kind = ToKind(source.SystemType.Value);
+            var entry = await dbContext.CatalogReferenceEntries.SingleOrDefaultAsync(
+                x => x.Id == source.Id && x.Kind == kind, cancellationToken);
+            return entry is null
+                ? null
+                : new TransferSource(entry, source.SystemType, null, entry.ArticleRtf, false);
+        }
+
+        var value = await dbContext.ReferenceDirectoryValues.SingleOrDefaultAsync(
+            x => x.Id == source.Id && x.DirectoryId == source.DirectoryId, cancellationToken);
+        return value is null
+            ? null
+            : new TransferSource(value, null, value.DirectoryId, value.ArticleRtf, value.IsArchived);
+    }
+
+    private async Task EnsureTransferSourceCanBeDeletedAsync(
+        TransferSource source,
+        CancellationToken cancellationToken)
+    {
+        if (source.Entity is Equipment equipment)
+        {
+            if (await dbContext.DieCuts.AnyAsync(x => x.EquipmentId == equipment.Id, cancellationToken))
+                throw new ValidationException("Нельзя перенести оборудование: оно используется в карточках ножей.");
+            return;
+        }
+
+        if (source.Entity is not CatalogReferenceEntry entry) return;
+        var name = entry.Name.ToLower();
+        var isUsed = source.SystemType == CatalogReferenceType.Material
+            ? await dbContext.DieCuts.AnyAsync(x => x.Material.ToLower() == name, cancellationToken)
+            : await dbContext.DieCuts.AnyAsync(x => x.Figure.ToLower() == name, cancellationToken);
+        if (isUsed)
+            throw new ValidationException("Нельзя перенести значение: оно используется в карточках ножей.");
+    }
+
+    private async Task<ReferencePositionTransferResult> CreateTransferDestinationAsync(
+        ReferencePositionTarget destination,
+        string name,
+        string? articleRtf,
+        bool isArchived,
+        CancellationToken cancellationToken)
+    {
+        var article = CleanArticle(articleRtf);
+        if (destination.SystemType == CatalogReferenceType.Equipment)
+        {
+            var clean = ValidateName(name, CatalogReferenceType.Equipment);
+            var normalized = Normalize(clean);
+            if (await dbContext.Equipment.AnyAsync(x => x.NormalizedName == normalized, cancellationToken))
+                throw new ValidationException("Такое оборудование уже есть в справочнике.");
+            var equipment = new Equipment
+            {
+                Name = clean,
+                NormalizedName = normalized,
+                ArticleRtf = article
+            };
+            dbContext.Equipment.Add(equipment);
+            return new ReferencePositionTransferResult(equipment.Id, equipment.Name, article, false);
+        }
+
+        if (destination.SystemType.HasValue)
+        {
+            var type = destination.SystemType.Value;
+            var clean = ValidateName(name, type);
+            var normalized = Normalize(clean);
+            var kind = ToKind(type);
+            if (await dbContext.CatalogReferenceEntries.AnyAsync(
+                    x => x.Kind == kind && x.NormalizedName == normalized, cancellationToken))
+                throw new ValidationException("Такое значение уже есть в справочнике.");
+            var entry = new CatalogReferenceEntry
+            {
+                Kind = kind,
+                Name = clean,
+                NormalizedName = normalized,
+                ArticleRtf = article
+            };
+            dbContext.CatalogReferenceEntries.Add(entry);
+            return new ReferencePositionTransferResult(entry.Id, entry.Name, article, false);
+        }
+
+        var directoryId = destination.DirectoryId!.Value;
+        var directory = await dbContext.ReferenceDirectories.SingleOrDefaultAsync(
+            x => x.Id == directoryId, cancellationToken)
+            ?? throw new ValidationException("Справочник не найден.");
+        if (directory.IsArchived) throw new ValidationException("Нельзя изменить архивный справочник.");
+        var valueName = ValidateDirectoryName(name, 200);
+        var valueNormalizedName = Normalize(valueName);
+        if (await dbContext.ReferenceDirectoryValues.AnyAsync(
+                x => x.DirectoryId == directoryId && x.NormalizedName == valueNormalizedName, cancellationToken))
+            throw new ValidationException("Такое значение уже существует в справочнике.");
+        var sortOrder = (await dbContext.ReferenceDirectoryValues.Where(x => x.DirectoryId == directoryId)
+            .MaxAsync(x => (int?)x.SortOrder, cancellationToken) ?? -1) + 1;
+        var value = new ReferenceDirectoryValue
+        {
+            DirectoryId = directoryId,
+            Name = valueName,
+            NormalizedName = valueNormalizedName,
+            ArticleRtf = article,
+            IsArchived = isArchived,
+            SortOrder = sortOrder
+        };
+        dbContext.ReferenceDirectoryValues.Add(value);
+        directory.UpdatedAt = DateTimeOffset.UtcNow;
+        return new ReferencePositionTransferResult(value.Id, value.Name, article, value.IsArchived);
+    }
+
+    private async Task RemoveTransferSourceAsync(TransferSource source, CancellationToken cancellationToken)
+    {
+        switch (source.Entity)
+        {
+            case Equipment equipment:
+                dbContext.Equipment.Remove(equipment);
+                break;
+            case CatalogReferenceEntry entry:
+                dbContext.CatalogReferenceEntries.Remove(entry);
+                break;
+            case ReferenceDirectoryValue value:
+                dbContext.ReferenceDirectoryValues.Remove(value);
+                var directory = await dbContext.ReferenceDirectories.SingleOrDefaultAsync(
+                    x => x.Id == value.DirectoryId, cancellationToken);
+                if (directory is not null) directory.UpdatedAt = DateTimeOffset.UtcNow;
+                break;
+        }
+    }
+
+    private static bool IsSameSection(ReferencePositionLocator source, ReferencePositionTarget destination) =>
+        source.SystemType == destination.SystemType && source.DirectoryId == destination.DirectoryId;
+
+    private static void ValidatePositionReference(
+        CatalogReferenceType? systemType,
+        Guid? directoryId,
+        string field)
+    {
+        if (systemType.HasValue == directoryId.HasValue)
+            throw new ValidationException($"Нужно указать ровно один тип {field}.");
+    }
+
+    private sealed record TransferSource(
+        object Entity,
+        CatalogReferenceType? SystemType,
+        Guid? DirectoryId,
+        string? ArticleRtf,
+        bool IsArchived);
 
     private static byte[] BuildCsv(IEnumerable<AuditLogEntry> entries)
     {

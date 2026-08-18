@@ -71,6 +71,16 @@ internal sealed partial class CatalogApiClient
         SendAsync(HttpMethod.Put,
             $"api/catalog-administration/directories/{directoryId}/values/{id}/article", new { articleRtf });
 
+    public Task<ReferencePositionTransferResult> TransferReferencePositionAsync(
+        ReferencePositionLocator source,
+        ReferencePositionTarget destination,
+        string name,
+        bool move,
+        string? administratorPassword) =>
+        SendAsync<ReferencePositionTransferResult>(HttpMethod.Post,
+            "api/catalog-administration/positions/transfer",
+            new { source, destination, name, move, administratorPassword });
+
     public Task<PagedResult<AuditLogEntry>> SearchAuditLogAsync(string? search, int page, int pageSize = 200)
     {
         var query = new StringBuilder($"api/catalog-administration/audit-log?page={page}&pageSize={pageSize}");

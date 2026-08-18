@@ -184,6 +184,87 @@ public sealed class CatalogAdministrationServiceTests
     }
 
     [Fact]
+    public async Task DuplicatePosition_PreservesArticleAndArchivedState()
+    {
+        await using var fixture = CreateFixture();
+        var directory = await fixture.Administration.AddDirectoryAsync(
+            new CreateReferenceDirectoryCommand(null, "Карточки материалов", null));
+        var source = await fixture.Administration.AddDirectoryValueAsync(directory.Id, "Clear PET30");
+        await fixture.Administration.UpdateDirectoryValueArticleAsync(
+            directory.Id, source.Id, @"{\rtf1 Технологическая статья}");
+        await fixture.Administration.UpdateDirectoryValueAsync(
+            directory.Id, source.Id, source.Name, true);
+
+        var result = await fixture.Administration.TransferPositionAsync(
+            new ReferencePositionTransferCommand(
+                new ReferencePositionLocator(null, directory.Id, source.Id),
+                new ReferencePositionTarget(null, directory.Id),
+                "Clear PET30 — копия",
+                Move: false));
+        var values = await fixture.Administration.GetDirectoryValuesAsync(directory.Id, true);
+
+        Assert.NotNull(result);
+        Assert.Equal(2, values.Count);
+        var copy = Assert.Single(values, x => x.Id == result.Id);
+        Assert.Equal(@"{\rtf1 Технологическая статья}", copy.ArticleRtf);
+        Assert.True(copy.IsArchived);
+        Assert.Contains(values, x => x.Id == source.Id);
+    }
+
+    [Fact]
+    public async Task MovePosition_WritesCompleteDestinationBeforeDeletingSource()
+    {
+        await using var fixture = CreateFixture();
+        var sourceDirectory = await fixture.Administration.AddDirectoryAsync(
+            new CreateReferenceDirectoryCommand(null, "Исходный справочник", null));
+        var targetDirectory = await fixture.Administration.AddDirectoryAsync(
+            new CreateReferenceDirectoryCommand(null, "Целевой справочник", null));
+        var source = await fixture.Administration.AddDirectoryValueAsync(sourceDirectory.Id, "Clear PET30");
+        await fixture.Administration.UpdateDirectoryValueArticleAsync(
+            sourceDirectory.Id, source.Id, @"{\rtf1 Полная статья}");
+
+        var result = await fixture.Administration.TransferPositionAsync(
+            new ReferencePositionTransferCommand(
+                new ReferencePositionLocator(null, sourceDirectory.Id, source.Id),
+                new ReferencePositionTarget(null, targetDirectory.Id),
+                source.Name,
+                Move: true));
+        var sourceValues = await fixture.Administration.GetDirectoryValuesAsync(sourceDirectory.Id, true);
+        var targetValue = Assert.Single(
+            await fixture.Administration.GetDirectoryValuesAsync(targetDirectory.Id, true));
+
+        Assert.NotNull(result);
+        Assert.Empty(sourceValues);
+        Assert.Equal(result.Id, targetValue.Id);
+        Assert.Equal(@"{\rtf1 Полная статья}", targetValue.ArticleRtf);
+    }
+
+    [Fact]
+    public async Task MovePosition_WhenSourceCannotBeDeleted_DoesNotCreateDestination()
+    {
+        await using var fixture = CreateFixture();
+        var material = Assert.Single((await fixture.Administration.GetReferencesAsync()).Materials);
+        await fixture.Administration.UpdateReferenceArticleAsync(
+            CatalogReferenceType.Material, material.Id, @"{\rtf1 Важная статья}");
+        await fixture.Catalog.CreateAsync(NewKnife(), fixture.EmployeeId);
+        var targetDirectory = await fixture.Administration.AddDirectoryAsync(
+            new CreateReferenceDirectoryCommand(null, "Целевой справочник", null));
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            fixture.Administration.TransferPositionAsync(
+                new ReferencePositionTransferCommand(
+                    new ReferencePositionLocator(CatalogReferenceType.Material, null, material.Id),
+                    new ReferencePositionTarget(null, targetDirectory.Id),
+                    material.Name,
+                    Move: true)));
+
+        Assert.Empty(await fixture.Administration.GetDirectoryValuesAsync(targetDirectory.Id, true));
+        var preserved = Assert.Single((await fixture.Administration.GetReferencesAsync()).Materials);
+        Assert.Equal(material.Id, preserved.Id);
+        Assert.Equal(@"{\rtf1 Важная статья}", preserved.ArticleRtf);
+    }
+
+    [Fact]
     public async Task DeleteCustomDirectory_RejectsNonEmptyDirectory()
     {
         await using var fixture = CreateFixture();

@@ -211,7 +211,7 @@ API должен слушать только loopback-интерфейс и пу
 
 ### 1.9.2 — 18 августа 2026
 
-Добавлена обязательная PostgreSQL data migration `Employee` → `Operator` и upgrade integration test, воспроизводящий обновление базы 1.9.0 с последующей авторизацией legacy-сотрудника. [Описание и загрузка](https://github.com/wargie/DieCutCatalog/releases/tag/v1.9.2).
+Добавлена обязательная PostgreSQL data migration `Employee` → `Operator`, upgrade integration test и атомарный перенос позиций справочников с сохранением технологических статей. [Описание и загрузка](https://github.com/wargie/DieCutCatalog/releases/tag/v1.9.2).
 
 ### 1.9.1 — 18 августа 2026
 

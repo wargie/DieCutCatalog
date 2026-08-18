@@ -162,6 +162,18 @@ public sealed record ReferenceDirectoryValueItem(
     Guid Id, Guid DirectoryId, string Name, int SortOrder, bool IsArchived, DateTimeOffset UpdatedAt,
     string? ArticleRtf = null);
 public sealed record ReferenceArticleCommand(string? ArticleRtf);
+public sealed record ReferencePositionLocator(CatalogReferenceType? SystemType, Guid? DirectoryId, Guid Id);
+public sealed record ReferencePositionTarget(CatalogReferenceType? SystemType, Guid? DirectoryId);
+public sealed record ReferencePositionTransferCommand(
+    ReferencePositionLocator Source,
+    ReferencePositionTarget Destination,
+    string Name,
+    bool Move);
+public sealed record ReferencePositionTransferResult(
+    Guid Id,
+    string Name,
+    string? ArticleRtf,
+    bool IsArchived);
 public sealed record ReferenceDirectoryOverview(
     IReadOnlyList<ReferenceDirectoryGroupItem> Groups,
     IReadOnlyList<ReferenceDirectoryItem> Directories);
@@ -207,6 +219,9 @@ public interface ICatalogAdministrationService
     Task<ReferenceDirectoryValueItem?> UpdateDirectoryValueAsync(Guid directoryId, Guid id, string name, bool isArchived, CancellationToken cancellationToken = default);
     Task<bool> UpdateDirectoryValueArticleAsync(Guid directoryId, Guid id, string? articleRtf, CancellationToken cancellationToken = default);
     Task<bool> DeleteDirectoryValueAsync(Guid directoryId, Guid id, CancellationToken cancellationToken = default);
+    Task<ReferencePositionTransferResult?> TransferPositionAsync(
+        ReferencePositionTransferCommand command,
+        CancellationToken cancellationToken = default);
     Task<PagedResult<AuditLogEntry>> SearchAuditLogAsync(string? search, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ExportedFile> ExportAuditLogAsync(string? search, bool pdf, CancellationToken cancellationToken = default);
 }
