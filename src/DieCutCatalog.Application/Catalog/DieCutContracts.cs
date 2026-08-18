@@ -1,4 +1,5 @@
 using DieCutCatalog.Domain.Catalog;
+using DieCutCatalog.Domain.Auditing;
 using DieCutCatalog.Domain.Employees;
 
 namespace DieCutCatalog.Application.Catalog;
@@ -162,6 +163,10 @@ public sealed record ReferenceDirectoryValueItem(
     Guid Id, Guid DirectoryId, string Name, int SortOrder, bool IsArchived, DateTimeOffset UpdatedAt,
     string? ArticleRtf = null);
 public sealed record ReferenceArticleCommand(string? ArticleRtf);
+public sealed record AuditIdentity(
+    Guid ActorEmployeeId,
+    Guid? ApproverEmployeeId = null,
+    Guid? CorrelationId = null);
 public sealed record ReferencePositionLocator(CatalogReferenceType? SystemType, Guid? DirectoryId, Guid Id);
 public sealed record ReferencePositionTarget(CatalogReferenceType? SystemType, Guid? DirectoryId);
 public sealed record ReferencePositionTransferCommand(
@@ -169,7 +174,7 @@ public sealed record ReferencePositionTransferCommand(
     ReferencePositionTarget Destination,
     string Name,
     bool Move,
-    Guid EmployeeId);
+    AuditIdentity Audit);
 public sealed record ReferencePositionTransferResult(
     Guid Id,
     string Name,
@@ -197,34 +202,39 @@ public sealed record AuditLogEntry(
     DateTimeOffset OccurredAt,
     string EmployeeName,
     EmployeeAccessEventType? AccessType = null,
-    ReferencePositionEventType? ReferencePositionType = null,
-    string? ReferenceSourceName = null,
-    string? ReferenceDestinationName = null,
-    string? ReferenceSourceSection = null,
-    string? ReferenceDestinationSection = null);
+    AuditEntityType? EntityType = null,
+    AuditAction? AuditAction = null,
+    Guid? EntityId = null,
+    Guid? ApproverEmployeeId = null,
+    string? ApproverName = null,
+    string? BeforeJson = null,
+    string? AfterJson = null,
+    Guid? CorrelationId = null,
+    string? DisplayObject = null,
+    string? DisplayContext = null);
 
 public sealed record ExportedFile(string FileName, string ContentType, byte[] Content);
 
 public interface ICatalogAdministrationService
 {
     Task<CatalogReferences> GetReferencesAsync(CancellationToken cancellationToken = default);
-    Task<CatalogReferenceItem> AddReferenceAsync(CatalogReferenceType type, string name, CancellationToken cancellationToken = default);
-    Task<ReferenceImportResult> ImportReferencesAsync(CatalogReferenceType type, IReadOnlyList<string> names, CancellationToken cancellationToken = default);
-    Task<CatalogReferenceItem?> RenameReferenceAsync(CatalogReferenceType type, Guid id, string name, CancellationToken cancellationToken = default);
-    Task<bool> UpdateReferenceArticleAsync(CatalogReferenceType type, Guid id, string? articleRtf, CancellationToken cancellationToken = default);
-    Task<bool> DeleteReferenceAsync(CatalogReferenceType type, Guid id, CancellationToken cancellationToken = default);
+    Task<CatalogReferenceItem> AddReferenceAsync(CatalogReferenceType type, string name, AuditIdentity audit, CancellationToken cancellationToken = default);
+    Task<ReferenceImportResult> ImportReferencesAsync(CatalogReferenceType type, IReadOnlyList<string> names, AuditIdentity audit, CancellationToken cancellationToken = default);
+    Task<CatalogReferenceItem?> RenameReferenceAsync(CatalogReferenceType type, Guid id, string name, AuditIdentity audit, CancellationToken cancellationToken = default);
+    Task<bool> UpdateReferenceArticleAsync(CatalogReferenceType type, Guid id, string? articleRtf, AuditIdentity audit, CancellationToken cancellationToken = default);
+    Task<bool> DeleteReferenceAsync(CatalogReferenceType type, Guid id, AuditIdentity audit, CancellationToken cancellationToken = default);
     Task<ReferenceDirectoryOverview> GetDirectoryOverviewAsync(CancellationToken cancellationToken = default);
-    Task<ReferenceDirectoryGroupItem> AddDirectoryGroupAsync(string name, CancellationToken cancellationToken = default);
-    Task<bool> DeleteDirectoryGroupAsync(Guid id, CancellationToken cancellationToken = default);
-    Task<ReferenceDirectoryItem> AddDirectoryAsync(CreateReferenceDirectoryCommand command, CancellationToken cancellationToken = default);
-    Task<ReferenceDirectoryItem?> UpdateDirectoryAsync(Guid id, UpdateReferenceDirectoryCommand command, CancellationToken cancellationToken = default);
-    Task<bool> DeleteDirectoryAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<ReferenceDirectoryGroupItem> AddDirectoryGroupAsync(string name, AuditIdentity audit, CancellationToken cancellationToken = default);
+    Task<bool> DeleteDirectoryGroupAsync(Guid id, AuditIdentity audit, CancellationToken cancellationToken = default);
+    Task<ReferenceDirectoryItem> AddDirectoryAsync(CreateReferenceDirectoryCommand command, AuditIdentity audit, CancellationToken cancellationToken = default);
+    Task<ReferenceDirectoryItem?> UpdateDirectoryAsync(Guid id, UpdateReferenceDirectoryCommand command, AuditIdentity audit, CancellationToken cancellationToken = default);
+    Task<bool> DeleteDirectoryAsync(Guid id, AuditIdentity audit, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<ReferenceDirectoryValueItem>> GetDirectoryValuesAsync(Guid directoryId, bool includeArchived, CancellationToken cancellationToken = default);
-    Task<ReferenceDirectoryValueItem> AddDirectoryValueAsync(Guid directoryId, string name, CancellationToken cancellationToken = default);
-    Task<ReferenceImportResult> ImportDirectoryValuesAsync(Guid directoryId, IReadOnlyList<string> names, CancellationToken cancellationToken = default);
-    Task<ReferenceDirectoryValueItem?> UpdateDirectoryValueAsync(Guid directoryId, Guid id, string name, bool isArchived, CancellationToken cancellationToken = default);
-    Task<bool> UpdateDirectoryValueArticleAsync(Guid directoryId, Guid id, string? articleRtf, CancellationToken cancellationToken = default);
-    Task<bool> DeleteDirectoryValueAsync(Guid directoryId, Guid id, CancellationToken cancellationToken = default);
+    Task<ReferenceDirectoryValueItem> AddDirectoryValueAsync(Guid directoryId, string name, AuditIdentity audit, CancellationToken cancellationToken = default);
+    Task<ReferenceImportResult> ImportDirectoryValuesAsync(Guid directoryId, IReadOnlyList<string> names, AuditIdentity audit, CancellationToken cancellationToken = default);
+    Task<ReferenceDirectoryValueItem?> UpdateDirectoryValueAsync(Guid directoryId, Guid id, string name, bool isArchived, AuditIdentity audit, CancellationToken cancellationToken = default);
+    Task<bool> UpdateDirectoryValueArticleAsync(Guid directoryId, Guid id, string? articleRtf, AuditIdentity audit, CancellationToken cancellationToken = default);
+    Task<bool> DeleteDirectoryValueAsync(Guid directoryId, Guid id, AuditIdentity audit, CancellationToken cancellationToken = default);
     Task<ReferencePositionTransferResult?> TransferPositionAsync(
         ReferencePositionTransferCommand command,
         CancellationToken cancellationToken = default);

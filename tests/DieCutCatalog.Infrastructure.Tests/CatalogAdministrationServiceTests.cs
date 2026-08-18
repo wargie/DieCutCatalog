@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text;
 using DieCutCatalog.Application.Catalog;
+using DieCutCatalog.Domain.Auditing;
 using DieCutCatalog.Domain.Catalog;
 using DieCutCatalog.Domain.Employees;
 using DieCutCatalog.Infrastructure.Catalog;
@@ -20,7 +21,7 @@ public sealed class CatalogAdministrationServiceTests
         var material = Assert.Single(references.Materials);
 
         await fixture.Administration.RenameReferenceAsync(
-            CatalogReferenceType.Material, material.Id, "Paper Premium");
+            CatalogReferenceType.Material, material.Id, "Paper Premium", fixture.Audit);
         var updated = await fixture.Catalog.GetAsync(knife.Id);
 
         Assert.Equal("Paper Premium", updated!.Material);
@@ -31,10 +32,10 @@ public sealed class CatalogAdministrationServiceTests
     {
         await using var fixture = CreateFixture();
         var added = await fixture.Administration.AddReferenceAsync(
-            CatalogReferenceType.Material, "Unused material");
+            CatalogReferenceType.Material, "Unused material", fixture.Audit);
 
         var deleted = await fixture.Administration.DeleteReferenceAsync(
-            CatalogReferenceType.Material, added.Id);
+            CatalogReferenceType.Material, added.Id, fixture.ApprovedAudit);
         var references = await fixture.Administration.GetReferencesAsync();
 
         Assert.True(deleted);
@@ -50,7 +51,8 @@ public sealed class CatalogAdministrationServiceTests
         var material = Assert.Single(references.Materials);
 
         var exception = await Assert.ThrowsAsync<ValidationException>(() =>
-            fixture.Administration.DeleteReferenceAsync(CatalogReferenceType.Material, material.Id));
+            fixture.Administration.DeleteReferenceAsync(
+                CatalogReferenceType.Material, material.Id, fixture.ApprovedAudit));
 
         Assert.Contains("используется", exception.Message);
     }
@@ -61,7 +63,8 @@ public sealed class CatalogAdministrationServiceTests
         await using var fixture = CreateFixture();
 
         var result = await fixture.Administration.ImportReferencesAsync(
-            CatalogReferenceType.Material, ["Paper", "Clear PET30", " clear pet30 ", "White PET", ""]);
+            CatalogReferenceType.Material, ["Paper", "Clear PET30", " clear pet30 ", "White PET", ""],
+            fixture.Audit);
         var references = await fixture.Administration.GetReferencesAsync();
 
         Assert.Equal(2, result.Added);
@@ -77,7 +80,7 @@ public sealed class CatalogAdministrationServiceTests
         var material = Assert.Single((await fixture.Administration.GetReferencesAsync()).Materials);
 
         var updated = await fixture.Administration.UpdateReferenceArticleAsync(
-            CatalogReferenceType.Material, material.Id, @"{\rtf1 Описание материала}");
+            CatalogReferenceType.Material, material.Id, @"{\rtf1 Описание материала}", fixture.Audit);
         var refreshed = Assert.Single((await fixture.Administration.GetReferencesAsync()).Materials);
 
         Assert.True(updated);
@@ -88,10 +91,12 @@ public sealed class CatalogAdministrationServiceTests
     public async Task CustomDirectory_CreatesGroupDirectoryAndValues()
     {
         await using var fixture = CreateFixture();
-        var group = await fixture.Administration.AddDirectoryGroupAsync("Производство");
+        var group = await fixture.Administration.AddDirectoryGroupAsync("Производство", fixture.Audit);
         var directory = await fixture.Administration.AddDirectoryAsync(
-            new CreateReferenceDirectoryCommand(group.Id, "Причины списания", "Причины вывода ножа из эксплуатации"));
-        var value = await fixture.Administration.AddDirectoryValueAsync(directory.Id, "Естественный износ");
+            new CreateReferenceDirectoryCommand(group.Id, "Причины списания", "Причины вывода ножа из эксплуатации"),
+            fixture.Audit);
+        var value = await fixture.Administration.AddDirectoryValueAsync(
+            directory.Id, "Естественный износ", fixture.Audit);
 
         var overview = await fixture.Administration.GetDirectoryOverviewAsync();
         var values = await fixture.Administration.GetDirectoryValuesAsync(directory.Id, false);
@@ -105,11 +110,11 @@ public sealed class CatalogAdministrationServiceTests
     public async Task DeleteDirectoryGroup_PreservesDirectoriesWithoutGroup()
     {
         await using var fixture = CreateFixture();
-        var group = await fixture.Administration.AddDirectoryGroupAsync("Временная группа");
+        var group = await fixture.Administration.AddDirectoryGroupAsync("Временная группа", fixture.Audit);
         var directory = await fixture.Administration.AddDirectoryAsync(
-            new CreateReferenceDirectoryCommand(group.Id, "Сохраняемый справочник", null));
+            new CreateReferenceDirectoryCommand(group.Id, "Сохраняемый справочник", null), fixture.Audit);
 
-        var deleted = await fixture.Administration.DeleteDirectoryGroupAsync(group.Id);
+        var deleted = await fixture.Administration.DeleteDirectoryGroupAsync(group.Id, fixture.ApprovedAudit);
         var overview = await fixture.Administration.GetDirectoryOverviewAsync();
 
         Assert.True(deleted);
@@ -124,14 +129,17 @@ public sealed class CatalogAdministrationServiceTests
     {
         await using var fixture = CreateFixture();
         var directory = await fixture.Administration.AddDirectoryAsync(
-            new CreateReferenceDirectoryCommand(null, "Поставщики", null));
-        var value = await fixture.Administration.AddDirectoryValueAsync(directory.Id, "JustCut");
+            new CreateReferenceDirectoryCommand(null, "Поставщики", null), fixture.Audit);
+        var value = await fixture.Administration.AddDirectoryValueAsync(
+            directory.Id, "JustCut", fixture.Audit);
 
-        await fixture.Administration.UpdateDirectoryValueAsync(directory.Id, value.Id, value.Name, true);
+        await fixture.Administration.UpdateDirectoryValueAsync(
+            directory.Id, value.Id, value.Name, true, fixture.Audit);
         Assert.Empty(await fixture.Administration.GetDirectoryValuesAsync(directory.Id, false));
         Assert.True(Assert.Single(await fixture.Administration.GetDirectoryValuesAsync(directory.Id, true)).IsArchived);
 
-        await fixture.Administration.UpdateDirectoryValueAsync(directory.Id, value.Id, value.Name, false);
+        await fixture.Administration.UpdateDirectoryValueAsync(
+            directory.Id, value.Id, value.Name, false, fixture.Audit);
         Assert.False(Assert.Single(await fixture.Administration.GetDirectoryValuesAsync(directory.Id, false)).IsArchived);
     }
 
@@ -140,11 +148,11 @@ public sealed class CatalogAdministrationServiceTests
     {
         await using var fixture = CreateFixture();
         var directory = await fixture.Administration.AddDirectoryAsync(
-            new CreateReferenceDirectoryCommand(null, "Материалы поставщика", null));
-        await fixture.Administration.AddDirectoryValueAsync(directory.Id, "Existing");
+            new CreateReferenceDirectoryCommand(null, "Материалы поставщика", null), fixture.Audit);
+        await fixture.Administration.AddDirectoryValueAsync(directory.Id, "Existing", fixture.Audit);
 
         var result = await fixture.Administration.ImportDirectoryValuesAsync(
-            directory.Id, ["Existing", "Clear PET30", "clear pet30", "White PET", ""]);
+            directory.Id, ["Existing", "Clear PET30", "clear pet30", "White PET", ""], fixture.Audit);
         var values = await fixture.Administration.GetDirectoryValuesAsync(directory.Id, false);
 
         Assert.Equal(2, result.Added);
@@ -157,10 +165,12 @@ public sealed class CatalogAdministrationServiceTests
     {
         await using var fixture = CreateFixture();
         var directory = await fixture.Administration.AddDirectoryAsync(
-            new CreateReferenceDirectoryCommand(null, "Удаляемые значения", null));
-        var value = await fixture.Administration.AddDirectoryValueAsync(directory.Id, "Временная позиция");
+            new CreateReferenceDirectoryCommand(null, "Удаляемые значения", null), fixture.Audit);
+        var value = await fixture.Administration.AddDirectoryValueAsync(
+            directory.Id, "Временная позиция", fixture.Audit);
 
-        var deleted = await fixture.Administration.DeleteDirectoryValueAsync(directory.Id, value.Id);
+        var deleted = await fixture.Administration.DeleteDirectoryValueAsync(
+            directory.Id, value.Id, fixture.Audit);
         var values = await fixture.Administration.GetDirectoryValuesAsync(directory.Id, true);
 
         Assert.True(deleted);
@@ -172,11 +182,12 @@ public sealed class CatalogAdministrationServiceTests
     {
         await using var fixture = CreateFixture();
         var directory = await fixture.Administration.AddDirectoryAsync(
-            new CreateReferenceDirectoryCommand(null, "Карточки", null));
-        var value = await fixture.Administration.AddDirectoryValueAsync(directory.Id, "Clear PET30");
+            new CreateReferenceDirectoryCommand(null, "Карточки", null), fixture.Audit);
+        var value = await fixture.Administration.AddDirectoryValueAsync(
+            directory.Id, "Clear PET30", fixture.Audit);
 
         var updated = await fixture.Administration.UpdateDirectoryValueArticleAsync(
-            directory.Id, value.Id, @"{\rtf1 Техническое описание}");
+            directory.Id, value.Id, @"{\rtf1 Техническое описание}", fixture.Audit);
         var refreshed = Assert.Single(await fixture.Administration.GetDirectoryValuesAsync(directory.Id, true));
 
         Assert.True(updated);
@@ -188,12 +199,13 @@ public sealed class CatalogAdministrationServiceTests
     {
         await using var fixture = CreateFixture();
         var directory = await fixture.Administration.AddDirectoryAsync(
-            new CreateReferenceDirectoryCommand(null, "Карточки материалов", null));
-        var source = await fixture.Administration.AddDirectoryValueAsync(directory.Id, "Clear PET30");
+            new CreateReferenceDirectoryCommand(null, "Карточки материалов", null), fixture.Audit);
+        var source = await fixture.Administration.AddDirectoryValueAsync(
+            directory.Id, "Clear PET30", fixture.Audit);
         await fixture.Administration.UpdateDirectoryValueArticleAsync(
-            directory.Id, source.Id, @"{\rtf1 Технологическая статья}");
+            directory.Id, source.Id, @"{\rtf1 Технологическая статья}", fixture.Audit);
         await fixture.Administration.UpdateDirectoryValueAsync(
-            directory.Id, source.Id, source.Name, true);
+            directory.Id, source.Id, source.Name, true, fixture.Audit);
 
         var result = await fixture.Administration.TransferPositionAsync(
             new ReferencePositionTransferCommand(
@@ -201,9 +213,10 @@ public sealed class CatalogAdministrationServiceTests
                 new ReferencePositionTarget(null, directory.Id),
                 "Clear PET30 — копия",
                 Move: false,
-                fixture.EmployeeId));
+                fixture.Audit));
         var values = await fixture.Administration.GetDirectoryValuesAsync(directory.Id, true);
-        var auditEvent = Assert.Single(fixture.DbContext.ReferencePositionEvents);
+        var auditEvent = Assert.Single(fixture.DbContext.AuditEvents,
+            x => x.Action == AuditAction.Copied);
         var auditLog = await fixture.Administration.SearchAuditLogAsync("Clear PET30", 1, 50);
         var csv = await fixture.Administration.ExportAuditLogAsync("Clear PET30", false);
 
@@ -213,12 +226,13 @@ public sealed class CatalogAdministrationServiceTests
         Assert.Equal(@"{\rtf1 Технологическая статья}", copy.ArticleRtf);
         Assert.True(copy.IsArchived);
         Assert.Contains(values, x => x.Id == source.Id);
-        Assert.Equal(ReferencePositionEventType.Copied, auditEvent.Type);
-        Assert.Equal(source.Id, auditEvent.SourcePositionId);
-        Assert.Equal(result.Id, auditEvent.DestinationPositionId);
-        Assert.Equal("Карточки материалов", auditEvent.SourceSection);
-        Assert.Equal("Карточки материалов", auditEvent.DestinationSection);
-        Assert.Equal(ReferencePositionEventType.Copied, Assert.Single(auditLog.Items).ReferencePositionType);
+        Assert.Equal(AuditEntityType.ReferenceValue, auditEvent.EntityType);
+        Assert.Equal(result.Id, auditEvent.EntityId);
+        Assert.Contains(source.Id.ToString(), auditEvent.BeforeJson);
+        Assert.Contains(result.Id.ToString(), auditEvent.AfterJson);
+        Assert.Contains("Карточки материалов", auditEvent.BeforeJson);
+        Assert.Contains("Карточки материалов", auditEvent.AfterJson);
+        Assert.Contains(auditLog.Items, x => x.AuditAction == AuditAction.Copied);
         Assert.Contains("Позиция справочника скопирована", Encoding.UTF8.GetString(csv.Content));
     }
 
@@ -227,12 +241,13 @@ public sealed class CatalogAdministrationServiceTests
     {
         await using var fixture = CreateFixture();
         var sourceDirectory = await fixture.Administration.AddDirectoryAsync(
-            new CreateReferenceDirectoryCommand(null, "Исходный справочник", null));
+            new CreateReferenceDirectoryCommand(null, "Исходный справочник", null), fixture.Audit);
         var targetDirectory = await fixture.Administration.AddDirectoryAsync(
-            new CreateReferenceDirectoryCommand(null, "Целевой справочник", null));
-        var source = await fixture.Administration.AddDirectoryValueAsync(sourceDirectory.Id, "Clear PET30");
+            new CreateReferenceDirectoryCommand(null, "Целевой справочник", null), fixture.Audit);
+        var source = await fixture.Administration.AddDirectoryValueAsync(
+            sourceDirectory.Id, "Clear PET30", fixture.Audit);
         await fixture.Administration.UpdateDirectoryValueArticleAsync(
-            sourceDirectory.Id, source.Id, @"{\rtf1 Полная статья}");
+            sourceDirectory.Id, source.Id, @"{\rtf1 Полная статья}", fixture.Audit);
 
         var result = await fixture.Administration.TransferPositionAsync(
             new ReferencePositionTransferCommand(
@@ -240,7 +255,7 @@ public sealed class CatalogAdministrationServiceTests
                 new ReferencePositionTarget(null, targetDirectory.Id),
                 source.Name,
                 Move: true,
-                fixture.EmployeeId));
+                fixture.Audit));
         var sourceValues = await fixture.Administration.GetDirectoryValuesAsync(sourceDirectory.Id, true);
         var targetValue = Assert.Single(
             await fixture.Administration.GetDirectoryValuesAsync(targetDirectory.Id, true));
@@ -249,10 +264,10 @@ public sealed class CatalogAdministrationServiceTests
         Assert.Empty(sourceValues);
         Assert.Equal(result.Id, targetValue.Id);
         Assert.Equal(@"{\rtf1 Полная статья}", targetValue.ArticleRtf);
-        var auditEvent = Assert.Single(fixture.DbContext.ReferencePositionEvents);
-        Assert.Equal(ReferencePositionEventType.Moved, auditEvent.Type);
-        Assert.Equal("Исходный справочник", auditEvent.SourceSection);
-        Assert.Equal("Целевой справочник", auditEvent.DestinationSection);
+        var auditEvent = Assert.Single(fixture.DbContext.AuditEvents,
+            x => x.Action == AuditAction.Moved);
+        Assert.Contains("Исходный справочник", auditEvent.BeforeJson);
+        Assert.Contains("Целевой справочник", auditEvent.AfterJson);
     }
 
     [Fact]
@@ -261,10 +276,10 @@ public sealed class CatalogAdministrationServiceTests
         await using var fixture = CreateFixture();
         var material = Assert.Single((await fixture.Administration.GetReferencesAsync()).Materials);
         await fixture.Administration.UpdateReferenceArticleAsync(
-            CatalogReferenceType.Material, material.Id, @"{\rtf1 Важная статья}");
+            CatalogReferenceType.Material, material.Id, @"{\rtf1 Важная статья}", fixture.Audit);
         await fixture.Catalog.CreateAsync(NewKnife(), fixture.EmployeeId);
         var targetDirectory = await fixture.Administration.AddDirectoryAsync(
-            new CreateReferenceDirectoryCommand(null, "Целевой справочник", null));
+            new CreateReferenceDirectoryCommand(null, "Целевой справочник", null), fixture.Audit);
 
         await Assert.ThrowsAsync<ValidationException>(() =>
             fixture.Administration.TransferPositionAsync(
@@ -273,13 +288,13 @@ public sealed class CatalogAdministrationServiceTests
                     new ReferencePositionTarget(null, targetDirectory.Id),
                     material.Name,
                     Move: true,
-                    fixture.EmployeeId)));
+                    fixture.ApprovedAudit)));
 
         Assert.Empty(await fixture.Administration.GetDirectoryValuesAsync(targetDirectory.Id, true));
         var preserved = Assert.Single((await fixture.Administration.GetReferencesAsync()).Materials);
         Assert.Equal(material.Id, preserved.Id);
         Assert.Equal(@"{\rtf1 Важная статья}", preserved.ArticleRtf);
-        Assert.Empty(fixture.DbContext.ReferencePositionEvents);
+        Assert.DoesNotContain(fixture.DbContext.AuditEvents, x => x.Action == AuditAction.Moved);
     }
 
     [Fact]
@@ -287,11 +302,11 @@ public sealed class CatalogAdministrationServiceTests
     {
         await using var fixture = CreateFixture();
         var directory = await fixture.Administration.AddDirectoryAsync(
-            new CreateReferenceDirectoryCommand(null, "Тип дефекта", null));
-        await fixture.Administration.AddDirectoryValueAsync(directory.Id, "Скол");
+            new CreateReferenceDirectoryCommand(null, "Тип дефекта", null), fixture.Audit);
+        await fixture.Administration.AddDirectoryValueAsync(directory.Id, "Скол", fixture.Audit);
 
         var exception = await Assert.ThrowsAsync<ValidationException>(
-            () => fixture.Administration.DeleteDirectoryAsync(directory.Id));
+            () => fixture.Administration.DeleteDirectoryAsync(directory.Id, fixture.Audit));
 
         Assert.Contains("непустой", exception.Message);
     }
@@ -330,6 +345,80 @@ public sealed class CatalogAdministrationServiceTests
         Assert.Equal(EmployeeAccessEventType.LoggedIn, entry.AccessType);
         Assert.Contains("Вход в систему", Encoding.UTF8.GetString(csv.Content));
         Assert.StartsWith("%PDF", Encoding.ASCII.GetString(pdf.Content, 0, 4));
+    }
+
+    [Fact]
+    public async Task AdministrativeMutations_WriteUniversalAuditWithSnapshotsAndApprover()
+    {
+        await using var fixture = CreateFixture();
+
+        var material = await fixture.Administration.AddReferenceAsync(
+            CatalogReferenceType.Material, "Audit material", fixture.Audit);
+        await fixture.Administration.RenameReferenceAsync(
+            CatalogReferenceType.Material, material.Id, "Audit material renamed", fixture.Audit);
+        await fixture.Administration.UpdateReferenceArticleAsync(
+            CatalogReferenceType.Material, material.Id, @"{\rtf1 Audit article}", fixture.Audit);
+        await fixture.Administration.ImportReferencesAsync(
+            CatalogReferenceType.Figure, ["Audit figure 1", "Audit figure 2"], fixture.Audit);
+
+        var group = await fixture.Administration.AddDirectoryGroupAsync("Audit group", fixture.Audit);
+        var directory = await fixture.Administration.AddDirectoryAsync(
+            new CreateReferenceDirectoryCommand(group.Id, "Audit directory", "Before"), fixture.Audit);
+        await fixture.Administration.UpdateDirectoryAsync(
+            directory.Id,
+            new UpdateReferenceDirectoryCommand(group.Id, "Audit directory", "After", true),
+            fixture.Audit);
+        await fixture.Administration.UpdateDirectoryAsync(
+            directory.Id,
+            new UpdateReferenceDirectoryCommand(group.Id, "Audit directory", "After", false),
+            fixture.Audit);
+        var value = await fixture.Administration.AddDirectoryValueAsync(
+            directory.Id, "Audit value", fixture.Audit);
+        await fixture.Administration.UpdateDirectoryValueArticleAsync(
+            directory.Id, value.Id, @"{\rtf1 Value article}", fixture.Audit);
+        await fixture.Administration.UpdateDirectoryValueAsync(
+            directory.Id, value.Id, "Audit value renamed", true, fixture.Audit);
+        await fixture.Administration.ImportDirectoryValuesAsync(
+            directory.Id, ["Imported value"], fixture.Audit);
+        await fixture.Administration.DeleteDirectoryValueAsync(
+            directory.Id, value.Id, fixture.Audit);
+        await fixture.Administration.DeleteReferenceAsync(
+            CatalogReferenceType.Material, material.Id, fixture.ApprovedAudit);
+        await fixture.Administration.DeleteDirectoryGroupAsync(group.Id, fixture.ApprovedAudit);
+
+        var events = fixture.DbContext.AuditEvents.OrderBy(x => x.OccurredAt).ToArray();
+        var log = await fixture.Administration.SearchAuditLogAsync("Audit material renamed", 1, 50);
+        var csv = Encoding.UTF8.GetString((await fixture.Administration.ExportAuditLogAsync(
+            "Audit material renamed", false)).Content);
+
+        Assert.All(events, x =>
+        {
+            Assert.Equal(fixture.EmployeeId, x.ActorEmployeeId);
+            Assert.NotEqual(Guid.Empty, x.CorrelationId);
+        });
+        Assert.Contains(events, x => x.EntityType == AuditEntityType.Material && x.Action == AuditAction.Created);
+        Assert.Contains(events, x => x.EntityType == AuditEntityType.Material && x.Action == AuditAction.Updated && x.BeforeJson != null && x.AfterJson != null);
+        Assert.Contains(events, x => x.EntityType == AuditEntityType.Material && x.Action == AuditAction.ArticleUpdated && x.BeforeJson != null && x.AfterJson != null);
+        Assert.Contains(events, x => x.EntityType == AuditEntityType.Figure && x.Action == AuditAction.Imported);
+        Assert.Contains(events, x => x.EntityType == AuditEntityType.ReferenceGroup && x.Action == AuditAction.Created);
+        Assert.Contains(events, x => x.EntityType == AuditEntityType.ReferenceDirectory && x.Action == AuditAction.Archived);
+        Assert.Contains(events, x => x.EntityType == AuditEntityType.ReferenceDirectory && x.Action == AuditAction.Restored);
+        Assert.Contains(events, x => x.EntityType == AuditEntityType.ReferenceDirectory && x.Action == AuditAction.Imported);
+        Assert.Contains(events, x => x.EntityType == AuditEntityType.ReferenceValue && x.Action == AuditAction.ArticleUpdated);
+        Assert.Contains(events, x => x.EntityType == AuditEntityType.ReferenceValue && x.Action == AuditAction.Archived);
+        Assert.Contains(events, x => x.EntityType == AuditEntityType.ReferenceValue && x.Action == AuditAction.Deleted && x.AfterJson == null);
+        Assert.Contains(events, x => x.EntityType == AuditEntityType.Material && x.Action == AuditAction.Deleted && x.ApproverEmployeeId == fixture.EmployeeId);
+        Assert.Contains(events, x => x.EntityType == AuditEntityType.ReferenceGroup && x.Action == AuditAction.Deleted && x.ApproverEmployeeId == fixture.EmployeeId);
+        Assert.Contains(log.Items, x =>
+            x.EntityType == AuditEntityType.Material &&
+            x.EmployeeName == "Adrian Test" &&
+            x.ApproverEmployeeId == fixture.EmployeeId &&
+            x.ApproverName == "Adrian Test" &&
+            x.BeforeJson?.Contains("Audit material renamed", StringComparison.Ordinal) == true &&
+            x.CorrelationId.HasValue);
+        Assert.Contains("Подтвердил", csv);
+        Assert.Contains("Correlation ID", csv);
+        Assert.Contains("Audit material renamed", csv);
     }
     private static Fixture CreateFixture()
     {
@@ -389,6 +478,8 @@ public sealed class CatalogAdministrationServiceTests
         public DieCutCatalogService Catalog { get; } = catalog;
         public CatalogAdministrationService Administration { get; } = administration;
         public Guid EmployeeId { get; } = employeeId;
+        public AuditIdentity Audit => new(EmployeeId);
+        public AuditIdentity ApprovedAudit => new(EmployeeId, EmployeeId);
         public ValueTask DisposeAsync() => DbContext.DisposeAsync();
     }
 }

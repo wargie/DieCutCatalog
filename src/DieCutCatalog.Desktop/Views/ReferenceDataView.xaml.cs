@@ -7,6 +7,7 @@ using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using DieCutCatalog.Application.Catalog;
+using DieCutCatalog.Domain.Auditing;
 using DieCutCatalog.Domain.Catalog;
 using DieCutCatalog.Domain.Employees;
 using Microsoft.Win32;
@@ -818,14 +819,8 @@ public partial class ReferenceDataView : UserControl
         public AuditLogRow(AuditLogEntry entry)
         {
             OccurredAt = entry.OccurredAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss");
-            ObjectName = entry.ReferencePositionType.HasValue
-                ? entry.ReferenceSourceName == entry.ReferenceDestinationName
-                    ? entry.ReferenceSourceName ?? ""
-                    : $"{entry.ReferenceSourceName} -> {entry.ReferenceDestinationName}"
-                : entry.DieCutNumber;
-            Context = entry.ReferencePositionType.HasValue
-                ? $"{entry.ReferenceSourceSection} -> {entry.ReferenceDestinationSection}"
-                : entry.Equipment;
+            ObjectName = entry.DisplayObject ?? entry.DieCutNumber;
+            Context = entry.DisplayContext ?? entry.Equipment;
             Action = EventName(entry);
             Quantity = entry.Quantity?.ToString("N0", Russian) ?? "";
             var hasKnifeUsage = entry.DieCutId != Guid.Empty;
@@ -845,17 +840,30 @@ public partial class ReferenceDataView : UserControl
         public string Revolutions { get; }
         public string EmployeeName { get; }
 
-        private static string EventName(AuditLogEntry entry) => entry.ReferencePositionType switch
+        private static string EventName(AuditLogEntry entry)
         {
-            ReferencePositionEventType.Copied => "Позиция справочника скопирована",
-            ReferencePositionEventType.Moved => "Позиция справочника перенесена",
-            _ => entry.AccessType switch
+            if (entry.AuditAction.HasValue)
+                return entry.AuditAction.Value switch
+                {
+                    AuditAction.Created => "Объект справочника создан",
+                    AuditAction.Updated => "Объект справочника изменён",
+                    AuditAction.Deleted => "Объект справочника удалён",
+                    AuditAction.Imported => "Выполнен CSV import",
+                    AuditAction.ArticleUpdated => "Технологическая статья изменена",
+                    AuditAction.Archived => "Объект справочника архивирован",
+                    AuditAction.Restored => "Объект справочника восстановлен",
+                    AuditAction.Copied => "Позиция справочника скопирована",
+                    AuditAction.Moved => "Позиция справочника перенесена",
+                    _ => entry.AuditAction.Value.ToString()
+                };
+
+            return entry.AccessType switch
             {
                 EmployeeAccessEventType.LoggedIn => "Вход в систему",
                 EmployeeAccessEventType.LoggedOut => "Выход из системы",
                 _ => EventName(entry.Type)
-            }
-        };
+            };
+        }
 
         private static string EventName(DieCutEventType type) => type switch
         {

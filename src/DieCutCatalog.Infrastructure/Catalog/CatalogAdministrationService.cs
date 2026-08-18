@@ -1,7 +1,10 @@
 using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.Text;
+using System.Text.Encodings.Web;
+using System.Text.Json;
 using DieCutCatalog.Application.Catalog;
+using DieCutCatalog.Domain.Auditing;
 using DieCutCatalog.Domain.Catalog;
 using DieCutCatalog.Domain.Employees;
 using DieCutCatalog.Infrastructure.Persistence;
@@ -13,6 +16,11 @@ namespace DieCutCatalog.Infrastructure.Catalog;
 
 public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : ICatalogAdministrationService
 {
+    private static readonly JsonSerializerOptions AuditJsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
+
     public async Task<CatalogReferences> GetReferencesAsync(CancellationToken cancellationToken = default)
     {
         await dbContext.EnsureCatalogReferencesAsync(cancellationToken);
@@ -32,7 +40,8 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
     }
 
     public async Task<CatalogReferenceItem> AddReferenceAsync(
-        CatalogReferenceType type, string name, CancellationToken cancellationToken = default)
+        CatalogReferenceType type, string name, AuditIdentity audit,
+        CancellationToken cancellationToken = default)
     {
         var clean = ValidateName(name, type);
         var normalized = Normalize(clean);
@@ -42,6 +51,8 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
                 throw new ValidationException("Такое оборудование уже есть в справочнике.");
             var equipment = new Equipment { Name = clean, NormalizedName = normalized };
             dbContext.Equipment.Add(equipment);
+            AddAudit(audit, AuditEntityType.Equipment, equipment.Id, AuditAction.Created,
+                null, ReferenceSnapshot(equipment.Id, type, equipment.Name, equipment.ArticleRtf));
             await dbContext.SaveChangesAsync(cancellationToken);
             return new CatalogReferenceItem(equipment.Id, type, equipment.Name);
         }
@@ -52,24 +63,32 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
             throw new ValidationException("Такое значение уже есть в справочнике.");
         var entry = new CatalogReferenceEntry { Kind = kind, Name = clean, NormalizedName = normalized };
         dbContext.CatalogReferenceEntries.Add(entry);
+        AddAudit(audit, ToAuditEntityType(type), entry.Id, AuditAction.Created,
+            null, ReferenceSnapshot(entry.Id, type, entry.Name, entry.ArticleRtf));
         await dbContext.SaveChangesAsync(cancellationToken);
         return new CatalogReferenceItem(entry.Id, type, entry.Name);
     }
 
     public async Task<ReferenceImportResult> ImportReferencesAsync(
-        CatalogReferenceType type, IReadOnlyList<string> names, CancellationToken cancellationToken = default)
+        CatalogReferenceType type, IReadOnlyList<string> names, AuditIdentity audit,
+        CancellationToken cancellationToken = default)
     {
         var maxLength = type == CatalogReferenceType.Equipment ? 150 : 200;
         var candidates = PrepareImportNames(names, maxLength);
         if (candidates.Count == 0) return new ReferenceImportResult(0, names.Count);
 
         HashSet<string> existing;
+        var imported = new List<object>();
         if (type == CatalogReferenceType.Equipment)
         {
             existing = (await dbContext.Equipment.AsNoTracking()
                 .Select(x => x.NormalizedName).ToListAsync(cancellationToken)).ToHashSet(StringComparer.Ordinal);
             foreach (var candidate in candidates.Where(x => !existing.Contains(x.Key)))
-                dbContext.Equipment.Add(new Equipment { Name = candidate.Value, NormalizedName = candidate.Key });
+            {
+                var equipment = new Equipment { Name = candidate.Value, NormalizedName = candidate.Key };
+                dbContext.Equipment.Add(equipment);
+                imported.Add(new { equipment.Id, equipment.Name });
+            }
         }
         else
         {
@@ -78,17 +97,28 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
                 .Where(x => x.Kind == kind).Select(x => x.NormalizedName).ToListAsync(cancellationToken))
                 .ToHashSet(StringComparer.Ordinal);
             foreach (var candidate in candidates.Where(x => !existing.Contains(x.Key)))
-                dbContext.CatalogReferenceEntries.Add(new CatalogReferenceEntry
-                    { Kind = kind, Name = candidate.Value, NormalizedName = candidate.Key });
+            {
+                var entry = new CatalogReferenceEntry
+                    { Kind = kind, Name = candidate.Value, NormalizedName = candidate.Key };
+                dbContext.CatalogReferenceEntries.Add(entry);
+                imported.Add(new { entry.Id, entry.Name });
+            }
         }
 
         var added = candidates.Count(x => !existing.Contains(x.Key));
-        if (added > 0) await dbContext.SaveChangesAsync(cancellationToken);
+        if (added > 0)
+        {
+            var importId = audit.CorrelationId ?? Guid.NewGuid();
+            AddAudit(audit with { CorrelationId = importId }, ToAuditEntityType(type), importId,
+                AuditAction.Imported, null, new { Added = imported, Skipped = names.Count - added });
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
         return new ReferenceImportResult(added, names.Count - added);
     }
 
     public async Task<CatalogReferenceItem?> RenameReferenceAsync(
-        CatalogReferenceType type, Guid id, string name, CancellationToken cancellationToken = default)
+        CatalogReferenceType type, Guid id, string name, AuditIdentity audit,
+        CancellationToken cancellationToken = default)
     {
         var clean = ValidateName(name, type);
         var normalized = Normalize(clean);
@@ -98,8 +128,11 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
             if (equipment is null) return null;
             if (await dbContext.Equipment.AnyAsync(x => x.Id != id && x.NormalizedName == normalized, cancellationToken))
                 throw new ValidationException("Такое оборудование уже есть в справочнике.");
+            var before = ReferenceSnapshot(equipment.Id, type, equipment.Name, equipment.ArticleRtf);
             equipment.Name = clean;
             equipment.NormalizedName = normalized;
+            AddAudit(audit, AuditEntityType.Equipment, equipment.Id, AuditAction.Updated,
+                before, ReferenceSnapshot(equipment.Id, type, equipment.Name, equipment.ArticleRtf));
             await dbContext.SaveChangesAsync(cancellationToken);
             return new CatalogReferenceItem(equipment.Id, type, equipment.Name);
         }
@@ -112,6 +145,7 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
                 x => x.Id != id && x.Kind == kind && x.NormalizedName == normalized, cancellationToken))
             throw new ValidationException("Такое значение уже есть в справочнике.");
 
+        var beforeEntry = ReferenceSnapshot(entry.Id, type, entry.Name, entry.ArticleRtf);
         var oldName = entry.Name;
         entry.Name = clean;
         entry.NormalizedName = normalized;
@@ -124,12 +158,19 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
             if (type == CatalogReferenceType.Material) dieCut.Material = clean;
             else dieCut.Figure = clean;
         }
+        AddAudit(audit, ToAuditEntityType(type), entry.Id, AuditAction.Updated,
+            beforeEntry, new
+            {
+                Entry = ReferenceSnapshot(entry.Id, type, entry.Name, entry.ArticleRtf),
+                UpdatedDieCuts = affected.Select(x => x.Id).ToArray()
+            });
         await dbContext.SaveChangesAsync(cancellationToken);
         return new CatalogReferenceItem(entry.Id, type, entry.Name);
     }
 
     public async Task<bool> DeleteReferenceAsync(
-        CatalogReferenceType type, Guid id, CancellationToken cancellationToken = default)
+        CatalogReferenceType type, Guid id, AuditIdentity audit,
+        CancellationToken cancellationToken = default)
     {
         if (type == CatalogReferenceType.Equipment)
         {
@@ -137,7 +178,10 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
             if (equipment is null) return false;
             if (await dbContext.DieCuts.AnyAsync(x => x.EquipmentId == id, cancellationToken))
                 throw new ValidationException("Нельзя удалить оборудование: оно используется в карточках ножей.");
+            var before = ReferenceSnapshot(equipment.Id, type, equipment.Name, equipment.ArticleRtf);
             dbContext.Equipment.Remove(equipment);
+            AddAudit(audit, AuditEntityType.Equipment, equipment.Id, AuditAction.Deleted,
+                before, null);
             await dbContext.SaveChangesAsync(cancellationToken);
             return true;
         }
@@ -153,20 +197,27 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         if (isUsed)
             throw new ValidationException("Нельзя удалить значение: оно используется в карточках ножей.");
 
+        var beforeEntry = ReferenceSnapshot(entry.Id, type, entry.Name, entry.ArticleRtf);
         dbContext.CatalogReferenceEntries.Remove(entry);
+        AddAudit(audit, ToAuditEntityType(type), entry.Id, AuditAction.Deleted,
+            beforeEntry, null);
         await dbContext.SaveChangesAsync(cancellationToken);
         return true;
     }
 
     public async Task<bool> UpdateReferenceArticleAsync(
-        CatalogReferenceType type, Guid id, string? articleRtf, CancellationToken cancellationToken = default)
+        CatalogReferenceType type, Guid id, string? articleRtf, AuditIdentity audit,
+        CancellationToken cancellationToken = default)
     {
         var clean = CleanArticle(articleRtf);
         if (type == CatalogReferenceType.Equipment)
         {
             var equipment = await dbContext.Equipment.SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
             if (equipment is null) return false;
+            var before = ReferenceSnapshot(equipment.Id, type, equipment.Name, equipment.ArticleRtf);
             equipment.ArticleRtf = clean;
+            AddAudit(audit, AuditEntityType.Equipment, equipment.Id, AuditAction.ArticleUpdated,
+                before, ReferenceSnapshot(equipment.Id, type, equipment.Name, equipment.ArticleRtf));
         }
         else
         {
@@ -174,8 +225,11 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
             var entry = await dbContext.CatalogReferenceEntries.SingleOrDefaultAsync(
                 x => x.Id == id && x.Kind == kind, cancellationToken);
             if (entry is null) return false;
+            var before = ReferenceSnapshot(entry.Id, type, entry.Name, entry.ArticleRtf);
             entry.ArticleRtf = clean;
             entry.UpdatedAt = DateTimeOffset.UtcNow;
+            AddAudit(audit, ToAuditEntityType(type), entry.Id, AuditAction.ArticleUpdated,
+                before, ReferenceSnapshot(entry.Id, type, entry.Name, entry.ArticleRtf));
         }
         await dbContext.SaveChangesAsync(cancellationToken);
         return true;
@@ -196,7 +250,7 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
     }
 
     public async Task<ReferenceDirectoryGroupItem> AddDirectoryGroupAsync(
-        string name, CancellationToken cancellationToken = default)
+        string name, AuditIdentity audit, CancellationToken cancellationToken = default)
     {
         var clean = ValidateDirectoryName(name, 120);
         var normalized = Normalize(clean);
@@ -205,23 +259,34 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         var sortOrder = (await dbContext.ReferenceDirectoryGroups.MaxAsync(x => (int?)x.SortOrder, cancellationToken) ?? -1) + 1;
         var group = new ReferenceDirectoryGroup { Name = clean, NormalizedName = normalized, SortOrder = sortOrder };
         dbContext.ReferenceDirectoryGroups.Add(group);
+        AddAudit(audit, AuditEntityType.ReferenceGroup, group.Id, AuditAction.Created,
+            null, GroupSnapshot(group));
         await dbContext.SaveChangesAsync(cancellationToken);
         return new ReferenceDirectoryGroupItem(group.Id, group.Name, group.SortOrder);
     }
 
-    public async Task<bool> DeleteDirectoryGroupAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<bool> DeleteDirectoryGroupAsync(
+        Guid id, AuditIdentity audit, CancellationToken cancellationToken = default)
     {
         var group = await dbContext.ReferenceDirectoryGroups.Include(x => x.Directories)
             .SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (group is null) return false;
+        var before = new
+        {
+            Group = GroupSnapshot(group),
+            DirectoryIds = group.Directories.Select(x => x.Id).ToArray()
+        };
         foreach (var directory in group.Directories) directory.GroupId = null;
         dbContext.ReferenceDirectoryGroups.Remove(group);
+        AddAudit(audit, AuditEntityType.ReferenceGroup, group.Id, AuditAction.Deleted,
+            before, null);
         await dbContext.SaveChangesAsync(cancellationToken);
         return true;
     }
 
     public async Task<ReferenceDirectoryItem> AddDirectoryAsync(
-        CreateReferenceDirectoryCommand command, CancellationToken cancellationToken = default)
+        CreateReferenceDirectoryCommand command, AuditIdentity audit,
+        CancellationToken cancellationToken = default)
     {
         await ValidateGroupAsync(command.GroupId, cancellationToken);
         var clean = ValidateDirectoryName(command.Name, 120);
@@ -236,12 +301,15 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
             Description = CleanDescription(command.Description), SortOrder = sortOrder
         };
         dbContext.ReferenceDirectories.Add(directory);
+        AddAudit(audit, AuditEntityType.ReferenceDirectory, directory.Id, AuditAction.Created,
+            null, DirectorySnapshot(directory));
         await dbContext.SaveChangesAsync(cancellationToken);
         return ToItem(directory, 0);
     }
 
     public async Task<ReferenceDirectoryItem?> UpdateDirectoryAsync(
-        Guid id, UpdateReferenceDirectoryCommand command, CancellationToken cancellationToken = default)
+        Guid id, UpdateReferenceDirectoryCommand command, AuditIdentity audit,
+        CancellationToken cancellationToken = default)
     {
         await ValidateGroupAsync(command.GroupId, cancellationToken);
         var directory = await dbContext.ReferenceDirectories.Include(x => x.Values)
@@ -252,24 +320,34 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         if (await dbContext.ReferenceDirectories.AnyAsync(
                 x => x.Id != id && x.NormalizedName == normalized, cancellationToken))
             throw new ValidationException("Справочник с таким названием уже существует.");
+        var before = DirectorySnapshot(directory);
         directory.GroupId = command.GroupId;
         directory.Name = clean;
         directory.NormalizedName = normalized;
         directory.Description = CleanDescription(command.Description);
         directory.IsArchived = command.IsArchived;
         directory.UpdatedAt = DateTimeOffset.UtcNow;
+        var action = before.IsArchived == directory.IsArchived
+            ? AuditAction.Updated
+            : directory.IsArchived ? AuditAction.Archived : AuditAction.Restored;
+        AddAudit(audit, AuditEntityType.ReferenceDirectory, directory.Id, action,
+            before, DirectorySnapshot(directory));
         await dbContext.SaveChangesAsync(cancellationToken);
         return ToItem(directory, directory.Values.Count);
     }
 
-    public async Task<bool> DeleteDirectoryAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<bool> DeleteDirectoryAsync(
+        Guid id, AuditIdentity audit, CancellationToken cancellationToken = default)
     {
         var directory = await dbContext.ReferenceDirectories.Include(x => x.Values)
             .SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (directory is null) return false;
         if (directory.Values.Count != 0)
             throw new ValidationException("Нельзя удалить непустой справочник. Сначала архивируйте его или удалите значения.");
+        var before = DirectorySnapshot(directory);
         dbContext.ReferenceDirectories.Remove(directory);
+        AddAudit(audit, AuditEntityType.ReferenceDirectory, directory.Id, AuditAction.Deleted,
+            before, null);
         await dbContext.SaveChangesAsync(cancellationToken);
         return true;
     }
@@ -288,7 +366,8 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
     }
 
     public async Task<ReferenceDirectoryValueItem> AddDirectoryValueAsync(
-        Guid directoryId, string name, CancellationToken cancellationToken = default)
+        Guid directoryId, string name, AuditIdentity audit,
+        CancellationToken cancellationToken = default)
     {
         var directory = await dbContext.ReferenceDirectories.SingleOrDefaultAsync(
             x => x.Id == directoryId, cancellationToken)
@@ -307,12 +386,15 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         };
         dbContext.ReferenceDirectoryValues.Add(value);
         directory.UpdatedAt = DateTimeOffset.UtcNow;
+        AddAudit(audit, AuditEntityType.ReferenceValue, value.Id, AuditAction.Created,
+            null, ValueSnapshot(value, directory.Name));
         await dbContext.SaveChangesAsync(cancellationToken);
         return ToItem(value);
     }
 
     public async Task<ReferenceImportResult> ImportDirectoryValuesAsync(
-        Guid directoryId, IReadOnlyList<string> names, CancellationToken cancellationToken = default)
+        Guid directoryId, IReadOnlyList<string> names, AuditIdentity audit,
+        CancellationToken cancellationToken = default)
     {
         var directory = await dbContext.ReferenceDirectories.SingleOrDefaultAsync(
             x => x.Id == directoryId, cancellationToken)
@@ -328,27 +410,35 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         var nextSortOrder = (await dbContext.ReferenceDirectoryValues
             .Where(x => x.DirectoryId == directoryId).MaxAsync(x => (int?)x.SortOrder, cancellationToken) ?? -1) + 1;
         var added = 0;
+        var imported = new List<object>();
         foreach (var candidate in candidates.Where(x => !existing.Contains(x.Key)))
         {
-            dbContext.ReferenceDirectoryValues.Add(new ReferenceDirectoryValue
+            var value = new ReferenceDirectoryValue
             {
                 DirectoryId = directoryId,
                 Name = candidate.Value,
                 NormalizedName = candidate.Key,
                 SortOrder = nextSortOrder++
-            });
+            };
+            dbContext.ReferenceDirectoryValues.Add(value);
+            imported.Add(new { value.Id, value.Name });
             added++;
         }
         if (added > 0)
         {
             directory.UpdatedAt = DateTimeOffset.UtcNow;
+            var importId = audit.CorrelationId ?? Guid.NewGuid();
+            AddAudit(audit with { CorrelationId = importId }, AuditEntityType.ReferenceDirectory,
+                directory.Id, AuditAction.Imported, null,
+                new { directory.Id, directory.Name, Added = imported, Skipped = names.Count - added });
             await dbContext.SaveChangesAsync(cancellationToken);
         }
         return new ReferenceImportResult(added, names.Count - added);
     }
 
     public async Task<ReferenceDirectoryValueItem?> UpdateDirectoryValueAsync(
-        Guid directoryId, Guid id, string name, bool isArchived, CancellationToken cancellationToken = default)
+        Guid directoryId, Guid id, string name, bool isArchived, AuditIdentity audit,
+        CancellationToken cancellationToken = default)
     {
         var value = await dbContext.ReferenceDirectoryValues.SingleOrDefaultAsync(
             x => x.Id == id && x.DirectoryId == directoryId, cancellationToken);
@@ -358,36 +448,54 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         if (await dbContext.ReferenceDirectoryValues.AnyAsync(
                 x => x.Id != id && x.DirectoryId == directoryId && x.NormalizedName == normalized, cancellationToken))
             throw new ValidationException("Такое значение уже существует в справочнике.");
+        var directoryName = await dbContext.ReferenceDirectories.Where(x => x.Id == directoryId)
+            .Select(x => x.Name).SingleAsync(cancellationToken);
+        var before = ValueSnapshot(value, directoryName);
         value.Name = clean;
         value.NormalizedName = normalized;
         value.IsArchived = isArchived;
         value.UpdatedAt = DateTimeOffset.UtcNow;
+        var action = before.IsArchived == value.IsArchived
+            ? AuditAction.Updated
+            : value.IsArchived ? AuditAction.Archived : AuditAction.Restored;
+        AddAudit(audit, AuditEntityType.ReferenceValue, value.Id, action,
+            before, ValueSnapshot(value, directoryName));
         await dbContext.SaveChangesAsync(cancellationToken);
         return ToItem(value);
     }
 
     public async Task<bool> DeleteDirectoryValueAsync(
-        Guid directoryId, Guid id, CancellationToken cancellationToken = default)
+        Guid directoryId, Guid id, AuditIdentity audit,
+        CancellationToken cancellationToken = default)
     {
         var value = await dbContext.ReferenceDirectoryValues.SingleOrDefaultAsync(
             x => x.Id == id && x.DirectoryId == directoryId, cancellationToken);
         if (value is null) return false;
-        dbContext.ReferenceDirectoryValues.Remove(value);
         var directory = await dbContext.ReferenceDirectories.SingleOrDefaultAsync(
             x => x.Id == directoryId, cancellationToken);
+        var before = ValueSnapshot(value, directory?.Name);
+        dbContext.ReferenceDirectoryValues.Remove(value);
         if (directory is not null) directory.UpdatedAt = DateTimeOffset.UtcNow;
+        AddAudit(audit, AuditEntityType.ReferenceValue, value.Id, AuditAction.Deleted,
+            before, null);
         await dbContext.SaveChangesAsync(cancellationToken);
         return true;
     }
 
     public async Task<bool> UpdateDirectoryValueArticleAsync(
-        Guid directoryId, Guid id, string? articleRtf, CancellationToken cancellationToken = default)
+        Guid directoryId, Guid id, string? articleRtf, AuditIdentity audit,
+        CancellationToken cancellationToken = default)
     {
         var value = await dbContext.ReferenceDirectoryValues.SingleOrDefaultAsync(
             x => x.Id == id && x.DirectoryId == directoryId, cancellationToken);
         if (value is null) return false;
+        var directoryName = await dbContext.ReferenceDirectories.Where(x => x.Id == directoryId)
+            .Select(x => x.Name).SingleOrDefaultAsync(cancellationToken);
+        var before = ValueSnapshot(value, directoryName);
         value.ArticleRtf = CleanArticle(articleRtf);
         value.UpdatedAt = DateTimeOffset.UtcNow;
+        AddAudit(audit, AuditEntityType.ReferenceValue, value.Id, AuditAction.ArticleUpdated,
+            before, ValueSnapshot(value, directoryName));
         await dbContext.SaveChangesAsync(cancellationToken);
         return true;
     }
@@ -410,17 +518,27 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
             : null;
         var destination = await CreateTransferDestinationAsync(
             command.Destination, command.Name, source.ArticleRtf, source.IsArchived, cancellationToken);
-        dbContext.ReferencePositionEvents.Add(new ReferencePositionEvent
-        {
-            EmployeeId = command.EmployeeId,
-            Type = command.Move ? ReferencePositionEventType.Moved : ReferencePositionEventType.Copied,
-            SourcePositionId = command.Source.Id,
-            DestinationPositionId = destination.Result.Id,
-            SourceName = source.Name,
-            DestinationName = destination.Result.Name,
-            SourceSection = source.SectionName,
-            DestinationSection = destination.SectionName
-        });
+        AddAudit(
+            command.Audit,
+            ToAuditEntityType(command.Destination),
+            destination.Result.Id,
+            command.Move ? AuditAction.Moved : AuditAction.Copied,
+            new
+            {
+                PositionId = command.Source.Id,
+                source.Name,
+                Section = source.SectionName,
+                source.ArticleRtf,
+                source.IsArchived
+            },
+            new
+            {
+                PositionId = destination.Result.Id,
+                destination.Result.Name,
+                Section = destination.SectionName,
+                destination.Result.ArticleRtf,
+                destination.Result.IsArchived
+            });
         await dbContext.SaveChangesAsync(cancellationToken);
 
         if (command.Move)
@@ -459,7 +577,6 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         var term = search?.Trim().ToLowerInvariant();
         var knifeQuery = dbContext.DieCutEvents.AsNoTracking();
         var accessQuery = dbContext.EmployeeAccessEvents.AsNoTracking();
-        var referenceQuery = dbContext.ReferencePositionEvents.AsNoTracking();
         if (!string.IsNullOrWhiteSpace(term))
         {
             knifeQuery = knifeQuery.Where(x =>
@@ -472,14 +589,6 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
                 x.Employee.FirstName.ToLower().Contains(term) ||
                 x.Employee.LastName.ToLower().Contains(term) ||
                 x.Employee.Email.ToLower().Contains(term));
-            referenceQuery = referenceQuery.Where(x =>
-                x.SourceName.ToLower().Contains(term) ||
-                x.DestinationName.ToLower().Contains(term) ||
-                x.SourceSection.ToLower().Contains(term) ||
-                x.DestinationSection.ToLower().Contains(term) ||
-                x.Employee.FirstName.ToLower().Contains(term) ||
-                x.Employee.LastName.ToLower().Contains(term) ||
-                x.Employee.Email.ToLower().Contains(term));
         }
 
         var knifeEntries = await knifeQuery.Select(x => new AuditLogEntry(
@@ -487,22 +596,33 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
             x.MileageBefore, x.MileageAfter, x.RunLengthMetersBefore, x.RunLengthMetersAfter,
             x.RevolutionsBefore, x.RevolutionsAfter, x.OccurredAt,
             (x.Employee.FirstName + " " + x.Employee.LastName).Trim(),
-            null, null, null, null, null, null))
+            null, null, null, null, null, null, null, null, null, null, null))
             .ToListAsync(cancellationToken);
         var accessEntries = await accessQuery.Select(x => new AuditLogEntry(
             x.Id, Guid.Empty, "", "", DieCutEventType.Updated, null,
             0, 0, 0, 0, 0, 0, x.OccurredAt,
             (x.Employee.FirstName + " " + x.Employee.LastName).Trim(),
-            x.Type, null, null, null, null, null))
+            x.Type, null, null, null, null, null, null, null, null, null, null))
             .ToListAsync(cancellationToken);
-        var referenceEntries = await referenceQuery.Select(x => new AuditLogEntry(
+        var universalEntries = await dbContext.AuditEvents.AsNoTracking().Select(x => new AuditLogEntry(
             x.Id, Guid.Empty, "", "", DieCutEventType.Updated, null,
             0, 0, 0, 0, 0, 0, x.OccurredAt,
-            (x.Employee.FirstName + " " + x.Employee.LastName).Trim(), null,
-            x.Type, x.SourceName, x.DestinationName, x.SourceSection, x.DestinationSection))
+            (x.ActorEmployee.FirstName + " " + x.ActorEmployee.LastName).Trim(),
+            null, x.EntityType, x.Action, x.EntityId, x.ApproverEmployeeId,
+            x.ApproverEmployee == null
+                ? null
+                : (x.ApproverEmployee.FirstName + " " + x.ApproverEmployee.LastName).Trim(),
+            x.BeforeJson, x.AfterJson, x.CorrelationId, null, null))
             .ToListAsync(cancellationToken);
+        universalEntries = universalEntries.Select(x => x with
+        {
+            DisplayObject = AuditObject(x),
+            DisplayContext = AuditContext(x)
+        }).ToList();
+        if (!string.IsNullOrWhiteSpace(term))
+            universalEntries = universalEntries.Where(x => AuditEntryMatches(x, term)).ToList();
 
-        return knifeEntries.Concat(accessEntries).Concat(referenceEntries)
+        return knifeEntries.Concat(accessEntries).Concat(universalEntries)
             .OrderByDescending(x => x.OccurredAt)
             .ToArray();
     }
@@ -658,6 +778,62 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         }
     }
 
+    private void AddAudit(
+        AuditIdentity identity,
+        AuditEntityType entityType,
+        Guid entityId,
+        AuditAction action,
+        object? before,
+        object? after)
+    {
+        if (identity.ActorEmployeeId == Guid.Empty)
+            throw new ValidationException("Для записи аудита не указан сотрудник.");
+
+        dbContext.AuditEvents.Add(new AuditEvent
+        {
+            ActorEmployeeId = identity.ActorEmployeeId,
+            ApproverEmployeeId = identity.ApproverEmployeeId,
+            EntityType = entityType,
+            EntityId = entityId,
+            Action = action,
+            BeforeJson = SerializeAuditSnapshot(before),
+            AfterJson = SerializeAuditSnapshot(after),
+            CorrelationId = identity.CorrelationId ?? Guid.NewGuid()
+        });
+    }
+
+    private static string? SerializeAuditSnapshot(object? value) =>
+        value is null ? null : JsonSerializer.Serialize(value, AuditJsonOptions);
+
+    private static ReferenceSnapshotData ReferenceSnapshot(
+        Guid id, CatalogReferenceType type, string name, string? articleRtf) =>
+        new(id, type, name, articleRtf);
+
+    private static GroupSnapshotData GroupSnapshot(ReferenceDirectoryGroup group) =>
+        new(group.Id, group.Name, group.SortOrder);
+
+    private static DirectorySnapshotData DirectorySnapshot(ReferenceDirectory directory) =>
+        new(directory.Id, directory.GroupId, directory.Name, directory.Description,
+            directory.SortOrder, directory.IsArchived);
+
+    private static ValueSnapshotData ValueSnapshot(
+        ReferenceDirectoryValue value, string? directoryName) =>
+        new(value.Id, value.DirectoryId, directoryName, value.Name, value.SortOrder,
+            value.IsArchived, value.ArticleRtf);
+
+    private static AuditEntityType ToAuditEntityType(CatalogReferenceType type) => type switch
+    {
+        CatalogReferenceType.Material => AuditEntityType.Material,
+        CatalogReferenceType.Figure => AuditEntityType.Figure,
+        CatalogReferenceType.Equipment => AuditEntityType.Equipment,
+        _ => throw new ValidationException("Некорректный тип справочника.")
+    };
+
+    private static AuditEntityType ToAuditEntityType(ReferencePositionTarget target) =>
+        target.SystemType.HasValue
+            ? ToAuditEntityType(target.SystemType.Value)
+            : AuditEntityType.ReferenceValue;
+
     private static bool IsSameSection(ReferencePositionLocator source, ReferencePositionTarget destination) =>
         source.SystemType == destination.SystemType && source.DirectoryId == destination.DirectoryId;
 
@@ -683,9 +859,34 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         ReferencePositionTransferResult Result,
         string SectionName);
 
+    private sealed record ReferenceSnapshotData(
+        Guid Id,
+        CatalogReferenceType Type,
+        string Name,
+        string? ArticleRtf);
+
+    private sealed record GroupSnapshotData(Guid Id, string Name, int SortOrder);
+
+    private sealed record DirectorySnapshotData(
+        Guid Id,
+        Guid? GroupId,
+        string Name,
+        string? Description,
+        int SortOrder,
+        bool IsArchived);
+
+    private sealed record ValueSnapshotData(
+        Guid Id,
+        Guid DirectoryId,
+        string? DirectoryName,
+        string Name,
+        int SortOrder,
+        bool IsArchived,
+        string? ArticleRtf);
+
     private static byte[] BuildCsv(IEnumerable<AuditLogEntry> entries)
     {
-        var csv = new StringBuilder("\uFEFFДата;Объект;Раздел / оборудование;Действие;Тираж;Пробег до;Пробег после;Метры до;Метры после;Обороты до;Обороты после;Сотрудник\r\n");
+        var csv = new StringBuilder("\uFEFFДата;Объект;Раздел / оборудование;Действие;Тираж;Пробег до;Пробег после;Метры до;Метры после;Обороты до;Обороты после;Инициатор;Подтвердил;Тип объекта;ID объекта;Correlation ID;До (JSON);После (JSON)\r\n");
         foreach (var x in entries)
         {
             var hasKnifeUsage = x.DieCutId != Guid.Empty;
@@ -698,7 +899,13 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
                 .Append(hasKnifeUsage ? x.RunLengthMetersAfter.ToString("0.###", CultureInfo.InvariantCulture) : "").Append(';')
                 .Append(hasKnifeUsage ? x.RevolutionsBefore : "").Append(';')
                 .Append(hasKnifeUsage ? x.RevolutionsAfter : "").Append(';')
-                .Append(Csv(x.EmployeeName)).Append("\r\n");
+                .Append(Csv(x.EmployeeName)).Append(';')
+                .Append(Csv(x.ApproverName)).Append(';')
+                .Append(Csv(x.EntityType?.ToString())).Append(';')
+                .Append(Csv(x.EntityId?.ToString())).Append(';')
+                .Append(Csv(x.CorrelationId?.ToString())).Append(';')
+                .Append(Csv(x.BeforeJson)).Append(';')
+                .Append(Csv(x.AfterJson)).Append("\r\n");
         }
         return Encoding.UTF8.GetBytes(csv.ToString());
     }
@@ -757,7 +964,9 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
                 hasKnifeUsage ? $"{entry.MileageBefore} -> {entry.MileageAfter}" : "",
                 hasKnifeUsage ? $"{entry.RunLengthMetersBefore.ToString("0.##", CultureInfo.InvariantCulture)} -> {entry.RunLengthMetersAfter.ToString("0.##", CultureInfo.InvariantCulture)}" : "",
                 hasKnifeUsage ? $"{entry.RevolutionsBefore} -> {entry.RevolutionsAfter}" : "",
-                entry.EmployeeName
+                string.IsNullOrWhiteSpace(entry.ApproverName)
+                    ? entry.EmployeeName
+                    : $"{entry.EmployeeName} / {entry.ApproverName}"
             }, regular);
         }
         graphics?.Dispose();
@@ -766,7 +975,7 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         return output.ToArray();
     }
 
-    private static string Csv(string value) => $"\"{value.Replace("\"", "\"\"")}\"";
+    private static string Csv(string? value) => $"\"{(value ?? string.Empty).Replace("\"", "\"\"")}\"";
     private static CatalogReferenceKind ToKind(CatalogReferenceType type) => type switch
     {
         CatalogReferenceType.Material => CatalogReferenceKind.Material,
@@ -830,27 +1039,119 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         new(x.Id, x.GroupId, x.Name, x.Description, x.SortOrder, x.IsArchived, count);
     private static ReferenceDirectoryValueItem ToItem(ReferenceDirectoryValue x) =>
         new(x.Id, x.DirectoryId, x.Name, x.SortOrder, x.IsArchived, x.UpdatedAt, x.ArticleRtf);
-    private static string AuditObject(AuditLogEntry entry) => entry.ReferencePositionType.HasValue
-        ? entry.ReferenceSourceName == entry.ReferenceDestinationName
-            ? entry.ReferenceSourceName ?? ""
-            : $"{entry.ReferenceSourceName} -> {entry.ReferenceDestinationName}"
-        : entry.DieCutNumber;
-
-    private static string AuditContext(AuditLogEntry entry) => entry.ReferencePositionType.HasValue
-        ? $"{entry.ReferenceSourceSection} -> {entry.ReferenceDestinationSection}"
-        : entry.Equipment;
-
-    private static string EventName(AuditLogEntry entry) => entry.ReferencePositionType switch
+    private static string AuditObject(AuditLogEntry entry)
     {
-        ReferencePositionEventType.Copied => "Позиция справочника скопирована",
-        ReferencePositionEventType.Moved => "Позиция справочника перенесена",
-        _ => entry.AccessType switch
+        if (!entry.EntityType.HasValue) return entry.DieCutNumber;
+        var beforeName = SnapshotValue(entry.BeforeJson, "name");
+        var afterName = SnapshotValue(entry.AfterJson, "name");
+        if (!string.IsNullOrWhiteSpace(beforeName) && !string.IsNullOrWhiteSpace(afterName) &&
+            !string.Equals(beforeName, afterName, StringComparison.Ordinal))
+            return $"{beforeName} -> {afterName}";
+        return afterName ?? beforeName ?? $"{EntityTypeName(entry.EntityType.Value)} {entry.EntityId}";
+    }
+
+    private static string AuditContext(AuditLogEntry entry)
+    {
+        if (!entry.EntityType.HasValue) return entry.Equipment;
+        var beforeSection = SnapshotValue(entry.BeforeJson, "section") ??
+                            SnapshotValue(entry.BeforeJson, "directoryName");
+        var afterSection = SnapshotValue(entry.AfterJson, "section") ??
+                           SnapshotValue(entry.AfterJson, "directoryName");
+        if (!string.IsNullOrWhiteSpace(beforeSection) && !string.IsNullOrWhiteSpace(afterSection) &&
+            !string.Equals(beforeSection, afterSection, StringComparison.Ordinal))
+            return $"{beforeSection} -> {afterSection}";
+        return afterSection ?? beforeSection ?? EntityTypeName(entry.EntityType.Value);
+    }
+
+    private static string EventName(AuditLogEntry entry)
+    {
+        if (entry.AuditAction.HasValue)
+            return entry.AuditAction.Value switch
+            {
+                AuditAction.Created => "Объект справочника создан",
+                AuditAction.Updated => "Объект справочника изменён",
+                AuditAction.Deleted => "Объект справочника удалён",
+                AuditAction.Imported => "Выполнен CSV import",
+                AuditAction.ArticleUpdated => "Технологическая статья изменена",
+                AuditAction.Archived => "Объект справочника архивирован",
+                AuditAction.Restored => "Объект справочника восстановлен",
+                AuditAction.Copied => "Позиция справочника скопирована",
+                AuditAction.Moved => "Позиция справочника перенесена",
+                _ => entry.AuditAction.Value.ToString()
+            };
+
+        return entry.AccessType switch
         {
             EmployeeAccessEventType.LoggedIn => "Вход в систему",
             EmployeeAccessEventType.LoggedOut => "Выход из системы",
             _ => EventName(entry.Type)
-        }
+        };
+    }
+
+    private static bool AuditEntryMatches(AuditLogEntry entry, string term) =>
+        Contains(entry.EmployeeName, term) ||
+        Contains(entry.ApproverName, term) ||
+        Contains(entry.EntityType?.ToString(), term) ||
+        Contains(entry.AuditAction?.ToString(), term) ||
+        Contains(entry.EntityId?.ToString(), term) ||
+        Contains(entry.CorrelationId?.ToString(), term) ||
+        Contains(entry.DisplayObject, term) ||
+        Contains(entry.DisplayContext, term) ||
+        Contains(entry.BeforeJson, term) ||
+        Contains(entry.AfterJson, term);
+
+    private static bool Contains(string? value, string term) =>
+        value?.Contains(term, StringComparison.OrdinalIgnoreCase) == true;
+
+    private static string EntityTypeName(AuditEntityType type) => type switch
+    {
+        AuditEntityType.ReferenceGroup => "Группа справочников",
+        AuditEntityType.ReferenceDirectory => "Справочник",
+        AuditEntityType.ReferenceValue => "Значение справочника",
+        AuditEntityType.Material => "Материал",
+        AuditEntityType.Figure => "Фигура",
+        AuditEntityType.Equipment => "Оборудование",
+        AuditEntityType.Employee => "Сотрудник",
+        AuditEntityType.DieCut => "Нож",
+        _ => type.ToString()
     };
+
+    private static string? SnapshotValue(string? json, string propertyName)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            return FindSnapshotValue(document.RootElement, propertyName);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static string? FindSnapshotValue(JsonElement element, string propertyName)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var property in element.EnumerateObject())
+            {
+                if (property.NameEquals(propertyName) && property.Value.ValueKind == JsonValueKind.String)
+                    return property.Value.GetString();
+                var nested = FindSnapshotValue(property.Value, propertyName);
+                if (nested is not null) return nested;
+            }
+        }
+        else if (element.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in element.EnumerateArray())
+            {
+                var nested = FindSnapshotValue(item, propertyName);
+                if (nested is not null) return nested;
+            }
+        }
+        return null;
+    }
 
     private static string EventName(DieCutEventType type) => type switch
     {

@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using DieCutCatalog.Application.Catalog;
+using DieCutCatalog.Domain.Auditing;
 using DieCutCatalog.Domain.Catalog;
 using DieCutCatalog.Domain.Employees;
 using DieCutCatalog.Infrastructure.Catalog;
@@ -194,15 +195,19 @@ public sealed class CatalogPostgreSqlTests(PostgreSqlFixture fixture)
             writeContext.Employees.Add(employee);
             await writeContext.SaveChangesAsync();
             employeeId = employee.Id;
+            var audit = new AuditIdentity(employeeId);
 
             var service = new CatalogAdministrationService(writeContext);
             var sourceDirectory = await service.AddDirectoryAsync(
-                new CreateReferenceDirectoryCommand(null, $"Source-{suffix}", null));
+                new CreateReferenceDirectoryCommand(null, $"Source-{suffix}", null), audit);
             var targetDirectory = await service.AddDirectoryAsync(
-                new CreateReferenceDirectoryCommand(null, $"Target-{suffix}", null));
-            var sourceValue = await service.AddDirectoryValueAsync(sourceDirectory.Id, $"Value-{suffix}");
-            await service.UpdateDirectoryValueArticleAsync(sourceDirectory.Id, sourceValue.Id, article);
-            await service.UpdateDirectoryValueAsync(sourceDirectory.Id, sourceValue.Id, sourceValue.Name, true);
+                new CreateReferenceDirectoryCommand(null, $"Target-{suffix}", null), audit);
+            var sourceValue = await service.AddDirectoryValueAsync(
+                sourceDirectory.Id, $"Value-{suffix}", audit);
+            await service.UpdateDirectoryValueArticleAsync(
+                sourceDirectory.Id, sourceValue.Id, article, audit);
+            await service.UpdateDirectoryValueAsync(
+                sourceDirectory.Id, sourceValue.Id, sourceValue.Name, true, audit);
 
             var moved = await service.TransferPositionAsync(
                 new ReferencePositionTransferCommand(
@@ -210,7 +215,7 @@ public sealed class CatalogPostgreSqlTests(PostgreSqlFixture fixture)
                     new ReferencePositionTarget(null, targetDirectory.Id),
                     sourceValue.Name,
                     Move: true,
-                    employeeId));
+                    audit));
 
             Assert.NotNull(moved);
             sourceDirectoryId = sourceDirectory.Id;
@@ -226,12 +231,12 @@ public sealed class CatalogPostgreSqlTests(PostgreSqlFixture fixture)
             .SingleAsync(x => x.Id == movedValueId && x.DirectoryId == targetDirectoryId);
         Assert.Equal(article, stored.ArticleRtf);
         Assert.True(stored.IsArchived);
-        var auditEvent = await verificationContext.ReferencePositionEvents.AsNoTracking().SingleAsync(
-            x => x.SourcePositionId == sourceValueId && x.DestinationPositionId == movedValueId);
-        Assert.Equal(employeeId, auditEvent.EmployeeId);
-        Assert.Equal(ReferencePositionEventType.Moved, auditEvent.Type);
-        Assert.Equal($"Source-{suffix}", auditEvent.SourceSection);
-        Assert.Equal($"Target-{suffix}", auditEvent.DestinationSection);
+        var auditEvent = await verificationContext.AuditEvents.AsNoTracking().SingleAsync(
+            x => x.EntityId == movedValueId && x.Action == AuditAction.Moved);
+        Assert.Equal(employeeId, auditEvent.ActorEmployeeId);
+        Assert.Equal(AuditEntityType.ReferenceValue, auditEvent.EntityType);
+        Assert.Contains($"Source-{suffix}", auditEvent.BeforeJson);
+        Assert.Contains($"Target-{suffix}", auditEvent.AfterJson);
     }
 
     [Fact]
@@ -249,11 +254,13 @@ public sealed class CatalogPostgreSqlTests(PostgreSqlFixture fixture)
         await using (var setupContext = fixture.CreateDbContext())
         {
             var service = new CatalogAdministrationService(setupContext);
+            var audit = new AuditIdentity(seed.EmployeeId);
             var sourceDirectory = await service.AddDirectoryAsync(
-                new CreateReferenceDirectoryCommand(null, $"Rollback-source-{suffix}", null));
+                new CreateReferenceDirectoryCommand(null, $"Rollback-source-{suffix}", null), audit);
             var targetDirectory = await service.AddDirectoryAsync(
-                new CreateReferenceDirectoryCommand(null, $"Rollback-target-{suffix}", null));
-            var sourceValue = await service.AddDirectoryValueAsync(sourceDirectory.Id, $"Original-{suffix}");
+                new CreateReferenceDirectoryCommand(null, $"Rollback-target-{suffix}", null), audit);
+            var sourceValue = await service.AddDirectoryValueAsync(
+                sourceDirectory.Id, $"Original-{suffix}", audit);
             sourceDirectoryId = sourceDirectory.Id;
             targetDirectoryId = targetDirectory.Id;
             sourceValueId = sourceValue.Id;
@@ -284,7 +291,7 @@ public sealed class CatalogPostgreSqlTests(PostgreSqlFixture fixture)
                         new ReferencePositionTarget(null, targetDirectoryId),
                         destinationName,
                         Move: true,
-                        seed.EmployeeId)));
+                        new AuditIdentity(seed.EmployeeId))));
             }
 
             await using var verificationContext = fixture.CreateDbContext();
@@ -292,8 +299,11 @@ public sealed class CatalogPostgreSqlTests(PostgreSqlFixture fixture)
                 .AnyAsync(x => x.Id == sourceValueId && x.DirectoryId == sourceDirectoryId));
             Assert.False(await verificationContext.ReferenceDirectoryValues.AsNoTracking()
                 .AnyAsync(x => x.DirectoryId == targetDirectoryId && x.Name == destinationName));
-            Assert.False(await verificationContext.ReferencePositionEvents.AsNoTracking()
-                .AnyAsync(x => x.SourcePositionId == sourceValueId));
+            var moveAuditEvents = await verificationContext.AuditEvents.AsNoTracking()
+                .Where(x => x.Action == AuditAction.Moved)
+                .ToListAsync();
+            Assert.DoesNotContain(moveAuditEvents, x =>
+                x.AfterJson?.Contains(destinationName, StringComparison.Ordinal) == true);
         }
         finally
         {

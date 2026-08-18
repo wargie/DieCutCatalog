@@ -25,7 +25,8 @@ internal static class CatalogAdministrationEndpoints
             var profile = await AuthorizeAsync(context, accounts, cancellationToken);
             if (profile is null) return Results.Unauthorized();
             if (profile.Role != EmployeeRole.Administrator) return AdministratorRequired();
-            return Results.Ok(await service.AddReferenceAsync(type, request.Name, cancellationToken));
+            return Results.Ok(await service.AddReferenceAsync(
+                type, request.Name, new AuditIdentity(profile.Id), cancellationToken));
         });
 
         group.MapPost("/references/{type}/import", async (CatalogReferenceType type, ReferenceImportCommand request,
@@ -35,7 +36,8 @@ internal static class CatalogAdministrationEndpoints
             var profile = await AuthorizeAsync(context, accounts, cancellationToken);
             if (profile is null) return Results.Unauthorized();
             if (profile.Role != EmployeeRole.Administrator) return AdministratorRequired();
-            return Results.Ok(await service.ImportReferencesAsync(type, request.Names, cancellationToken));
+            return Results.Ok(await service.ImportReferencesAsync(
+                type, request.Names, new AuditIdentity(profile.Id), cancellationToken));
         });
 
         group.MapPut("/references/{type}/{id:guid}", async (CatalogReferenceType type, Guid id,
@@ -45,7 +47,8 @@ internal static class CatalogAdministrationEndpoints
             var profile = await AuthorizeAsync(context, accounts, cancellationToken);
             if (profile is null) return Results.Unauthorized();
             if (profile.Role != EmployeeRole.Administrator) return AdministratorRequired();
-            var item = await service.RenameReferenceAsync(type, id, request.Name, cancellationToken);
+            var item = await service.RenameReferenceAsync(
+                type, id, request.Name, new AuditIdentity(profile.Id), cancellationToken);
             return item is null ? Results.NotFound() : Results.Ok(item);
         });
 
@@ -58,7 +61,8 @@ internal static class CatalogAdministrationEndpoints
             var confirmation = await ConfirmAdministratorAsync(
                 context, profile, request.Password, accounts, cancellationToken);
             if (confirmation is not null) return confirmation;
-            return await service.DeleteReferenceAsync(type, id, cancellationToken)
+            return await service.DeleteReferenceAsync(
+                    type, id, new AuditIdentity(profile.Id, profile.Id), cancellationToken)
                 ? Results.NoContent()
                 : Results.NotFound();
         }).RequireRateLimiting("auth");
@@ -76,7 +80,8 @@ internal static class CatalogAdministrationEndpoints
             var profile = await AuthorizeAsync(context, accounts, cancellationToken);
             if (profile is null) return Results.Unauthorized();
             if (profile.Role != EmployeeRole.Administrator) return AdministratorRequired();
-            return Results.Ok(await service.AddDirectoryGroupAsync(request.Name, cancellationToken));
+            return Results.Ok(await service.AddDirectoryGroupAsync(
+                request.Name, new AuditIdentity(profile.Id), cancellationToken));
         });
 
         group.MapDelete("/directory-groups/{id:guid}", async (Guid id,
@@ -89,7 +94,8 @@ internal static class CatalogAdministrationEndpoints
             var confirmation = await ConfirmAdministratorAsync(
                 context, profile, request.Password, accounts, cancellationToken);
             if (confirmation is not null) return confirmation;
-            return await service.DeleteDirectoryGroupAsync(id, cancellationToken)
+            return await service.DeleteDirectoryGroupAsync(
+                    id, new AuditIdentity(profile.Id, profile.Id), cancellationToken)
                 ? Results.NoContent()
                 : Results.NotFound();
         }).RequireRateLimiting("auth");
@@ -100,7 +106,8 @@ internal static class CatalogAdministrationEndpoints
             var profile = await AuthorizeAsync(context, accounts, cancellationToken);
             if (profile is null) return Results.Unauthorized();
             if (profile.Role != EmployeeRole.Administrator) return AdministratorRequired();
-            return Results.Ok(await service.AddDirectoryAsync(request, cancellationToken));
+            return Results.Ok(await service.AddDirectoryAsync(
+                request, new AuditIdentity(profile.Id), cancellationToken));
         });
 
         group.MapPut("/directories/{id:guid}", async (Guid id, UpdateReferenceDirectoryCommand request,
@@ -110,7 +117,8 @@ internal static class CatalogAdministrationEndpoints
             var profile = await AuthorizeAsync(context, accounts, cancellationToken);
             if (profile is null) return Results.Unauthorized();
             if (profile.Role != EmployeeRole.Administrator) return AdministratorRequired();
-            var item = await service.UpdateDirectoryAsync(id, request, cancellationToken);
+            var item = await service.UpdateDirectoryAsync(
+                id, request, new AuditIdentity(profile.Id), cancellationToken);
             return item is null ? Results.NotFound() : Results.Ok(item);
         });
 
@@ -121,7 +129,8 @@ internal static class CatalogAdministrationEndpoints
             var profile = await AuthorizeAsync(context, accounts, cancellationToken);
             if (profile is null) return Results.Unauthorized();
             if (profile.Role != EmployeeRole.Administrator) return AdministratorRequired();
-            return await service.UpdateReferenceArticleAsync(type, id, request.ArticleRtf, cancellationToken)
+            return await service.UpdateReferenceArticleAsync(
+                    type, id, request.ArticleRtf, new AuditIdentity(profile.Id), cancellationToken)
                 ? Results.NoContent()
                 : Results.NotFound();
         });
@@ -132,7 +141,10 @@ internal static class CatalogAdministrationEndpoints
             var profile = await AuthorizeAsync(context, accounts, cancellationToken);
             if (profile is null) return Results.Unauthorized();
             if (profile.Role != EmployeeRole.Administrator) return AdministratorRequired();
-            return await service.DeleteDirectoryAsync(id, cancellationToken) ? Results.NoContent() : Results.NotFound();
+            return await service.DeleteDirectoryAsync(
+                    id, new AuditIdentity(profile.Id), cancellationToken)
+                ? Results.NoContent()
+                : Results.NotFound();
         });
 
         group.MapGet("/directories/{id:guid}/values", async (Guid id, bool includeArchived, HttpContext context,
@@ -149,7 +161,8 @@ internal static class CatalogAdministrationEndpoints
             var profile = await AuthorizeAsync(context, accounts, cancellationToken);
             if (profile is null) return Results.Unauthorized();
             if (profile.Role != EmployeeRole.Administrator) return AdministratorRequired();
-            return Results.Ok(await service.AddDirectoryValueAsync(id, request.Name, cancellationToken));
+            return Results.Ok(await service.AddDirectoryValueAsync(
+                id, request.Name, new AuditIdentity(profile.Id), cancellationToken));
         });
 
         group.MapPost("/directories/{id:guid}/values/import", async (Guid id, ReferenceImportCommand request,
@@ -159,7 +172,8 @@ internal static class CatalogAdministrationEndpoints
             var profile = await AuthorizeAsync(context, accounts, cancellationToken);
             if (profile is null) return Results.Unauthorized();
             if (profile.Role != EmployeeRole.Administrator) return AdministratorRequired();
-            return Results.Ok(await service.ImportDirectoryValuesAsync(id, request.Names, cancellationToken));
+            return Results.Ok(await service.ImportDirectoryValuesAsync(
+                id, request.Names, new AuditIdentity(profile.Id), cancellationToken));
         });
 
         group.MapPut("/directories/{directoryId:guid}/values/{id:guid}", async (Guid directoryId, Guid id,
@@ -169,7 +183,9 @@ internal static class CatalogAdministrationEndpoints
             var profile = await AuthorizeAsync(context, accounts, cancellationToken);
             if (profile is null) return Results.Unauthorized();
             if (profile.Role != EmployeeRole.Administrator) return AdministratorRequired();
-            var item = await service.UpdateDirectoryValueAsync(directoryId, id, request.Name, request.IsArchived, cancellationToken);
+            var item = await service.UpdateDirectoryValueAsync(
+                directoryId, id, request.Name, request.IsArchived,
+                new AuditIdentity(profile.Id), cancellationToken);
             return item is null ? Results.NotFound() : Results.Ok(item);
         });
 
@@ -180,7 +196,8 @@ internal static class CatalogAdministrationEndpoints
             var profile = await AuthorizeAsync(context, accounts, cancellationToken);
             if (profile is null) return Results.Unauthorized();
             if (profile.Role != EmployeeRole.Administrator) return AdministratorRequired();
-            return await service.DeleteDirectoryValueAsync(directoryId, id, cancellationToken)
+            return await service.DeleteDirectoryValueAsync(
+                    directoryId, id, new AuditIdentity(profile.Id), cancellationToken)
                 ? Results.NoContent()
                 : Results.NotFound();
         });
@@ -193,7 +210,8 @@ internal static class CatalogAdministrationEndpoints
             if (profile is null) return Results.Unauthorized();
             if (profile.Role != EmployeeRole.Administrator) return AdministratorRequired();
             return await service.UpdateDirectoryValueArticleAsync(
-                    directoryId, id, request.ArticleRtf, cancellationToken)
+                    directoryId, id, request.ArticleRtf,
+                    new AuditIdentity(profile.Id), cancellationToken)
                 ? Results.NoContent()
                 : Results.NotFound();
         });
@@ -215,7 +233,12 @@ internal static class CatalogAdministrationEndpoints
 
             var result = await service.TransferPositionAsync(
                 new ReferencePositionTransferCommand(
-                    request.Source, request.Destination, request.Name, request.Move, profile.Id),
+                    request.Source, request.Destination, request.Name, request.Move,
+                    new AuditIdentity(
+                        profile.Id,
+                        request.Move && (request.Source.SystemType.HasValue || request.Destination.SystemType.HasValue)
+                            ? profile.Id
+                            : null)),
                 cancellationToken);
             return result is null ? Results.NotFound() : Results.Ok(result);
         }).RequireRateLimiting("auth");
