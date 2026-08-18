@@ -200,8 +200,12 @@ public sealed class CatalogAdministrationServiceTests
                 new ReferencePositionLocator(null, directory.Id, source.Id),
                 new ReferencePositionTarget(null, directory.Id),
                 "Clear PET30 — копия",
-                Move: false));
+                Move: false,
+                fixture.EmployeeId));
         var values = await fixture.Administration.GetDirectoryValuesAsync(directory.Id, true);
+        var auditEvent = Assert.Single(fixture.DbContext.ReferencePositionEvents);
+        var auditLog = await fixture.Administration.SearchAuditLogAsync("Clear PET30", 1, 50);
+        var csv = await fixture.Administration.ExportAuditLogAsync("Clear PET30", false);
 
         Assert.NotNull(result);
         Assert.Equal(2, values.Count);
@@ -209,6 +213,13 @@ public sealed class CatalogAdministrationServiceTests
         Assert.Equal(@"{\rtf1 Технологическая статья}", copy.ArticleRtf);
         Assert.True(copy.IsArchived);
         Assert.Contains(values, x => x.Id == source.Id);
+        Assert.Equal(ReferencePositionEventType.Copied, auditEvent.Type);
+        Assert.Equal(source.Id, auditEvent.SourcePositionId);
+        Assert.Equal(result.Id, auditEvent.DestinationPositionId);
+        Assert.Equal("Карточки материалов", auditEvent.SourceSection);
+        Assert.Equal("Карточки материалов", auditEvent.DestinationSection);
+        Assert.Equal(ReferencePositionEventType.Copied, Assert.Single(auditLog.Items).ReferencePositionType);
+        Assert.Contains("Позиция справочника скопирована", Encoding.UTF8.GetString(csv.Content));
     }
 
     [Fact]
@@ -228,7 +239,8 @@ public sealed class CatalogAdministrationServiceTests
                 new ReferencePositionLocator(null, sourceDirectory.Id, source.Id),
                 new ReferencePositionTarget(null, targetDirectory.Id),
                 source.Name,
-                Move: true));
+                Move: true,
+                fixture.EmployeeId));
         var sourceValues = await fixture.Administration.GetDirectoryValuesAsync(sourceDirectory.Id, true);
         var targetValue = Assert.Single(
             await fixture.Administration.GetDirectoryValuesAsync(targetDirectory.Id, true));
@@ -237,6 +249,10 @@ public sealed class CatalogAdministrationServiceTests
         Assert.Empty(sourceValues);
         Assert.Equal(result.Id, targetValue.Id);
         Assert.Equal(@"{\rtf1 Полная статья}", targetValue.ArticleRtf);
+        var auditEvent = Assert.Single(fixture.DbContext.ReferencePositionEvents);
+        Assert.Equal(ReferencePositionEventType.Moved, auditEvent.Type);
+        Assert.Equal("Исходный справочник", auditEvent.SourceSection);
+        Assert.Equal("Целевой справочник", auditEvent.DestinationSection);
     }
 
     [Fact]
@@ -256,12 +272,14 @@ public sealed class CatalogAdministrationServiceTests
                     new ReferencePositionLocator(CatalogReferenceType.Material, null, material.Id),
                     new ReferencePositionTarget(null, targetDirectory.Id),
                     material.Name,
-                    Move: true)));
+                    Move: true,
+                    fixture.EmployeeId)));
 
         Assert.Empty(await fixture.Administration.GetDirectoryValuesAsync(targetDirectory.Id, true));
         var preserved = Assert.Single((await fixture.Administration.GetReferencesAsync()).Materials);
         Assert.Equal(material.Id, preserved.Id);
         Assert.Equal(@"{\rtf1 Важная статья}", preserved.ArticleRtf);
+        Assert.Empty(fixture.DbContext.ReferencePositionEvents);
     }
 
     [Fact]

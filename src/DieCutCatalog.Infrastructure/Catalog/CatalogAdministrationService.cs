@@ -408,8 +408,19 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         await using var transaction = command.Move && dbContext.Database.IsRelational()
             ? await dbContext.Database.BeginTransactionAsync(cancellationToken)
             : null;
-        var result = await CreateTransferDestinationAsync(
+        var destination = await CreateTransferDestinationAsync(
             command.Destination, command.Name, source.ArticleRtf, source.IsArchived, cancellationToken);
+        dbContext.ReferencePositionEvents.Add(new ReferencePositionEvent
+        {
+            EmployeeId = command.EmployeeId,
+            Type = command.Move ? ReferencePositionEventType.Moved : ReferencePositionEventType.Copied,
+            SourcePositionId = command.Source.Id,
+            DestinationPositionId = destination.Result.Id,
+            SourceName = source.Name,
+            DestinationName = destination.Result.Name,
+            SourceSection = source.SectionName,
+            DestinationSection = destination.SectionName
+        });
         await dbContext.SaveChangesAsync(cancellationToken);
 
         if (command.Move)
@@ -419,7 +430,7 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
             if (transaction is not null) await transaction.CommitAsync(cancellationToken);
         }
 
-        return result;
+        return destination.Result;
     }
 
     public async Task<PagedResult<AuditLogEntry>> SearchAuditLogAsync(
@@ -448,6 +459,7 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         var term = search?.Trim().ToLowerInvariant();
         var knifeQuery = dbContext.DieCutEvents.AsNoTracking();
         var accessQuery = dbContext.EmployeeAccessEvents.AsNoTracking();
+        var referenceQuery = dbContext.ReferencePositionEvents.AsNoTracking();
         if (!string.IsNullOrWhiteSpace(term))
         {
             knifeQuery = knifeQuery.Where(x =>
@@ -460,21 +472,37 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
                 x.Employee.FirstName.ToLower().Contains(term) ||
                 x.Employee.LastName.ToLower().Contains(term) ||
                 x.Employee.Email.ToLower().Contains(term));
+            referenceQuery = referenceQuery.Where(x =>
+                x.SourceName.ToLower().Contains(term) ||
+                x.DestinationName.ToLower().Contains(term) ||
+                x.SourceSection.ToLower().Contains(term) ||
+                x.DestinationSection.ToLower().Contains(term) ||
+                x.Employee.FirstName.ToLower().Contains(term) ||
+                x.Employee.LastName.ToLower().Contains(term) ||
+                x.Employee.Email.ToLower().Contains(term));
         }
 
         var knifeEntries = await knifeQuery.Select(x => new AuditLogEntry(
             x.Id, x.DieCutId, x.DieCut.Number, x.DieCut.Equipment.Name, x.Type, x.Quantity,
             x.MileageBefore, x.MileageAfter, x.RunLengthMetersBefore, x.RunLengthMetersAfter,
             x.RevolutionsBefore, x.RevolutionsAfter, x.OccurredAt,
-            (x.Employee.FirstName + " " + x.Employee.LastName).Trim(), null))
+            (x.Employee.FirstName + " " + x.Employee.LastName).Trim(),
+            null, null, null, null, null, null))
             .ToListAsync(cancellationToken);
         var accessEntries = await accessQuery.Select(x => new AuditLogEntry(
             x.Id, Guid.Empty, "", "", DieCutEventType.Updated, null,
             0, 0, 0, 0, 0, 0, x.OccurredAt,
-            (x.Employee.FirstName + " " + x.Employee.LastName).Trim(), x.Type))
+            (x.Employee.FirstName + " " + x.Employee.LastName).Trim(),
+            x.Type, null, null, null, null, null))
+            .ToListAsync(cancellationToken);
+        var referenceEntries = await referenceQuery.Select(x => new AuditLogEntry(
+            x.Id, Guid.Empty, "", "", DieCutEventType.Updated, null,
+            0, 0, 0, 0, 0, 0, x.OccurredAt,
+            (x.Employee.FirstName + " " + x.Employee.LastName).Trim(), null,
+            x.Type, x.SourceName, x.DestinationName, x.SourceSection, x.DestinationSection))
             .ToListAsync(cancellationToken);
 
-        return knifeEntries.Concat(accessEntries)
+        return knifeEntries.Concat(accessEntries).Concat(referenceEntries)
             .OrderByDescending(x => x.OccurredAt)
             .ToArray();
     }
@@ -489,7 +517,9 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
                 x => x.Id == source.Id, cancellationToken);
             return equipment is null
                 ? null
-                : new TransferSource(equipment, source.SystemType, null, equipment.ArticleRtf, !equipment.IsActive);
+                : new TransferSource(
+                    equipment, source.SystemType, null, equipment.Name,
+                    SystemReferenceName(source.SystemType.Value), equipment.ArticleRtf, !equipment.IsActive);
         }
 
         if (source.SystemType.HasValue)
@@ -499,14 +529,18 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
                 x => x.Id == source.Id && x.Kind == kind, cancellationToken);
             return entry is null
                 ? null
-                : new TransferSource(entry, source.SystemType, null, entry.ArticleRtf, false);
+                : new TransferSource(
+                    entry, source.SystemType, null, entry.Name,
+                    SystemReferenceName(source.SystemType.Value), entry.ArticleRtf, false);
         }
 
-        var value = await dbContext.ReferenceDirectoryValues.SingleOrDefaultAsync(
+        var value = await dbContext.ReferenceDirectoryValues.Include(x => x.Directory).SingleOrDefaultAsync(
             x => x.Id == source.Id && x.DirectoryId == source.DirectoryId, cancellationToken);
         return value is null
             ? null
-            : new TransferSource(value, null, value.DirectoryId, value.ArticleRtf, value.IsArchived);
+            : new TransferSource(
+                value, null, value.DirectoryId, value.Name, value.Directory.Name,
+                value.ArticleRtf, value.IsArchived);
     }
 
     private async Task EnsureTransferSourceCanBeDeletedAsync(
@@ -529,7 +563,7 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
             throw new ValidationException("Нельзя перенести значение: оно используется в карточках ножей.");
     }
 
-    private async Task<ReferencePositionTransferResult> CreateTransferDestinationAsync(
+    private async Task<TransferDestination> CreateTransferDestinationAsync(
         ReferencePositionTarget destination,
         string name,
         string? articleRtf,
@@ -550,7 +584,9 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
                 ArticleRtf = article
             };
             dbContext.Equipment.Add(equipment);
-            return new ReferencePositionTransferResult(equipment.Id, equipment.Name, article, false);
+            return new TransferDestination(
+                new ReferencePositionTransferResult(equipment.Id, equipment.Name, article, false),
+                SystemReferenceName(CatalogReferenceType.Equipment));
         }
 
         if (destination.SystemType.HasValue)
@@ -570,7 +606,9 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
                 ArticleRtf = article
             };
             dbContext.CatalogReferenceEntries.Add(entry);
-            return new ReferencePositionTransferResult(entry.Id, entry.Name, article, false);
+            return new TransferDestination(
+                new ReferencePositionTransferResult(entry.Id, entry.Name, article, false),
+                SystemReferenceName(type));
         }
 
         var directoryId = destination.DirectoryId!.Value;
@@ -596,7 +634,9 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         };
         dbContext.ReferenceDirectoryValues.Add(value);
         directory.UpdatedAt = DateTimeOffset.UtcNow;
-        return new ReferencePositionTransferResult(value.Id, value.Name, article, value.IsArchived);
+        return new TransferDestination(
+            new ReferencePositionTransferResult(value.Id, value.Name, article, value.IsArchived),
+            directory.Name);
     }
 
     private async Task RemoveTransferSourceAsync(TransferSource source, CancellationToken cancellationToken)
@@ -634,21 +674,30 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         object Entity,
         CatalogReferenceType? SystemType,
         Guid? DirectoryId,
+        string Name,
+        string SectionName,
         string? ArticleRtf,
         bool IsArchived);
 
+    private sealed record TransferDestination(
+        ReferencePositionTransferResult Result,
+        string SectionName);
+
     private static byte[] BuildCsv(IEnumerable<AuditLogEntry> entries)
     {
-        var csv = new StringBuilder("\uFEFFДата;Нож;Оборудование;Действие;Тираж;Пробег до;Пробег после;Метры до;Метры после;Обороты до;Обороты после;Сотрудник\r\n");
+        var csv = new StringBuilder("\uFEFFДата;Объект;Раздел / оборудование;Действие;Тираж;Пробег до;Пробег после;Метры до;Метры после;Обороты до;Обороты после;Сотрудник\r\n");
         foreach (var x in entries)
         {
+            var hasKnifeUsage = x.DieCutId != Guid.Empty;
             csv.Append(Csv(x.OccurredAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss"))).Append(';')
-                .Append(Csv(x.DieCutNumber)).Append(';').Append(Csv(x.Equipment)).Append(';')
+                .Append(Csv(AuditObject(x))).Append(';').Append(Csv(AuditContext(x))).Append(';')
                 .Append(Csv(EventName(x))).Append(';').Append(x.Quantity?.ToString(CultureInfo.InvariantCulture)).Append(';')
-                .Append(x.MileageBefore).Append(';').Append(x.MileageAfter).Append(';')
-                .Append(x.RunLengthMetersBefore.ToString("0.###", CultureInfo.InvariantCulture)).Append(';')
-                .Append(x.RunLengthMetersAfter.ToString("0.###", CultureInfo.InvariantCulture)).Append(';')
-                .Append(x.RevolutionsBefore).Append(';').Append(x.RevolutionsAfter).Append(';')
+                .Append(hasKnifeUsage ? x.MileageBefore : "").Append(';')
+                .Append(hasKnifeUsage ? x.MileageAfter : "").Append(';')
+                .Append(hasKnifeUsage ? x.RunLengthMetersBefore.ToString("0.###", CultureInfo.InvariantCulture) : "").Append(';')
+                .Append(hasKnifeUsage ? x.RunLengthMetersAfter.ToString("0.###", CultureInfo.InvariantCulture) : "").Append(';')
+                .Append(hasKnifeUsage ? x.RevolutionsBefore : "").Append(';')
+                .Append(hasKnifeUsage ? x.RevolutionsAfter : "").Append(';')
                 .Append(Csv(x.EmployeeName)).Append("\r\n");
         }
         return Encoding.UTF8.GetBytes(csv.ToString());
@@ -679,7 +728,7 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
             y = 45;
             graphics.DrawString($"Страница {document.PageCount}", regular, XBrushes.Gray,
                 new XPoint(page.Width.Point - margin - 48, page.Height.Point - 12));
-            DrawRow(new[] { "Дата", "Нож", "Оборудование", "Действие", "Тираж", "Пробег", "Метры", "Обороты", "Сотрудник" }, bold);
+            DrawRow(new[] { "Дата", "Объект", "Раздел / оборудование", "Действие", "Тираж", "Пробег", "Метры", "Обороты", "Сотрудник" }, bold);
         }
 
         void DrawRow(string[] values, XFont font)
@@ -699,14 +748,15 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         foreach (var entry in entries)
         {
             if (y + rowHeight > page!.Height.Point - margin) NewPage();
+            var hasKnifeUsage = entry.DieCutId != Guid.Empty;
             DrawRow(new[]
             {
                 entry.OccurredAt.ToLocalTime().ToString("dd.MM.yy HH:mm"),
-                entry.DieCutNumber, entry.Equipment, EventName(entry),
+                AuditObject(entry), AuditContext(entry), EventName(entry),
                 entry.Quantity?.ToString(CultureInfo.InvariantCulture) ?? "",
-                $"{entry.MileageBefore} -> {entry.MileageAfter}",
-                $"{entry.RunLengthMetersBefore.ToString("0.##", CultureInfo.InvariantCulture)} -> {entry.RunLengthMetersAfter.ToString("0.##", CultureInfo.InvariantCulture)}",
-                $"{entry.RevolutionsBefore} -> {entry.RevolutionsAfter}",
+                hasKnifeUsage ? $"{entry.MileageBefore} -> {entry.MileageAfter}" : "",
+                hasKnifeUsage ? $"{entry.RunLengthMetersBefore.ToString("0.##", CultureInfo.InvariantCulture)} -> {entry.RunLengthMetersAfter.ToString("0.##", CultureInfo.InvariantCulture)}" : "",
+                hasKnifeUsage ? $"{entry.RevolutionsBefore} -> {entry.RevolutionsAfter}" : "",
                 entry.EmployeeName
             }, regular);
         }
@@ -722,6 +772,13 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         CatalogReferenceType.Material => CatalogReferenceKind.Material,
         CatalogReferenceType.Figure => CatalogReferenceKind.Figure,
         _ => throw new ValidationException("Некорректный тип справочника.")
+    };
+    private static string SystemReferenceName(CatalogReferenceType type) => type switch
+    {
+        CatalogReferenceType.Material => "Материалы",
+        CatalogReferenceType.Figure => "Фигуры",
+        CatalogReferenceType.Equipment => "Оборудование",
+        _ => type.ToString()
     };
     private static string ValidateName(string name, CatalogReferenceType type)
     {
@@ -773,11 +830,26 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         new(x.Id, x.GroupId, x.Name, x.Description, x.SortOrder, x.IsArchived, count);
     private static ReferenceDirectoryValueItem ToItem(ReferenceDirectoryValue x) =>
         new(x.Id, x.DirectoryId, x.Name, x.SortOrder, x.IsArchived, x.UpdatedAt, x.ArticleRtf);
-    private static string EventName(AuditLogEntry entry) => entry.AccessType switch
+    private static string AuditObject(AuditLogEntry entry) => entry.ReferencePositionType.HasValue
+        ? entry.ReferenceSourceName == entry.ReferenceDestinationName
+            ? entry.ReferenceSourceName ?? ""
+            : $"{entry.ReferenceSourceName} -> {entry.ReferenceDestinationName}"
+        : entry.DieCutNumber;
+
+    private static string AuditContext(AuditLogEntry entry) => entry.ReferencePositionType.HasValue
+        ? $"{entry.ReferenceSourceSection} -> {entry.ReferenceDestinationSection}"
+        : entry.Equipment;
+
+    private static string EventName(AuditLogEntry entry) => entry.ReferencePositionType switch
     {
-        EmployeeAccessEventType.LoggedIn => "Вход в систему",
-        EmployeeAccessEventType.LoggedOut => "Выход из системы",
-        _ => EventName(entry.Type)
+        ReferencePositionEventType.Copied => "Позиция справочника скопирована",
+        ReferencePositionEventType.Moved => "Позиция справочника перенесена",
+        _ => entry.AccessType switch
+        {
+            EmployeeAccessEventType.LoggedIn => "Вход в систему",
+            EmployeeAccessEventType.LoggedOut => "Выход из системы",
+            _ => EventName(entry.Type)
+        }
     };
 
     private static string EventName(DieCutEventType type) => type switch

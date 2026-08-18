@@ -177,10 +177,24 @@ public sealed class CatalogPostgreSqlTests(PostgreSqlFixture fixture)
         Guid targetDirectoryId;
         Guid sourceValueId;
         Guid movedValueId;
+        Guid employeeId;
         const string article = @"{\rtf1 PostgreSQL technology article}";
 
         await using (var writeContext = fixture.CreateDbContext())
         {
+            var employee = new Employee
+            {
+                Email = $"reference-{suffix}@example.test",
+                NormalizedEmail = $"REFERENCE-{suffix.ToUpperInvariant()}@EXAMPLE.TEST",
+                PasswordHash = "integration-test",
+                FirstName = "Reference",
+                LastName = "Administrator",
+                Role = EmployeeRole.Administrator
+            };
+            writeContext.Employees.Add(employee);
+            await writeContext.SaveChangesAsync();
+            employeeId = employee.Id;
+
             var service = new CatalogAdministrationService(writeContext);
             var sourceDirectory = await service.AddDirectoryAsync(
                 new CreateReferenceDirectoryCommand(null, $"Source-{suffix}", null));
@@ -195,7 +209,8 @@ public sealed class CatalogPostgreSqlTests(PostgreSqlFixture fixture)
                     new ReferencePositionLocator(null, sourceDirectory.Id, sourceValue.Id),
                     new ReferencePositionTarget(null, targetDirectory.Id),
                     sourceValue.Name,
-                    Move: true));
+                    Move: true,
+                    employeeId));
 
             Assert.NotNull(moved);
             sourceDirectoryId = sourceDirectory.Id;
@@ -211,6 +226,92 @@ public sealed class CatalogPostgreSqlTests(PostgreSqlFixture fixture)
             .SingleAsync(x => x.Id == movedValueId && x.DirectoryId == targetDirectoryId);
         Assert.Equal(article, stored.ArticleRtf);
         Assert.True(stored.IsArchived);
+        var auditEvent = await verificationContext.ReferencePositionEvents.AsNoTracking().SingleAsync(
+            x => x.SourcePositionId == sourceValueId && x.DestinationPositionId == movedValueId);
+        Assert.Equal(employeeId, auditEvent.EmployeeId);
+        Assert.Equal(ReferencePositionEventType.Moved, auditEvent.Type);
+        Assert.Equal($"Source-{suffix}", auditEvent.SourceSection);
+        Assert.Equal($"Target-{suffix}", auditEvent.DestinationSection);
+    }
+
+    [Fact]
+    public async Task Reference_position_move_rolls_back_destination_and_audit_when_source_delete_fails()
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var functionName = $"fail_reference_move_{suffix}";
+        var triggerName = $"fail_reference_move_delete_{suffix}";
+        var seed = await AddServiceReferencesAsync();
+        Guid sourceDirectoryId;
+        Guid targetDirectoryId;
+        Guid sourceValueId;
+        var destinationName = $"Moved-{suffix}";
+
+        await using (var setupContext = fixture.CreateDbContext())
+        {
+            var service = new CatalogAdministrationService(setupContext);
+            var sourceDirectory = await service.AddDirectoryAsync(
+                new CreateReferenceDirectoryCommand(null, $"Rollback-source-{suffix}", null));
+            var targetDirectory = await service.AddDirectoryAsync(
+                new CreateReferenceDirectoryCommand(null, $"Rollback-target-{suffix}", null));
+            var sourceValue = await service.AddDirectoryValueAsync(sourceDirectory.Id, $"Original-{suffix}");
+            sourceDirectoryId = sourceDirectory.Id;
+            targetDirectoryId = targetDirectory.Id;
+            sourceValueId = sourceValue.Id;
+
+            await ExecuteTestSqlAsync(setupContext,
+                $"""
+                CREATE FUNCTION "{functionName}"() RETURNS trigger AS $$
+                BEGIN
+                    RAISE EXCEPTION 'forced reference move delete failure';
+                END;
+                $$ LANGUAGE plpgsql;
+                CREATE TRIGGER "{triggerName}"
+                BEFORE DELETE ON reference_directory_values
+                FOR EACH ROW
+                WHEN (OLD."Id" = '{sourceValueId}'::uuid)
+                EXECUTE FUNCTION "{functionName}"();
+                """);
+        }
+
+        try
+        {
+            await using (var moveContext = fixture.CreateDbContext())
+            {
+                var service = new CatalogAdministrationService(moveContext);
+                await Assert.ThrowsAsync<DbUpdateException>(() => service.TransferPositionAsync(
+                    new ReferencePositionTransferCommand(
+                        new ReferencePositionLocator(null, sourceDirectoryId, sourceValueId),
+                        new ReferencePositionTarget(null, targetDirectoryId),
+                        destinationName,
+                        Move: true,
+                        seed.EmployeeId)));
+            }
+
+            await using var verificationContext = fixture.CreateDbContext();
+            Assert.True(await verificationContext.ReferenceDirectoryValues.AsNoTracking()
+                .AnyAsync(x => x.Id == sourceValueId && x.DirectoryId == sourceDirectoryId));
+            Assert.False(await verificationContext.ReferenceDirectoryValues.AsNoTracking()
+                .AnyAsync(x => x.DirectoryId == targetDirectoryId && x.Name == destinationName));
+            Assert.False(await verificationContext.ReferencePositionEvents.AsNoTracking()
+                .AnyAsync(x => x.SourcePositionId == sourceValueId));
+        }
+        finally
+        {
+            await using var cleanupContext = fixture.CreateDbContext();
+            await ExecuteTestSqlAsync(cleanupContext,
+                $"""
+                DROP TRIGGER IF EXISTS "{triggerName}" ON reference_directory_values;
+                DROP FUNCTION IF EXISTS "{functionName}"();
+                """);
+        }
+    }
+
+    private static async Task ExecuteTestSqlAsync(CatalogDbContext dbContext, string sql)
+    {
+        await dbContext.Database.OpenConnectionAsync();
+        await using var command = dbContext.Database.GetDbConnection().CreateCommand();
+        command.CommandText = sql;
+        await command.ExecuteNonQueryAsync();
     }
 
     private async Task<Equipment> AddEquipmentAsync()

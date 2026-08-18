@@ -168,7 +168,8 @@ public sealed record ReferencePositionTransferCommand(
     ReferencePositionLocator Source,
     ReferencePositionTarget Destination,
     string Name,
-    bool Move);
+    bool Move,
+    Guid EmployeeId);
 public sealed record ReferencePositionTransferResult(
     Guid Id,
     string Name,
@@ -195,7 +196,12 @@ public sealed record AuditLogEntry(
     long RevolutionsAfter,
     DateTimeOffset OccurredAt,
     string EmployeeName,
-    EmployeeAccessEventType? AccessType = null);
+    EmployeeAccessEventType? AccessType = null,
+    ReferencePositionEventType? ReferencePositionType = null,
+    string? ReferenceSourceName = null,
+    string? ReferenceDestinationName = null,
+    string? ReferenceSourceSection = null,
+    string? ReferenceDestinationSection = null);
 
 public sealed record ExportedFile(string FileName, string ContentType, byte[] Content);
 

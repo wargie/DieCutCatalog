@@ -15,6 +15,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     public DbSet<ReferenceDirectoryGroup> ReferenceDirectoryGroups => Set<ReferenceDirectoryGroup>();
     public DbSet<ReferenceDirectory> ReferenceDirectories => Set<ReferenceDirectory>();
     public DbSet<ReferenceDirectoryValue> ReferenceDirectoryValues => Set<ReferenceDirectoryValue>();
+    public DbSet<ReferencePositionEvent> ReferencePositionEvents => Set<ReferencePositionEvent>();
     public DbSet<DieCut> DieCuts => Set<DieCut>();
     public DbSet<DieCutEvent> DieCutEvents => Set<DieCutEvent>();
     public DbSet<DieCutDocument> DieCutDocuments => Set<DieCutDocument>();
@@ -100,6 +101,21 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
         directoryValue.Property(x => x.ArticleRtf).HasColumnType("text");
         directoryValue.HasOne(x => x.Directory).WithMany(x => x.Values).HasForeignKey(x => x.DirectoryId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        var referencePositionEvent = modelBuilder.Entity<ReferencePositionEvent>();
+        referencePositionEvent.ToTable("reference_position_events");
+        referencePositionEvent.HasKey(x => x.Id);
+        referencePositionEvent.HasIndex(x => x.OccurredAt);
+        referencePositionEvent.HasIndex(x => new { x.EmployeeId, x.OccurredAt });
+        referencePositionEvent.Property(x => x.Type).HasConversion<string>().HasMaxLength(32);
+        referencePositionEvent.Property(x => x.SourceName).HasMaxLength(200).IsRequired();
+        referencePositionEvent.Property(x => x.DestinationName).HasMaxLength(200).IsRequired();
+        referencePositionEvent.Property(x => x.SourceSection).HasMaxLength(200).IsRequired();
+        referencePositionEvent.Property(x => x.DestinationSection).HasMaxLength(200).IsRequired();
+        referencePositionEvent.HasOne(x => x.Employee)
+            .WithMany()
+            .HasForeignKey(x => x.EmployeeId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         var dieCut = modelBuilder.Entity<DieCut>();
         dieCut.ToTable("die_cuts");

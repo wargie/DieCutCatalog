@@ -818,19 +818,26 @@ public partial class ReferenceDataView : UserControl
         public AuditLogRow(AuditLogEntry entry)
         {
             OccurredAt = entry.OccurredAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss");
-            DieCutNumber = entry.DieCutNumber;
-            Equipment = entry.Equipment;
+            ObjectName = entry.ReferencePositionType.HasValue
+                ? entry.ReferenceSourceName == entry.ReferenceDestinationName
+                    ? entry.ReferenceSourceName ?? ""
+                    : $"{entry.ReferenceSourceName} -> {entry.ReferenceDestinationName}"
+                : entry.DieCutNumber;
+            Context = entry.ReferencePositionType.HasValue
+                ? $"{entry.ReferenceSourceSection} -> {entry.ReferenceDestinationSection}"
+                : entry.Equipment;
             Action = EventName(entry);
             Quantity = entry.Quantity?.ToString("N0", Russian) ?? "";
-            Mileage = $"{entry.MileageBefore:N0} -> {entry.MileageAfter:N0}";
-            RunLength = $"{entry.RunLengthMetersBefore:N2} -> {entry.RunLengthMetersAfter:N2}";
-            Revolutions = $"{entry.RevolutionsBefore:N0} -> {entry.RevolutionsAfter:N0}";
+            var hasKnifeUsage = entry.DieCutId != Guid.Empty;
+            Mileage = hasKnifeUsage ? $"{entry.MileageBefore:N0} -> {entry.MileageAfter:N0}" : "";
+            RunLength = hasKnifeUsage ? $"{entry.RunLengthMetersBefore:N2} -> {entry.RunLengthMetersAfter:N2}" : "";
+            Revolutions = hasKnifeUsage ? $"{entry.RevolutionsBefore:N0} -> {entry.RevolutionsAfter:N0}" : "";
             EmployeeName = entry.EmployeeName;
         }
 
         public string OccurredAt { get; }
-        public string DieCutNumber { get; }
-        public string Equipment { get; }
+        public string ObjectName { get; }
+        public string Context { get; }
         public string Action { get; }
         public string Quantity { get; }
         public string Mileage { get; }
@@ -838,11 +845,16 @@ public partial class ReferenceDataView : UserControl
         public string Revolutions { get; }
         public string EmployeeName { get; }
 
-        private static string EventName(AuditLogEntry entry) => entry.AccessType switch
+        private static string EventName(AuditLogEntry entry) => entry.ReferencePositionType switch
         {
-            EmployeeAccessEventType.LoggedIn => "Вход в систему",
-            EmployeeAccessEventType.LoggedOut => "Выход из системы",
-            _ => EventName(entry.Type)
+            ReferencePositionEventType.Copied => "Позиция справочника скопирована",
+            ReferencePositionEventType.Moved => "Позиция справочника перенесена",
+            _ => entry.AccessType switch
+            {
+                EmployeeAccessEventType.LoggedIn => "Вход в систему",
+                EmployeeAccessEventType.LoggedOut => "Выход из системы",
+                _ => EventName(entry.Type)
+            }
         };
 
         private static string EventName(DieCutEventType type) => type switch

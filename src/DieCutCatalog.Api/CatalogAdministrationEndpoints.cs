@@ -215,7 +215,7 @@ internal static class CatalogAdministrationEndpoints
 
             var result = await service.TransferPositionAsync(
                 new ReferencePositionTransferCommand(
-                    request.Source, request.Destination, request.Name, request.Move),
+                    request.Source, request.Destination, request.Name, request.Move, profile.Id),
                 cancellationToken);
             return result is null ? Results.NotFound() : Results.Ok(result);
         }).RequireRateLimiting("auth");
