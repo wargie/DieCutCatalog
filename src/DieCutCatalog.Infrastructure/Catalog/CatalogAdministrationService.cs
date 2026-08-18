@@ -369,10 +369,7 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         Guid directoryId, string name, AuditIdentity audit,
         CancellationToken cancellationToken = default)
     {
-        var directory = await dbContext.ReferenceDirectories.SingleOrDefaultAsync(
-            x => x.Id == directoryId, cancellationToken)
-            ?? throw new ValidationException("Справочник не найден.");
-        if (directory.IsArchived) throw new ValidationException("Нельзя изменить архивный справочник.");
+        var directory = await GetMutableDirectoryAsync(directoryId, cancellationToken);
         var clean = ValidateDirectoryName(name, 200);
         var normalized = Normalize(clean);
         if (await dbContext.ReferenceDirectoryValues.AnyAsync(
@@ -396,10 +393,7 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         Guid directoryId, IReadOnlyList<string> names, AuditIdentity audit,
         CancellationToken cancellationToken = default)
     {
-        var directory = await dbContext.ReferenceDirectories.SingleOrDefaultAsync(
-            x => x.Id == directoryId, cancellationToken)
-            ?? throw new ValidationException("Справочник не найден.");
-        if (directory.IsArchived) throw new ValidationException("Нельзя изменить архивный справочник.");
+        var directory = await GetMutableDirectoryAsync(directoryId, cancellationToken);
 
         var candidates = PrepareImportNames(names, 200);
         if (candidates.Count == 0) return new ReferenceImportResult(0, names.Count);
@@ -440,6 +434,7 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         Guid directoryId, Guid id, string name, bool isArchived, AuditIdentity audit,
         CancellationToken cancellationToken = default)
     {
+        var directory = await GetMutableDirectoryAsync(directoryId, cancellationToken);
         var value = await dbContext.ReferenceDirectoryValues.SingleOrDefaultAsync(
             x => x.Id == id && x.DirectoryId == directoryId, cancellationToken);
         if (value is null) return null;
@@ -448,9 +443,7 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         if (await dbContext.ReferenceDirectoryValues.AnyAsync(
                 x => x.Id != id && x.DirectoryId == directoryId && x.NormalizedName == normalized, cancellationToken))
             throw new ValidationException("Такое значение уже существует в справочнике.");
-        var directoryName = await dbContext.ReferenceDirectories.Where(x => x.Id == directoryId)
-            .Select(x => x.Name).SingleAsync(cancellationToken);
-        var before = ValueSnapshot(value, directoryName);
+        var before = ValueSnapshot(value, directory.Name);
         value.Name = clean;
         value.NormalizedName = normalized;
         value.IsArchived = isArchived;
@@ -459,7 +452,7 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
             ? AuditAction.Updated
             : value.IsArchived ? AuditAction.Archived : AuditAction.Restored;
         AddAudit(audit, AuditEntityType.ReferenceValue, value.Id, action,
-            before, ValueSnapshot(value, directoryName));
+            before, ValueSnapshot(value, directory.Name));
         await dbContext.SaveChangesAsync(cancellationToken);
         return ToItem(value);
     }
@@ -468,14 +461,13 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         Guid directoryId, Guid id, AuditIdentity audit,
         CancellationToken cancellationToken = default)
     {
+        var directory = await GetMutableDirectoryAsync(directoryId, cancellationToken);
         var value = await dbContext.ReferenceDirectoryValues.SingleOrDefaultAsync(
             x => x.Id == id && x.DirectoryId == directoryId, cancellationToken);
         if (value is null) return false;
-        var directory = await dbContext.ReferenceDirectories.SingleOrDefaultAsync(
-            x => x.Id == directoryId, cancellationToken);
-        var before = ValueSnapshot(value, directory?.Name);
+        var before = ValueSnapshot(value, directory.Name);
         dbContext.ReferenceDirectoryValues.Remove(value);
-        if (directory is not null) directory.UpdatedAt = DateTimeOffset.UtcNow;
+        directory.UpdatedAt = DateTimeOffset.UtcNow;
         AddAudit(audit, AuditEntityType.ReferenceValue, value.Id, AuditAction.Deleted,
             before, null);
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -486,16 +478,15 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         Guid directoryId, Guid id, string? articleRtf, AuditIdentity audit,
         CancellationToken cancellationToken = default)
     {
+        var directory = await GetMutableDirectoryAsync(directoryId, cancellationToken);
         var value = await dbContext.ReferenceDirectoryValues.SingleOrDefaultAsync(
             x => x.Id == id && x.DirectoryId == directoryId, cancellationToken);
         if (value is null) return false;
-        var directoryName = await dbContext.ReferenceDirectories.Where(x => x.Id == directoryId)
-            .Select(x => x.Name).SingleOrDefaultAsync(cancellationToken);
-        var before = ValueSnapshot(value, directoryName);
+        var before = ValueSnapshot(value, directory.Name);
         value.ArticleRtf = CleanArticle(articleRtf);
         value.UpdatedAt = DateTimeOffset.UtcNow;
         AddAudit(audit, AuditEntityType.ReferenceValue, value.Id, AuditAction.ArticleUpdated,
-            before, ValueSnapshot(value, directoryName));
+            before, ValueSnapshot(value, directory.Name));
         await dbContext.SaveChangesAsync(cancellationToken);
         return true;
     }
@@ -667,6 +658,12 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         TransferSource source,
         CancellationToken cancellationToken)
     {
+        if (source.Entity is ReferenceDirectoryValue value)
+        {
+            await GetMutableDirectoryAsync(value.DirectoryId, cancellationToken);
+            return;
+        }
+
         if (source.Entity is Equipment equipment)
         {
             if (await dbContext.DieCuts.AnyAsync(x => x.EquipmentId == equipment.Id, cancellationToken))
@@ -732,10 +729,7 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         }
 
         var directoryId = destination.DirectoryId!.Value;
-        var directory = await dbContext.ReferenceDirectories.SingleOrDefaultAsync(
-            x => x.Id == directoryId, cancellationToken)
-            ?? throw new ValidationException("Справочник не найден.");
-        if (directory.IsArchived) throw new ValidationException("Нельзя изменить архивный справочник.");
+        var directory = await GetMutableDirectoryAsync(directoryId, cancellationToken);
         var valueName = ValidateDirectoryName(name, 200);
         var valueNormalizedName = Normalize(valueName);
         if (await dbContext.ReferenceDirectoryValues.AnyAsync(
@@ -1016,6 +1010,17 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
         if (groupId.HasValue && !await dbContext.ReferenceDirectoryGroups.AnyAsync(x => x.Id == groupId, cancellationToken))
             throw new ValidationException("Выбранная группа не найдена.");
     }
+    private async Task<ReferenceDirectory> GetMutableDirectoryAsync(
+        Guid directoryId,
+        CancellationToken cancellationToken)
+    {
+        var directory = await dbContext.ReferenceDirectories.SingleOrDefaultAsync(
+            x => x.Id == directoryId, cancellationToken)
+            ?? throw new ValidationException("Справочник не найден.");
+        if (directory.IsArchived)
+            throw new ValidationException("Нельзя изменить архивный справочник. Сначала восстановите его.");
+        return directory;
+    }
     private static string ValidateDirectoryName(string? name, int max)
     {
         var clean = name?.Trim() ?? "";
@@ -1049,7 +1054,6 @@ public sealed class CatalogAdministrationService(CatalogDbContext dbContext) : I
             return $"{beforeName} -> {afterName}";
         return afterName ?? beforeName ?? $"{EntityTypeName(entry.EntityType.Value)} {entry.EntityId}";
     }
-
     private static string AuditContext(AuditLogEntry entry)
     {
         if (!entry.EntityType.HasValue) return entry.Equipment;

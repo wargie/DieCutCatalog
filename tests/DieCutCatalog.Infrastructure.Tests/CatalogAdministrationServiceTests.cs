@@ -195,6 +195,69 @@ public sealed class CatalogAdministrationServiceTests
     }
 
     [Fact]
+    public async Task ArchivedDirectory_RejectsAllContentMutationsWithoutPartialChanges()
+    {
+        await using var fixture = CreateFixture();
+        var archivedDirectory = await fixture.Administration.AddDirectoryAsync(
+            new CreateReferenceDirectoryCommand(null, "Архивный справочник", null), fixture.Audit);
+        var archivedValue = await fixture.Administration.AddDirectoryValueAsync(
+            archivedDirectory.Id, "Исходная позиция", fixture.Audit);
+        await fixture.Administration.UpdateDirectoryValueArticleAsync(
+            archivedDirectory.Id, archivedValue.Id, @"{\rtf1 Исходная статья}", fixture.Audit);
+        await fixture.Administration.UpdateDirectoryAsync(
+            archivedDirectory.Id,
+            new UpdateReferenceDirectoryCommand(null, archivedDirectory.Name, null, true),
+            fixture.Audit);
+
+        var activeDirectory = await fixture.Administration.AddDirectoryAsync(
+            new CreateReferenceDirectoryCommand(null, "Активный справочник", null), fixture.Audit);
+        var activeValue = await fixture.Administration.AddDirectoryValueAsync(
+            activeDirectory.Id, "Активная позиция", fixture.Audit);
+        var auditCount = await fixture.DbContext.AuditEvents.CountAsync();
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            fixture.Administration.AddDirectoryValueAsync(
+                archivedDirectory.Id, "Новая позиция", fixture.Audit));
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            fixture.Administration.ImportDirectoryValuesAsync(
+                archivedDirectory.Id, ["Импортированная позиция"], fixture.Audit));
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            fixture.Administration.UpdateDirectoryValueAsync(
+                archivedDirectory.Id, archivedValue.Id, "Изменённая позиция", false, fixture.Audit));
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            fixture.Administration.UpdateDirectoryValueArticleAsync(
+                archivedDirectory.Id, archivedValue.Id, @"{\rtf1 Изменённая статья}", fixture.Audit));
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            fixture.Administration.DeleteDirectoryValueAsync(
+                archivedDirectory.Id, archivedValue.Id, fixture.Audit));
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            fixture.Administration.TransferPositionAsync(
+                new ReferencePositionTransferCommand(
+                    new ReferencePositionLocator(null, archivedDirectory.Id, archivedValue.Id),
+                    new ReferencePositionTarget(null, activeDirectory.Id),
+                    archivedValue.Name,
+                    Move: true,
+                    fixture.Audit)));
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            fixture.Administration.TransferPositionAsync(
+                new ReferencePositionTransferCommand(
+                    new ReferencePositionLocator(null, activeDirectory.Id, activeValue.Id),
+                    new ReferencePositionTarget(null, archivedDirectory.Id),
+                    activeValue.Name,
+                    Move: false,
+                    fixture.Audit)));
+
+        var archivedValues = await fixture.Administration.GetDirectoryValuesAsync(archivedDirectory.Id, true);
+        var activeValues = await fixture.Administration.GetDirectoryValuesAsync(activeDirectory.Id, true);
+        var preserved = Assert.Single(archivedValues);
+        Assert.Equal(archivedValue.Id, preserved.Id);
+        Assert.Equal("Исходная позиция", preserved.Name);
+        Assert.Equal(@"{\rtf1 Исходная статья}", preserved.ArticleRtf);
+        Assert.Equal(activeValue.Id, Assert.Single(activeValues).Id);
+        Assert.Equal(auditCount, await fixture.DbContext.AuditEvents.CountAsync());
+    }
+
+    [Fact]
     public async Task DuplicatePosition_PreservesArticleAndArchivedState()
     {
         await using var fixture = CreateFixture();
