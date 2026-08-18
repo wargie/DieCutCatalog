@@ -1,6 +1,7 @@
 using DieCutCatalog.Application.Catalog;
 using DieCutCatalog.Application.Employees;
 using DieCutCatalog.Domain.Catalog;
+using DieCutCatalog.Domain.Employees;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DieCutCatalog.Api;
@@ -100,11 +101,11 @@ internal static class DieCutEndpoints
         {
             var employee = await AuthorizeAsync(context, accounts, cancellationToken);
             if (employee is null) return Results.Unauthorized();
-            if (employee.MustChangePassword) return PasswordChangeRequired();
-            var administrator = await accounts.VerifyAdministratorPasswordAsync(request.Password, cancellationToken);
-            if (administrator is null) return AdministratorPasswordRequired();
+            var confirmation = await ConfirmAdministratorAsync(
+                context, employee, request.Password, accounts, cancellationToken);
+            if (confirmation is not null) return confirmation;
 
-            var dieCut = await catalog.InstallReplacementAsync(id, administrator.Id, cancellationToken);
+            var dieCut = await catalog.InstallReplacementAsync(id, employee.Id, cancellationToken);
             return dieCut is null ? Results.NotFound() : Results.Ok(dieCut);
         }).RequireRateLimiting("auth");
 
@@ -118,11 +119,11 @@ internal static class DieCutEndpoints
         {
             var employee = await AuthorizeAsync(context, accounts, cancellationToken);
             if (employee is null) return Results.Unauthorized();
-            if (employee.MustChangePassword) return PasswordChangeRequired();
-            var administrator = await accounts.VerifyAdministratorPasswordAsync(request.Password, cancellationToken);
-            if (administrator is null) return AdministratorPasswordRequired();
+            var confirmation = await ConfirmAdministratorAsync(
+                context, employee, request.Password, accounts, cancellationToken);
+            if (confirmation is not null) return confirmation;
 
-            var dieCut = await catalog.RetireAsync(id, administrator.Id, cancellationToken);
+            var dieCut = await catalog.RetireAsync(id, employee.Id, cancellationToken);
             return dieCut is null ? Results.NotFound() : Results.Ok(dieCut);
         }).RequireRateLimiting("auth");
 
@@ -136,11 +137,11 @@ internal static class DieCutEndpoints
         {
             var employee = await AuthorizeAsync(context, accounts, cancellationToken);
             if (employee is null) return Results.Unauthorized();
-            if (employee.MustChangePassword) return PasswordChangeRequired();
-            var administrator = await accounts.VerifyAdministratorPasswordAsync(request.Password, cancellationToken);
-            if (administrator is null) return AdministratorPasswordRequired();
+            var confirmation = await ConfirmAdministratorAsync(
+                context, employee, request.Password, accounts, cancellationToken);
+            if (confirmation is not null) return confirmation;
 
-            var dieCut = await catalog.DeleteAsync(id, administrator.Id, cancellationToken);
+            var dieCut = await catalog.DeleteAsync(id, employee.Id, cancellationToken);
             return dieCut is null ? Results.NotFound() : Results.Ok(dieCut);
         }).RequireRateLimiting("auth");
 
@@ -233,12 +234,34 @@ internal static class DieCutEndpoints
             : null;
     }
 
+    private static async Task<IResult?> ConfirmAdministratorAsync(
+        HttpContext context,
+        EmployeeProfile employee,
+        string password,
+        IAccountService accounts,
+        CancellationToken cancellationToken)
+    {
+        if (employee.Role != EmployeeRole.Administrator) return AdministratorRequired();
+        if (employee.MustChangePassword) return PasswordChangeRequired();
+
+        var token = GetBearerToken(context);
+        return token is not null && await accounts.VerifyAdministratorPasswordAsync(
+            token, password, cancellationToken)
+            ? null
+            : AdministratorPasswordRequired();
+    }
+
     private static IResult PasswordChangeRequired() =>
         Results.Json(new { error = "Необходимо заменить временный пароль." }, statusCode: StatusCodes.Status428PreconditionRequired);
 
     private static IResult AdministratorPasswordRequired() =>
         Results.Json(
-            new { error = "Недостаточно прав: требуется пароль администратора." },
+            new { error = "Неверный пароль текущего администратора." },
+            statusCode: StatusCodes.Status403Forbidden);
+
+    private static IResult AdministratorRequired() =>
+        Results.Json(
+            new { error = "Недостаточно прав: операция доступна только администратору." },
             statusCode: StatusCodes.Status403Forbidden);
 }
 

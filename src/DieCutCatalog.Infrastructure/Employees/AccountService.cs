@@ -279,37 +279,35 @@ public sealed class AccountService(
         return true;
     }
 
-    public async Task<EmployeeProfile?> VerifyAdministratorPasswordAsync(
+    public async Task<bool> VerifyAdministratorPasswordAsync(
+        string accessToken,
         string password,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrEmpty(password)) return null;
-
-        var administrators = await dbContext.Employees
-            .Where(x => x.IsActive
-                && !x.MustChangePassword
-                && x.Role == EmployeeRole.Administrator)
-            .OrderBy(x => x.Id)
-            .ToListAsync(cancellationToken);
-
-        foreach (var administrator in administrators)
-        {
-            var result = passwordHasher.VerifyHashedPassword(
-                administrator,
-                administrator.PasswordHash,
-                password);
-            if (result == PasswordVerificationResult.Failed) continue;
-
-            if (result == PasswordVerificationResult.SuccessRehashNeeded)
+        if (string.IsNullOrEmpty(password)) return false;
+        var administrator = await FindEmployeeByTokenAsync(accessToken, cancellationToken);
+        if (administrator is not
             {
-                administrator.PasswordHash = passwordHasher.HashPassword(administrator, password);
-                await dbContext.SaveChangesAsync(cancellationToken);
-            }
-
-            return ToProfile(administrator);
+                IsActive: true,
+                MustChangePassword: false,
+                Role: EmployeeRole.Administrator
+            })
+        {
+            return false;
         }
 
-        return null;
+        var result = passwordHasher.VerifyHashedPassword(
+            administrator,
+            administrator.PasswordHash,
+            password);
+        if (result == PasswordVerificationResult.Failed) return false;
+        if (result == PasswordVerificationResult.SuccessRehashNeeded)
+        {
+            administrator.PasswordHash = passwordHasher.HashPassword(administrator, password);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        return true;
     }
     public async Task<EmployeeProfile?> UpdateProfileAsync(
         string accessToken,

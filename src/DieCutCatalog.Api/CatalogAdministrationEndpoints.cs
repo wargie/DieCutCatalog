@@ -55,9 +55,9 @@ internal static class CatalogAdministrationEndpoints
         {
             var profile = await AuthorizeAsync(context, accounts, cancellationToken);
             if (profile is null) return Results.Unauthorized();
-            if (profile.MustChangePassword) return PasswordChangeRequired();
-            var administrator = await accounts.VerifyAdministratorPasswordAsync(request.Password, cancellationToken);
-            if (administrator is null) return AdministratorPasswordRequired();
+            var confirmation = await ConfirmAdministratorAsync(
+                context, profile, request.Password, accounts, cancellationToken);
+            if (confirmation is not null) return confirmation;
             return await service.DeleteReferenceAsync(type, id, cancellationToken)
                 ? Results.NoContent()
                 : Results.NotFound();
@@ -86,9 +86,9 @@ internal static class CatalogAdministrationEndpoints
         {
             var profile = await AuthorizeAsync(context, accounts, cancellationToken);
             if (profile is null) return Results.Unauthorized();
-            if (profile.MustChangePassword) return PasswordChangeRequired();
-            var administrator = await accounts.VerifyAdministratorPasswordAsync(request.Password, cancellationToken);
-            if (administrator is null) return AdministratorPasswordRequired();
+            var confirmation = await ConfirmAdministratorAsync(
+                context, profile, request.Password, accounts, cancellationToken);
+            if (confirmation is not null) return confirmation;
             return await service.DeleteDirectoryGroupAsync(id, cancellationToken)
                 ? Results.NoContent()
                 : Results.NotFound();
@@ -207,10 +207,10 @@ internal static class CatalogAdministrationEndpoints
             if (profile.Role != EmployeeRole.Administrator) return AdministratorRequired();
             if (request.Move && (request.Source.SystemType.HasValue || request.Destination.SystemType.HasValue))
             {
-                if (profile.MustChangePassword) return PasswordChangeRequired();
-                var administrator = await accounts.VerifyAdministratorPasswordAsync(
-                    request.AdministratorPassword ?? string.Empty, cancellationToken);
-                if (administrator is null) return AdministratorPasswordRequired();
+                var confirmation = await ConfirmAdministratorAsync(
+                    context, profile, request.AdministratorPassword ?? string.Empty,
+                    accounts, cancellationToken);
+                if (confirmation is not null) return confirmation;
             }
 
             var result = await service.TransferPositionAsync(
@@ -244,14 +244,38 @@ internal static class CatalogAdministrationEndpoints
     private static async Task<EmployeeProfile?> AuthorizeAsync(
         HttpContext context, IAccountService accounts, CancellationToken cancellationToken)
     {
+        var token = GetBearerToken(context);
+        return token is null ? null : await accounts.GetProfileAsync(token, cancellationToken);
+    }
+
+    private static async Task<IResult?> ConfirmAdministratorAsync(
+        HttpContext context,
+        EmployeeProfile profile,
+        string password,
+        IAccountService accounts,
+        CancellationToken cancellationToken)
+    {
+        if (profile.Role != EmployeeRole.Administrator) return AdministratorRequired();
+        if (profile.MustChangePassword) return PasswordChangeRequired();
+
+        var token = GetBearerToken(context);
+        return token is not null && await accounts.VerifyAdministratorPasswordAsync(
+            token, password, cancellationToken)
+            ? null
+            : AdministratorPasswordRequired();
+    }
+
+    private static string? GetBearerToken(HttpContext context)
+    {
         var header = context.Request.Headers.Authorization.ToString();
         const string prefix = "Bearer ";
-        if (!header.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return null;
-        return await accounts.GetProfileAsync(header[prefix.Length..].Trim(), cancellationToken);
+        return header.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+            ? header[prefix.Length..].Trim()
+            : null;
     }
 
     private static IResult AdministratorPasswordRequired() => Results.Json(
-        new { error = "Недостаточно прав: требуется пароль администратора." },
+        new { error = "Неверный пароль текущего администратора." },
         statusCode: StatusCodes.Status403Forbidden);
 
     private static IResult PasswordChangeRequired() => Results.Json(

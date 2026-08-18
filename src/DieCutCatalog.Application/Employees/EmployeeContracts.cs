@@ -114,7 +114,8 @@ public interface IAccountService
         string accessToken,
         string password,
         CancellationToken cancellationToken = default);
-    Task<EmployeeProfile?> VerifyAdministratorPasswordAsync(
+    Task<bool> VerifyAdministratorPasswordAsync(
+        string accessToken,
         string password,
         CancellationToken cancellationToken = default);
 

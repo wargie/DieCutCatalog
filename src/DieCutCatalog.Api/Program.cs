@@ -171,11 +171,13 @@ app.MapPost("/api/employees/directory", async (
     IAccountService accounts,
     CancellationToken cancellationToken) =>
 {
+    var token = GetBearerToken(context);
     var authorization = await GetReadyProfileAsync(
-        accounts, GetBearerToken(context), cancellationToken);
+        accounts, token, cancellationToken);
     if (authorization.Error is not null) return authorization.Error;
-    var administrator = await accounts.VerifyAdministratorPasswordAsync(request.Password, cancellationToken);
-    if (administrator is null) return AdministratorPasswordRequired();
+    if (authorization.Profile!.Role != EmployeeRole.Administrator) return AdministratorRequired();
+    if (!await accounts.VerifyAdministratorPasswordAsync(
+            token!, request.Password, cancellationToken)) return AdministratorPasswordRequired();
     return Results.Ok(await accounts.GetEmployeeDirectoryAsync(cancellationToken));
 })
 .RequireRateLimiting("auth");
@@ -212,11 +214,13 @@ app.MapDelete("/api/employees/{employeeId:guid}", async (
     IAccountService accounts,
     CancellationToken cancellationToken) =>
 {
+    var token = GetBearerToken(context);
     var authorization = await GetReadyProfileAsync(
-        accounts, GetBearerToken(context), cancellationToken);
+        accounts, token, cancellationToken);
     if (authorization.Error is not null) return authorization.Error;
-    var administrator = await accounts.VerifyAdministratorPasswordAsync(request.Password, cancellationToken);
-    if (administrator is null) return AdministratorPasswordRequired();
+    if (authorization.Profile!.Role != EmployeeRole.Administrator) return AdministratorRequired();
+    if (!await accounts.VerifyAdministratorPasswordAsync(
+            token!, request.Password, cancellationToken)) return AdministratorPasswordRequired();
     var employee = await accounts.DeactivateEmployeeAsync(
         employeeId, authorization.Profile!.Id, cancellationToken);
     return employee is null ? Results.NotFound() : Results.Ok(employee);
@@ -375,7 +379,10 @@ await using (var scope = app.Services.CreateAsyncScope())
 app.Run();
 
 static IResult AdministratorPasswordRequired() => Results.Json(
-    new { error = "Недостаточно прав: требуется пароль администратора." },
+    new { error = "Неверный пароль текущего администратора." },
+    statusCode: StatusCodes.Status403Forbidden);
+static IResult AdministratorRequired() => Results.Json(
+    new { error = "Недостаточно прав: операция доступна только администратору." },
     statusCode: StatusCodes.Status403Forbidden);
 static string? GetBearerToken(HttpContext context)
 {

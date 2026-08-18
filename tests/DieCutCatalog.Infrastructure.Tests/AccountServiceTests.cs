@@ -119,7 +119,7 @@ public sealed class AccountServiceTests
     }
 
     [Fact]
-    public async Task VerifyAdministratorPassword_RejectsOperatorAndAcceptsAdministrator()
+    public async Task VerifyAdministratorPassword_RequiresCurrentAdministratorAndOwnPassword()
     {
         await using var fixture = CreateFixture();
         var employee = new Employee
@@ -144,14 +144,34 @@ public sealed class AccountServiceTests
         };
         administrator.PasswordHash = fixture.PasswordHasher.HashPassword(administrator, "Admin!2026");
 
-        fixture.DbContext.Employees.AddRange(employee, administrator);
+        var otherAdministrator = new Employee
+        {
+            Email = "other-admin@example.com",
+            NormalizedEmail = "OTHER-ADMIN@EXAMPLE.COM",
+            FirstName = "Other",
+            LastName = "Admin",
+            Role = EmployeeRole.Administrator,
+            MustChangePassword = false
+        };
+        otherAdministrator.PasswordHash = fixture.PasswordHasher.HashPassword(
+            otherAdministrator, "OtherAdmin!2026");
+
+        fixture.DbContext.Employees.AddRange(employee, administrator, otherAdministrator);
         await fixture.DbContext.SaveChangesAsync();
 
-        Assert.Null(await fixture.Service.VerifyAdministratorPasswordAsync("Employee!2026"));
-        var verified = await fixture.Service.VerifyAdministratorPasswordAsync("Admin!2026");
-        Assert.NotNull(verified);
-        Assert.Equal(administrator.Id, verified.Id);
-        Assert.Equal(EmployeeRole.Administrator, verified.Role);
+        var operatorLogin = await fixture.Service.LoginAsync(
+            new LoginCommand(employee.Email, "Employee!2026"));
+        var administratorLogin = await fixture.Service.LoginAsync(
+            new LoginCommand(administrator.Email, "Admin!2026"));
+
+        Assert.NotNull(operatorLogin);
+        Assert.NotNull(administratorLogin);
+        Assert.False(await fixture.Service.VerifyAdministratorPasswordAsync(
+            operatorLogin.AccessToken, "Admin!2026"));
+        Assert.False(await fixture.Service.VerifyAdministratorPasswordAsync(
+            administratorLogin.AccessToken, "OtherAdmin!2026"));
+        Assert.True(await fixture.Service.VerifyAdministratorPasswordAsync(
+            administratorLogin.AccessToken, "Admin!2026"));
     }
     [Fact]
     public async Task EmployeeActivity_SummarizesKnifeWork()
