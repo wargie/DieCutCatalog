@@ -21,13 +21,13 @@
 3. Опубликуйте архив на сервере:
 
 ```powershell
-./scripts/Build-ClientRelease.ps1 -Version 1.9.0
+./scripts/Build-ClientRelease.ps1 -Version 1.9.1
 
 ./scripts/Publish-ClientUpdate.ps1 `
-  -Version 1.9.0 `
-  -PackagePath ./artifacts/release/DieCutCatalog-1.9.0-win-x64.zip `
-  -ReleaseName "DieCut Catalog 1.9.0" `
-  -Notes "Справочники по группам, CSV-импорт, карточки-статьи и контекстные операции"
+  -Version 1.9.1 `
+  -PackagePath ./artifacts/release/DieCutCatalog-1.9.1-win-x64.zip `
+  -ReleaseName "DieCut Catalog 1.9.1" `
+  -Notes "Две роли: оператор и администратор; единая матрица прав"
 ```
 
 Скрипт вычисляет SHA-256, загружает архив и только после успешной загрузки атомарно заменяет `latest.json`. Поэтому клиент не увидит незавершённую публикацию.

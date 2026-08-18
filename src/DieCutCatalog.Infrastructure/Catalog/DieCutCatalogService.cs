@@ -98,7 +98,7 @@ public sealed class DieCutCatalogService(CatalogDbContext dbContext) : IDieCutCa
         if (dieCut.Status is DieCutStatus.Retired or DieCutStatus.Deleted)
             throw new ValidationException("Списанный или удалённый нож нельзя изменять.");
         if (command.Status is DieCutStatus.Retired or DieCutStatus.Deleted)
-            throw new ValidationException("Используйте защищённую операцию и подтвердите её паролем суперпользователя.");
+            throw new ValidationException("Используйте защищённую операцию и подтвердите её паролем администратора.");
 
         var references = await ResolveReferencesAsync(command, cancellationToken);
         var equipment = references.Equipment;

@@ -98,7 +98,7 @@ public partial class EmployeesView : UserControl
         EmployeeContactsText.Text = string.IsNullOrWhiteSpace(employee.AdditionalContacts)
             ? "Дополнительные контакты не указаны"
             : employee.AdditionalContacts;
-        EmployeeRoleText.Text = employee.Role == EmployeeRole.Administrator ? "Администратор" : "Сотрудник";
+        EmployeeRoleText.Text = employee.Role == EmployeeRole.Administrator ? "Администратор" : "Оператор";
         DeleteEmployeeButton.IsEnabled = employee.IsActive;
         EmployeeStateText.Text = employee.IsActive
             ? employee.MustChangePassword ? "Требуется смена временного пароля" : "Учётная запись активна"

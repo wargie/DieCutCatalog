@@ -238,7 +238,7 @@ internal static class DieCutEndpoints
 
     private static IResult AdministratorPasswordRequired() =>
         Results.Json(
-            new { error = "Недостаточно прав: требуется пароль суперпользователя." },
+            new { error = "Недостаточно прав: требуется пароль администратора." },
             statusCode: StatusCodes.Status403Forbidden);
 }
 

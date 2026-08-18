@@ -7,7 +7,7 @@ public sealed class Employee
     public string NormalizedEmail { get; set; } = string.Empty;
     public string PasswordHash { get; set; } = string.Empty;
     public bool MustChangePassword { get; set; } = true;
-    public EmployeeRole Role { get; set; } = EmployeeRole.Employee;
+    public EmployeeRole Role { get; set; } = EmployeeRole.Operator;
     public bool IsActive { get; set; } = true;
 
     public string FirstName { get; set; } = string.Empty;

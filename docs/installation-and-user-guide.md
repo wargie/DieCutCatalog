@@ -298,6 +298,13 @@ Production-адрес `https://diecutcatalog.duckdns.org` уже встроен 
 ![Раздел сотрудника](images/employee.png)
 
 Администратор создаёт сотрудника по электронной почте. Сервер отправляет временный пароль через SMTP. В профиле можно изменить имя, должность, телефон, контакты, фото, электронную почту и пароль. Поддерживаются JPEG, PNG, WebP до 5 МБ.
+
+В системе доступны только две роли:
+
+- **Оператор** — просмотр каталога и журналов, ввод тиража или пробега, создание и редактирование карточек, загрузка и генерация PDF;
+- **Администратор** — все права оператора, а также изменение справочников, импорт Excel, управление сотрудниками и выполнение операций **Danger Zone**.
+
+Отдельных ролей технолога и пользователя только для просмотра нет. Опасные операции и доступ к справочнику сотрудников дополнительно подтверждаются паролем администратора.
 ## Резервное копирование
 
 Резервировать нужно PostgreSQL и PDF-хранилище.
@@ -377,8 +384,8 @@ docker compose -f compose.production.yaml up -d --force-recreate api
 ## Ссылки
 
 - Репозиторий: [github.com/wargie/DieCutCatalog](https://github.com/wargie/DieCutCatalog)
-- Актуальный Windows-релиз: [DieCut Catalog 1.9.0](https://github.com/wargie/DieCutCatalog/releases/tag/v1.9.0)
-- Скачать Windows-клиент: [DieCutCatalog-1.9.0-win-x64.zip](https://github.com/wargie/DieCutCatalog/releases/download/v1.9.0/DieCutCatalog-1.9.0-win-x64.zip)
+- Актуальный Windows-релиз: [DieCut Catalog 1.9.1](https://github.com/wargie/DieCutCatalog/releases/tag/v1.9.1)
+- Скачать Windows-клиент: [DieCutCatalog-1.9.1-win-x64.zip](https://github.com/wargie/DieCutCatalog/releases/download/v1.9.1/DieCutCatalog-1.9.1-win-x64.zip)
 - Рабочий сервер: [diecutcatalog.duckdns.org](https://diecutcatalog.duckdns.org)
 - Docker Engine: https://docs.docker.com/engine/install/ubuntu/
 - Docker Compose: https://docs.docker.com/compose/install/linux/

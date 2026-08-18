@@ -228,7 +228,7 @@ internal static class CatalogAdministrationEndpoints
     }
 
     private static IResult AdministratorPasswordRequired() => Results.Json(
-        new { error = "Недостаточно прав: требуется пароль суперпользователя." },
+        new { error = "Недостаточно прав: требуется пароль администратора." },
         statusCode: StatusCodes.Status403Forbidden);
 
     private static IResult PasswordChangeRequired() => Results.Json(

@@ -198,7 +198,7 @@ app.MapPost("/api/employees", async (
             request.LastName,
             request.Position,
             request.Phone,
-            request.IsAdministrator ? EmployeeRole.Administrator : EmployeeRole.Employee),
+            request.IsAdministrator ? EmployeeRole.Administrator : EmployeeRole.Operator),
         cancellationToken);
 
     return Results.Created($"/api/employees/{result.Profile.Id}", result);
@@ -375,7 +375,7 @@ await using (var scope = app.Services.CreateAsyncScope())
 app.Run();
 
 static IResult AdministratorPasswordRequired() => Results.Json(
-    new { error = "Недостаточно прав: требуется пароль суперпользователя." },
+    new { error = "Недостаточно прав: требуется пароль администратора." },
     statusCode: StatusCodes.Status403Forbidden);
 static string? GetBearerToken(HttpContext context)
 {

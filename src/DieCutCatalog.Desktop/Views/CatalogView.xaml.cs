@@ -630,7 +630,7 @@ public partial class CatalogView : UserControl
         if (_api is null || _editingId is null) return;
         var dialog = new PasswordConfirmationWindow(
             "Удалить нож",
-            "Нож будет удалён из каталога. История операций и PDF-чертежи останутся в архиве. Действие подтверждается паролем суперпользователя.",
+            "Нож будет удалён из каталога. История операций и PDF-чертежи останутся в архиве. Действие подтверждается паролем администратора.",
             "Удалить нож")
         {
             Owner = Window.GetWindow(this)

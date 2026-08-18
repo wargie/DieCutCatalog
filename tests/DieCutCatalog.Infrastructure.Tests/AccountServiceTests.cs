@@ -119,7 +119,7 @@ public sealed class AccountServiceTests
     }
 
     [Fact]
-    public async Task VerifyAdministratorPassword_RejectsEmployeeAndAcceptsAdministrator()
+    public async Task VerifyAdministratorPassword_RejectsOperatorAndAcceptsAdministrator()
     {
         await using var fixture = CreateFixture();
         var employee = new Employee
@@ -128,7 +128,7 @@ public sealed class AccountServiceTests
             NormalizedEmail = "OPERATOR@EXAMPLE.COM",
             FirstName = "Operator",
             LastName = "User",
-            Role = EmployeeRole.Employee,
+            Role = EmployeeRole.Operator,
             MustChangePassword = false
         };
         employee.PasswordHash = fixture.PasswordHasher.HashPassword(employee, "Employee!2026");
@@ -226,7 +226,7 @@ public sealed class AccountServiceTests
         "Петров",
         "Оператор",
         "+7 000 000-00-00",
-        EmployeeRole.Employee);
+        EmployeeRole.Operator);
 
     private static TestFixture CreateFixture(bool emailShouldFail = false)
     {
